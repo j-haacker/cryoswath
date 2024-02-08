@@ -20,6 +20,7 @@ cryoswath builds on a number of other packages. See [requirements.txt](https://g
 
 ### Missing dependencies
 
+- the reference elevation model is not provided
 - the RGI data are not automatically downloaded
 
 ### Limitations
