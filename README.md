@@ -8,11 +8,27 @@ Currently, it is in the pre-beta phase. main contains those parts that I believe
 
 ## 🚀 Features
 
-:check: 
+- find all CryoSat-2 tracks passing over your region of interest
+- download L1b data from ESA
+- retrieve swath elevation estimates
 
 ## ⬆️ Dependencies
 
 cryoswath builds on a number of other packages. See [requirements.txt](https://github.com/j-haacker/cryoswath/main/requirements.txt).
+
+## 🐛 Known issues
+
+### Missing dependencies
+
+- the RGI data are not automatically downloaded
+
+### Limitations
+
+- only working for the Arctic at the moment (hard coded CRS)
+
+### other issues
+
+- paths (partly) only for UNIX systems
 
 ## 🎯 What's coming
 
