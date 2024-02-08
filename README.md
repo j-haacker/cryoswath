@@ -14,7 +14,7 @@ Currently, it is in the pre-beta phase. main contains those parts that I believe
 
 ## ⬆️ Dependencies
 
-cryoswath builds on a number of other packages. See [requirements.txt](https://github.com/j-haacker/cryoswath/main/requirements.txt).
+cryoswath builds on a number of other packages. See [requirements.txt](https://github.com/j-haacker/cryoswath/blob/main/requirements.txt).
 
 ## 🐛 Known issues
 
@@ -35,7 +35,7 @@ cryoswath builds on a number of other packages. See [requirements.txt](https://g
 
 - pipeline building gridded change rates
 
-Further: See [wish-list.md](https://github.com/j-haacker/cryoswath/main/wish-list.md).
+Further: See [wish-list.md](https://github.com/j-haacker/cryoswath/blob/main/wish-list.md).
 
 ## 📃 Citation
 
@@ -52,4 +52,4 @@ Further: See [wish-list.md](https://github.com/j-haacker/cryoswath/main/wish-lis
 
 ## License
 
-MIT. See [LICENSE.txt](https://github.com/j-haacker/cryoswath/main/LICENSE.txt).
+MIT. See [LICENSE.txt](https://github.com/j-haacker/cryoswath/blob/main/LICENSE.txt).
