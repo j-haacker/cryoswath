@@ -1,0 +1,14 @@
+## cryoswath dependencies #############################################
+defusedxml # will be optional in future. used for additional security
+geopandas # implies among others: shapely
+matplotlib
+netCDF4
+# numbagg # for numpy: for exponential rolling window operations
+rioxarry # implies among others: rasterio
+scipy
+
+## cryoswath optional #################################################
+# bottleneck # for numpy:speeds up NaN-skipping and rolling window aggregations by a large factor
+# cartopy
+dask
+# flox??
