@@ -1,10 +1,12 @@
 import geopandas as gpd
 import numpy as np
+import os
+import pandas as pd
 from pyproj import Transformer
 from pyproj.crs import CRS
 import shapely
 
-from misc import *
+from .misc import *
 
 # ! tbi:
 rgi_o1_epsg_dict = dict()
@@ -39,10 +41,10 @@ def get_lon_origin(crs):
 def get_4326_to_dem_Transformer(dem):
     return Transformer.from_crs("EPSG:4326", ensure_pyproj_crs(dem.crs))
 
-def points_on_glacier(points: gpd.GeoSeries):
-    # ! implement finding RGI region
-    glacier_shp_filename = "../../2022__Novaya_Zemlya/data/shape_files/RGI60_glaciers__Nowaya_Zemlya.shp"
-    buffered_glaciered_area_polygon = gpd.read_file(glacier_shp_filename)
+def points_on_glacier(points: gpd.GeoSeries) -> pd.Index:
+    o2regions = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
+    o2code = o2regions[o2regions.geometry.contains(shapely.box(*points.total_bounds))]["o2region"].values[0]
+    buffered_glaciered_area_polygon = load_o2region(o2code)
     buffered_glaciered_area_polygon = gpd.GeoSeries(buffered_glaciered_area_polygon.unary_union,
                                                      # ! the buffering below works only for the arctic
                                                      crs=buffered_glaciered_area_polygon.crs)\
