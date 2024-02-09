@@ -206,8 +206,10 @@ def load_o2region(o2code: str) -> gpd.GeoDataFrame:
 
 
 # make contents accessible
-__all__ = ["aux_path", "cs_ground_tracks_path", "rgi_path", "dem_path", # paths
-           "WGS84_ellpsoid", "antenna_baseline", "Ku_band_freq", "sample_width", # vars
-           "cs_id_to_time", "cs_time_to_id", "find_region_id", "flag_translator", # funcs
-           "gauss_filter_DataArray", "load_cs_full_file_names",
+__all__ = ["aux_path", "data_path", "dem_path", "cs_ground_tracks_path", "rgi_path", # paths ..........................
+           "WGS84_ellpsoid", "antenna_baseline", "Ku_band_freq", "sample_width",     # vars ...........................
+           "speed_of_light",
+           "cs_id_to_time", "cs_time_to_id", "find_region_id", "flag_translator",    # funcs ..........................
+           "gauss_filter_DataArray", "load_cs_full_file_names", "load_cs_ground_tracks", "load_o1region",
+           "load_o2region",
            ]
