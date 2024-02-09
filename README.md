@@ -59,7 +59,7 @@ You can cite this package using bibtex:
 Please mind that you likely used other resources on the way.
 
 - ESA provides the L1b data under [these Terms and Conditions](https://github.com/j-haacker/cryoswath/blob/main/data/L1b/Terms-and-Conditions-for-the-use-of-ESA-Data.pdf)
-- RGI data is distributed under [CC-BY-4.0 license](https://github.com/j-haacker/cryoswath/blob/main/data/auxiliary/RGI/LICENSE.txt)
+- RGI data is distributed under [CC-BY-4.0 license](https://creativecommons.org/licenses/by/4.0/)
 - if you (likely) used DEMs of the PGC, see their [Acknowledgement Policy](https://www.pgc.umn.edu/guides/user-services/acknowledgement-policy/)
 
 ## 🧾 license
