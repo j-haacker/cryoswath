@@ -1,3 +1,4 @@
+import configparser
 import fnmatch
 import ftplib
 import geopandas as gpd
@@ -8,11 +9,31 @@ import rasterio as rio
 import rioxarray as rioxr
 from scipy.spatial.transform import Rotation
 import shapely
-import shutil
 import xarray as xr
 
-import gis
-from misc import *
+from . import gis
+from .misc import *
+
+
+config = configparser.ConfigParser()
+config_path = os.path.join(os.path.dirname(__file__), "config.ini")
+if os.path.isfile(config_path):
+    config.read(config_path)
+try:
+    personal_email = config["personal"]["personal_email"]
+except:
+    print("ESA asks to use one's email as password when downloading data via ftp. Please provide it.")
+    response = None
+    while response != "y":
+        personal_email = input("Your email:")
+        response = input(f"Is your email \"{personal_email}\" spelled correctly? (y/n)",).lower()[0]
+    if "personal" in config:
+        config["personal"]["personal_email"] = personal_email
+    else:
+        config["personal"] = {"personal_email": personal_email}
+    with open(config_path, "w") as config_file:
+        config.write(config_file)
+    print(f"Thanks. You can change your email in {config_path} manually.")
 
 # requires implicitly rasterio(?), flox(?), dask(?)
 
@@ -312,7 +333,7 @@ def download_files(region_of_interest: shapely.Polygon, # buffered region in 432
             os.makedirs("../data/L1b/"+period.strftime("%Y/%m"))
             currently_present_files = []
         with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
-            ftp.login(passwd="your@email.address")
+            ftp.login(passwd=personal_email)
             ftp.cwd("/SIR_SIN_L1/"+period.strftime("%Y/%m"))
             for remote_file in ftp.nlst():
                 if remote_file[-3:] == ".nc" \
@@ -333,7 +354,7 @@ def download_files(region_of_interest: shapely.Polygon, # buffered region in 432
 def download_single_file(track_id: str) -> str:
     # currently only CryoSat-2
     with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
-        ftp.login(passwd="your@email.address")
+        ftp.login(passwd=personal_email)
         ftp.cwd("/SIR_SIN_L1/"+pd.to_datetime(track_id).strftime("%Y/%m"))
         for remote_file in ftp.nlst():
             if remote_file[-3:] == ".nc" \
