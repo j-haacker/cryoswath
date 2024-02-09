@@ -156,6 +156,11 @@ def load_cs_full_file_names(update: bool = False) -> pd.Series:
         file_names.to_pickle(file_names_path)
 
 
+def load_cs_ground_tracks() -> gpd.GeoDataFrame:
+    cs_tracks = gpd.read_feather(cs_ground_tracks_path).set_index("index").sort_index()
+    cs_tracks.index = pd.to_datetime(cs_tracks.index)
+    return cs_tracks.set_crs(4326)
+
 # make contents accessible
 __all__ = ["aux_path", "cs_ground_tracks_path", "rgi_path", "dem_path", # paths
            "WGS84_ellpsoid", "antenna_baseline", "Ku_band_freq", "sample_width", # vars

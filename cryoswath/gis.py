@@ -48,8 +48,3 @@ def points_on_glacier(points: gpd.GeoSeries):
                                                      crs=buffered_glaciered_area_polygon.crs)\
                                                          .to_crs(3413).buffer(30000).simplify(1000).to_crs(4326)
     return points[points.within(buffered_glaciered_area_polygon[0])].index
-
-def load_cs_ground_tracks():
-    cs_tracks = gpd.read_feather(cs_ground_tracks_path).set_index("index").sort_index()
-    cs_tracks.index = pd.to_datetime(cs_tracks.index)
-    return cs_tracks.set_crs(4326)
