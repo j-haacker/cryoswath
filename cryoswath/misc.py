@@ -11,7 +11,7 @@ import warnings
 import xarray as xr
 
 ## Paths ##############################################################
-aux_path = os.path.join("..", "data", "auxiliary")
+aux_path = os.path.join(os.path.dirname(__file__), "..", "data", "auxiliary")
 cs_ground_tracks_path = os.path.join(aux_path, "CryoSat-2_SARIn_ground_tracks.feather")
 rgi_path = os.path.join(aux_path, "RGI")
 dem_path = os.path.join(aux_path, "DEM")
@@ -27,14 +27,14 @@ Ku_band_freq = 13.575e9
 sample_width = speed_of_light/(320e6*2)/2
 
 ## Functions ##########################################################
+
 def cs_id_to_time(cs_id: str) -> pd.Timestamp:
     return pd.to_datetime(cs_id, format="%Y%m%dT%H%M%S")
+
 
 def cs_time_to_id(time: pd.Timestamp) -> str:
     return time.strftime("%Y%m%dT%H%M%S")
 
-def datetime_to_cs_id(cs_id: str) -> pd.Timestamp:
-    return pd.to_datetime(cs_id, format="%Y%m%dT%H%M%S")
 
 def find_region_id(region_outlines: shapely.Polygon|shapely.MultiPolygon|gpd.GeoSeries|gpd.GeoDataFrame):
     if isinstance(region_outlines, gpd.GeoDataFrame):
@@ -42,10 +42,11 @@ def find_region_id(region_outlines: shapely.Polygon|shapely.MultiPolygon|gpd.Geo
     if isinstance(region_outlines, gpd.GeoSeries):
         region_outlines = region_outlines.to_crs(4326).unary_union
     rgi_o2_gpdf = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
-    return rgi_o2_gpdf[rgi_o2_gpdf.contains(region_outlines.centroid)]["long_code"].values
+    return rgi_o2_gpdf[rgi_o2_gpdf.contains(region_outlines.centroid)]["long_code"].values[0]
     # ! tbi: if only small region/one glacier, make get its
     # to_planar = Transformer.from_crs(CRS.from_epsg(4326), CRS.from_epsg(3413))
     # if shapely.ops.transform(to_planar.transform, region_outlines).area > 
+
 
 def flag_translator(cs_l1b_flag):
     """Retrieves the meaning of a flag from the attributes.
@@ -83,6 +84,7 @@ def flag_translator(cs_l1b_flag):
                                     index=cs_l1b_flag.attrs["flag_values"])
         return flag_dictionary.loc[int(cs_l1b_flag.values)]
 
+
 def gauss_filter_DataArray(da, dim, window_extent, std):
     # force window_extent to be uneven to ensure center to be where expected
     half_window_extent = window_extent//2
@@ -93,6 +95,7 @@ def gauss_filter_DataArray(da, dim, window_extent, std):
         return helper/np.abs(helper)
     else:
         return da.rolling({dim: window_extent}, center=True).construct("window_dim").dot(gauss_weights)
+
 
 def load_cs_full_file_names(update: bool = False) -> pd.Series:
     file_names_path = os.path.join(aux_path, "CryoSat-2_SARIn_file_names.pkl")
@@ -151,3 +154,11 @@ def load_cs_full_file_names(update: bool = False) -> pd.Series:
                         raise
                     warnings.warn(f"Error occurred in remote directory /SIR_SIN_L1/{year}/{month}.")
         file_names.to_pickle(file_names_path)
+
+
+# make contents accessible
+__all__ = ["aux_path", "cs_ground_tracks_path", "rgi_path", "dem_path", # paths
+           "WGS84_ellpsoid", "antenna_baseline", "Ku_band_freq", "sample_width", # vars
+           "cs_id_to_time", "cs_time_to_id", "find_region_id", "flag_translator", # funcs
+           "gauss_filter_DataArray", "load_cs_full_file_names",
+           ]
