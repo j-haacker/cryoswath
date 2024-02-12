@@ -15,6 +15,7 @@ risk.
 - find all CryoSat-2 tracks passing over your region of interest
 - download L1b data from ESA
 - retrieve swath elevation estimates
+- aggregate point data to gridded data
 
 ## dependencies
 
