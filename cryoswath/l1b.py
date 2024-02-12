@@ -367,7 +367,7 @@ def download_files(region_of_interest: shapely.Polygon, # buffered region in 432
                 and remote_file not in currently_present_files:
                     local_path = os.path.join(["../data/L1b/", period.strftime("%Y/%m"), remote_file])
                     try:
-                        with open(local_path, "w+") \
+                        with open(local_path, "wb") \
                         as local_file:
                             print("___\ndownloading "+remote_file)
                             ftp.retrbinary("RETR "+remote_file, local_file.write)
@@ -390,7 +390,7 @@ def download_single_file(track_id: str) -> str:
                     os.makedirs(local_path)
                 local_path = os.path.join(local_path, remote_file)
                 try:
-                    with open(local_path, "w+") as local_file:
+                    with open(local_path, "wb") as local_file:
                         print("___\ndownloading "+remote_file)
                         ftp.retrbinary("RETR "+remote_file, local_file.write)
                         print("done")
