@@ -8,9 +8,9 @@ from pyproj.transformer import Transformer
 import shapely
 import xarray as xr
 
-import gis
-import l2
-from misc import *
+from . import gis
+from . import l2
+from .misc import *
 
 class l3_data(xr.Dataset):
     def __init__(self, rgi_long_code, spatial_res_meter):
