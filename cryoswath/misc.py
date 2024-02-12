@@ -4,6 +4,7 @@ import numpy as np
 import os
 import pandas as pd
 from pyproj import Geod
+import rasterio
 import re
 import requests
 from scipy.constants import speed_of_light
