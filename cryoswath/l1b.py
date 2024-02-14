@@ -317,8 +317,8 @@ def build_flag_mask(cs_l1b_flag: xr.DataArray, black_list: list = [], white_list
         flag_dictionary = pd.Series(data=cs_l1b_flag.attrs["flag_meanings"].split(" "),
                                     index=np.log2(np.abs(cs_l1b_flag.attrs["flag_masks"].astype("int64")
                                                         )).astype("int")).sort_index()
-        def flag_func(int_code):
-            for i, b in enumerate(reversed(bin(int(int_code))[2:])):
+        def flag_func(int_code: int) -> bool:
+            for i, b in enumerate(reversed(bin(int_code)[2:])):
                 if b == "0": continue
                 try:
                     if flag_dictionary.loc[i] in black_list:
@@ -326,14 +326,15 @@ def build_flag_mask(cs_l1b_flag: xr.DataArray, black_list: list = [], white_list
                 except KeyError:
                     raise("Flag not found in attributes! Pointing to a bug or an issue in the data.")
             return False
+    # ! below needs a revision: what should be returned?
     elif "flag_values" in cs_l1b_flag.attrs and white_list != "" and mode == "white_list":
         flag_dictionary = pd.Series(data=cs_l1b_flag.attrs["flag_meanings"].split(" "),
                                     index=cs_l1b_flag.attrs["flag_values"])
-        def flag_func(int_code):
-            return flag_dictionary.loc[int(int_code)]
+        def flag_func(int_code: int):
+            return flag_dictionary.loc[int_code]
     else:
         raise(NotImplementedError)
-    return xr.apply_ufunc(flag_func, cs_l1b_flag, vectorize=True)
+    return xr.apply_ufunc(np.vectorize(flag_func), cs_l1b_flag.astype(int), dask="allowed")
 
 def download_files(region_of_interest: shapely.Polygon, # buffered region in 4326
                     start_datetime: str = "2010-10-10",
