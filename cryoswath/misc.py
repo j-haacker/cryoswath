@@ -129,7 +129,8 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
     # else:
     #     lat = data.lat_20_ku
     # if lat
-    return rasterio.open(os.path.join(dem_path, "09-02_novaya_zemlya.tif"))
+    # return rasterio.open(os.path.join(dem_path, "09-02_novaya_zemlya.tif"))
+    return rasterio.open(os.path.join(dem_path, "arcticdem_mosaic_100m_v4.1_dem.tif"))
 
 
 def load_cs_full_file_names(update: bool = False) -> pd.Series:
