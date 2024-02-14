@@ -120,9 +120,8 @@ class l1b_data(xr.Dataset):
         if not "xph_lats" in self.data_vars:
             self = self.locate_ambiguous_origin()
         # ! tbi: auto download ref dem if not present
-        dem_reader = rio.open(os.path.join(dem_path, self.get_rgi_o2()+".tif"), "r")
-        trans_4326_to_dem_crs = Transformer.from_crs('EPSG:4326', dem_reader.crs)
-        with rioxr.open_rasterio(dem_reader) as ref_dem:
+        with get_dem_reader() as dem_reader:
+            trans_4326_to_dem_crs = Transformer.from_crs('EPSG:4326', dem_reader.crs)
             x, y = trans_4326_to_dem_crs.transform(self.xph_lats, self.xph_lons)
             self = self.assign(xph_x=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), x), 
                                xph_y=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), y))
