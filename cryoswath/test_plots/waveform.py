@@ -5,6 +5,8 @@ from ..l1b import *
 from ..gis import *
 from ..misc import *
 
+__all__ = ["dem_transect"]
+
 def dem_transect(waveform):
     ax = plt.subplots()[1]
     dem_reader = get_dem_reader(waveform)
