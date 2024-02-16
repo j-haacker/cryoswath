@@ -57,6 +57,9 @@ def build_dataset(region_of_interest: shapely.Polygon,
                   timestep: relativedelta = relativedelta(months=1),
                   spatial_res_meter: float = 500,
                   **kwargs):
+    print("Building a gridded dataset of elevation estimates for the region",
+          f"{region_of_interest} from {start_datetime} to {end_datetime} for",
+          f"a rolling window of {aggregation_period} every {timestep}.")
     # if len(aggregation_period.kwds.keys()) != 1 \
     # or len(timestep.kwds.keys()) != 1 \
     # or list(aggregation_period.kwds.keys())[0] not in ["years", "months", "days"] \
@@ -67,6 +70,11 @@ def build_dataset(region_of_interest: shapely.Polygon,
     if isinstance(end_datetime, str):
         end_datetime = pd.to_datetime(end_datetime)
     cs_tracks = gis.load_cs_ground_tracks()
+    print("First and last available ground tracks are on",
+          f"{cs_tracks.index[0]} and {cs_tracks.index[-1]}, respectively.",
+          "Run update_cs_ground_tracks, optionally with `full=True` or",
+          "`incremental=True`, if you local ground tracks store is not up to",
+          "date. Consider pulling the latest version from the repository.")
     time_buffer = (aggregation_period-timestep)/2
     cs_tracks = cs_tracks.loc[start_datetime-time_buffer:end_datetime.normalize()+time_buffer+pd.offsets.Day(1)]
     if isinstance(region_of_interest, str) and re.match("[012][0-9]-[012][0-9]", region_of_interest):
@@ -79,6 +87,7 @@ def build_dataset(region_of_interest: shapely.Polygon,
     # I believe passing loading l2 data to the function prevents copying
     # on .drop. an alternative would be to define l2_data nonlocal
     # within the gridding function
+    print(f"Found {cs_tracks.shape[0]} tracks in the proximity for the time range.")
     l3_data =  med_mad_cnt_grid(l2.from_id(cs_tracks.index), start_datetime=start_datetime, end_datetime=end_datetime,
                                 aggregation_period=aggregation_period, timestep=timestep, spatial_res_meter=spatial_res_meter)
     l3_data.to_netcdf(build_path(region_of_interest, timestep, spatial_res_meter, aggregation_period))
