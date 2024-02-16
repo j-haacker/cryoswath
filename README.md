@@ -10,6 +10,9 @@ believe to work if used as intended and that have been tested to some
 extent. devel contains parts that I used successfully - use at your own
 risk.
 
+Check the [preliminary tutorial](https://github.com/j-haacker/cryoswath/blob/main/scripts/tutorial.ipynb)
+for some inspiration how to start off.
+
 ## 🚀 features
 
 - find all CryoSat-2 tracks passing over your region of interest
