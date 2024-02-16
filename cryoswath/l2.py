@@ -23,7 +23,7 @@ def from_id(track_idx: pd.DatetimeIndex|str,
     if track_idx.tz == None: track_idx.tz_localize("UTC")
     start_datetime, end_datetime = track_idx.sort_values()[[0,-1]]
     l2_list = []
-    for current_month in pd.date_range(start_datetime-pd.offsets.MonthBegin(1, normalize=True), end_datetime, freq="M"):
+    for current_month in pd.date_range(start_datetime+pd.offsets.MonthBegin(0, normalize=True), end_datetime, freq="MS"):
         current_L2_base_path = os.path.join("..", "data", "L2", current_month.strftime(f"%Y{os.path.sep}%m"))
         if os.path.isdir(current_L2_base_path):
             l2_paths = os.listdir(current_L2_base_path)
