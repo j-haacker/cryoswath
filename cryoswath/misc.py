@@ -237,11 +237,19 @@ def load_o2region(o2code: str) -> gpd.GeoDataFrame:
     return o1region[o1region["o2region"]==o2code]
 
 
+def load_basins(rgi_ids: list[str]) -> gpd.GeoDataFrame:
+    if len(rgi_ids) > 1:
+        assert(all([id[:17]==rgi_ids[0][:17]] for id in rgi_ids))
+    rgi_o1_gpdf = load_o1region(rgi_ids[0][15:17])
+    id_to_index_series = pd.Series(data=rgi_o1_gpdf.index, index=rgi_o1_gpdf.rgi_id)
+    return rgi_o1_gpdf.loc[id_to_index_series.loc[rgi_ids].values]
+
+
 # make contents accessible
 __all__ = ["aux_path", "data_path", "dem_path", "cs_ground_tracks_path", "rgi_path", # paths ..........................
            "WGS84_ellpsoid", "antenna_baseline", "Ku_band_freq", "sample_width",     # vars ...........................
            "speed_of_light",
            "cs_id_to_time", "cs_time_to_id", "find_region_id", "flag_translator",    # funcs ..........................
            "gauss_filter_DataArray", "get_dem_reader", "load_cs_full_file_names", 
-           "load_cs_ground_tracks", "load_o1region", "load_o2region",
-           ]
+           "load_cs_ground_tracks", "load_o1region", "load_o2region", "load_basins",
+          ]
