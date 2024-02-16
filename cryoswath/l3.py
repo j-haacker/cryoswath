@@ -79,11 +79,15 @@ def build_dataset(region_of_interest: shapely.Polygon,
     cs_tracks = cs_tracks.loc[start_datetime-time_buffer:end_datetime.normalize()+time_buffer+pd.offsets.Day(1)]
     if isinstance(region_of_interest, str) and re.match("[012][0-9]-[012][0-9]", region_of_interest):
         region_of_interest = load_o2region(region_of_interest).unary_union
+    if "buffer_by" not in locals():
+        # buffer_by defaults to 30 km to not miss any tracks. Usually,
+        # 10 km should do.
+        buffer_by = 30_000
     # find all tracks that intersect the buffered region of interest.
     # mind that this are calculations on a sphere. currently, the
     # polygon is transformed to ellipsoidal coordinates. not a 100 %
     # sure that this doesn't raise issues close to the poles.
-    cs_tracks = cs_tracks[cs_tracks.intersects(gis.buffer_4326_shp(region_of_interest, 30000))]
+    cs_tracks = cs_tracks[cs_tracks.intersects(gis.buffer_4326_shp(region_of_interest, buffer_by))]
     # I believe passing loading l2 data to the function prevents copying
     # on .drop. an alternative would be to define l2_data nonlocal
     # within the gridding function
