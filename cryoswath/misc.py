@@ -47,6 +47,7 @@ except:
     print(f"Thanks. You can change your email in {config_path} manually.")
 __all__.append("personal_email")
 
+
 ## Paths ##############################################################
 data_path = os.path.join(os.path.dirname(__file__), "..", "data")
 aux_path = os.path.join(data_path, "auxiliary")
