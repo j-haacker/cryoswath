@@ -109,7 +109,7 @@ def find_region_id(location: any, scope: str = "o2") -> str:
     elif scope == "o2":
         return rgi_region["o2region"].values[0]
     elif scope == "basin":
-        rgi_glacier_gpdf = load_o2region(rgi_region["o2region"].values[0])
+        rgi_glacier_gpdf = load_o2region(rgi_region["o2region"].values[0], "glaciers")
         return rgi_glacier_gpdf[rgi_glacier_gpdf.contains(location.centroid)]["rgi_id"].values[0]
     else:
         raise Exception("`scope` can be one of \"o1\", \"o2\", or \"basin\".")
