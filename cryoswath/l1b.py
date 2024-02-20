@@ -152,6 +152,7 @@ class l1b_data(xr.Dataset):
                 self["ph_idx"][wf][~self.group_id[wf].isnull()] \
                     = self.xph_elev_diffs[wf].groupby(self.group_id[wf]).map(
                         lambda x: x.ns_20_ku*0+np.abs(x.mean("ns_20_ku")).idxmin("phase_wrap_factor"))
+        return self
     __all__.append("append_best_fit_phase_index")
     
     def append_elev_diff_to_ref(self):
