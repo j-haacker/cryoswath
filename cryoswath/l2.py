@@ -82,8 +82,9 @@ __all__.append("limit_filter")
 
 
 def process_and_save(region_of_interest: str|shapely.Polygon,
-                     start_datetime: pd.Timestamp,
-                     end_datetime: pd.Timestamp):
+                     start_datetime: str|pd.Timestamp,
+                     end_datetime: str|pd.Timestamp):
+    start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
     cs_tracks = gis.load_cs_ground_tracks().loc[start_datetime:end_datetime]
     # find all tracks that intersect the buffered region of interest.
     # mind that this are calculations on a sphere. currently, the
