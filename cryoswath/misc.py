@@ -47,6 +47,7 @@ except:
     print(f"Thanks. You can change your email in {config_path} manually.")
 __all__.append("personal_email")
 
+
 ## Paths ##############################################################
 data_path = os.path.join(os.path.dirname(__file__), "..", "data")
 aux_path = os.path.join(data_path, "auxiliary")
@@ -229,9 +230,9 @@ def load_cs_full_file_names(update: str = "regular") -> pd.Series:
                 return file_names
 
 
-def load_cs_ground_tracks(region_of_interest: shapely.Polygon,
-                          start_datetime: pd.Timestamp,
-                          end_datetime: pd.Timestamp, *,
+def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
+                          start_datetime: str|pd.Timestamp = "2010",
+                          end_datetime: str|pd.Timestamp = "2100", *,
                           buffer_period_by: relativedelta = None,
                           buffer_region_by: float = None,
                           ) -> gpd.GeoDataFrame:
@@ -242,16 +243,17 @@ def load_cs_ground_tracks(region_of_interest: shapely.Polygon,
         start_datetime = start_datetime - buffer_period_by
         end_datetime = end_datetime + buffer_period_by
     cs_tracks = cs_tracks.loc[start_datetime:end_datetime+pd.offsets.Day(1)]
-    if isinstance(region_of_interest, str):
-        region_of_interest = load_glacier_outlines(region_of_interest)
-    if buffer_region_by is not None:
-        region_of_interest = gis.buffer_4326_shp(region_of_interest, buffer_region_by)
-    region_of_interest = gis.simplify_4326_shp(region_of_interest)
-    # find all tracks that intersect the buffered region of interest.
-    # mind that this are calculations on a sphere. currently, the
-    # polygon is transformed to ellipsoidal coordinates. not a 100 %
-    # sure that this doesn't raise issues close to the poles.
-    cs_tracks = cs_tracks[cs_tracks.intersects(region_of_interest)]
+    if region_of_interest is not None:
+        if isinstance(region_of_interest, str):
+            region_of_interest = load_glacier_outlines(region_of_interest)
+        if buffer_region_by is not None:
+            region_of_interest = gis.buffer_4326_shp(region_of_interest, buffer_region_by)
+        region_of_interest = gis.simplify_4326_shp(region_of_interest)
+        # find all tracks that intersect the buffered region of interest.
+        # mind that this are calculations on a sphere. currently, the
+        # polygon is transformed to ellipsoidal coordinates. not a 100 %
+        # sure that this doesn't raise issues close to the poles.
+        cs_tracks = cs_tracks[cs_tracks.intersects(region_of_interest)]
     return cs_tracks.set_crs(4326)
 
 
