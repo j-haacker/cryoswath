@@ -57,6 +57,7 @@ def build_dataset(region_of_interest: shapely.Polygon,
                   timestep: relativedelta = relativedelta(months=1),
                   spatial_res_meter: float = 500,
                   **kwargs):
+    start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
     print("Building a gridded dataset of elevation estimates for the region",
           f"{region_of_interest} from {start_datetime} to {end_datetime} for",
           f"a rolling window of {aggregation_period} every {timestep}.")
@@ -65,33 +66,22 @@ def build_dataset(region_of_interest: shapely.Polygon,
     # or list(aggregation_period.kwds.keys())[0] not in ["years", "months", "days"] \
     # or list(timestep.kwds.keys())[0] not in ["years", "months", "days"]:
     #     raise Exception("Only use one of years, months, days for agg_time and timestep.")
-    if isinstance(start_datetime, str):
-        start_datetime = pd.to_datetime(start_datetime)
-    if isinstance(end_datetime, str):
-        end_datetime = pd.to_datetime(end_datetime)
-    cs_tracks = gis.load_cs_ground_tracks()
-    print("First and last available ground tracks are on",
-          f"{cs_tracks.index[0]} and {cs_tracks.index[-1]}, respectively.",
-          "Run update_cs_ground_tracks, optionally with `full=True` or",
-          "`incremental=True`, if you local ground tracks store is not up to",
-          "date. Consider pulling the latest version from the repository.")
-    time_buffer = (aggregation_period-timestep)/2
-    cs_tracks = cs_tracks.loc[start_datetime-time_buffer:end_datetime.normalize()+time_buffer+pd.offsets.Day(1)]
-    if isinstance(region_of_interest, str) and re.match("[012][0-9]-[012][0-9]", region_of_interest):
-        region_of_interest = load_o2region(region_of_interest).unary_union
-    if "buffer_by" not in locals():
+    if "buffer_region_by" not in locals():
         # buffer_by defaults to 30 km to not miss any tracks. Usually,
         # 10 km should do.
-        buffer_by = 30_000
-    # find all tracks that intersect the buffered region of interest.
-    # mind that this are calculations on a sphere. currently, the
-    # polygon is transformed to ellipsoidal coordinates. not a 100 %
-    # sure that this doesn't raise issues close to the poles.
-    cs_tracks = cs_tracks[cs_tracks.intersects(gis.buffer_4326_shp(region_of_interest, buffer_by))]
+        buffer_region_by = 30_000
+    time_buffer = (aggregation_period-timestep)/2
+    cs_tracks = load_cs_ground_tracks(region_of_interest, start_datetime, end_datetime,
+                                      buffer_period_by=time_buffer,buffer_region_by=buffer_region_by)
+    print("First and last available ground tracks are on",
+          f"{cs_tracks.index[0]} and {cs_tracks.index[-1]}, respectively.,",
+          f"{cs_tracks.shape[0]} tracks in total.")
+    print("Run update_cs_ground_tracks, optionally with `full=True` or",
+          "`incremental=True`, if you local ground tracks store is not up to",
+          "date. Consider pulling the latest version from the repository.")
     # I believe passing loading l2 data to the function prevents copying
     # on .drop. an alternative would be to define l2_data nonlocal
     # within the gridding function
-    print(f"Found {cs_tracks.shape[0]} tracks in the proximity for the time range.")
     l3_data =  med_mad_cnt_grid(l2.from_id(cs_tracks.index), start_datetime=start_datetime, end_datetime=end_datetime,
                                 aggregation_period=aggregation_period, timestep=timestep, spatial_res_meter=spatial_res_meter)
     l3_data.to_netcdf(build_path(region_of_interest, timestep, spatial_res_meter, aggregation_period))
@@ -99,7 +89,7 @@ def build_dataset(region_of_interest: shapely.Polygon,
 __all__.append("build_dataset")
 
 
-def build_path(region_of_interest, timestep, spatial_res_meter, agg_time):
+def build_path(region_of_interest, timestep, spatial_res_meter, aggregation_period):
     region_id = find_region_id(region_of_interest)
     if list(timestep.kwds.values())[0]!=1:
         timestep_str = str(list(timestep.kwds.values())[0])+"-"
