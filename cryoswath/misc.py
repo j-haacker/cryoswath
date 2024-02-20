@@ -36,6 +36,7 @@ except:
     with open(config_path, "w") as config_file:
         config.write(config_file)
     print(f"Thanks. You can change your email in {config_path} manually.")
+__all__.append("personal_email")
 
 ## Paths ##############################################################
 data_path = os.path.join(os.path.dirname(__file__), "..", "data")
@@ -137,7 +138,7 @@ def flag_translator(cs_l1b_flag):
                 try:
                     flag_list.append(flag_dictionary.loc[i])
                 except KeyError:
-                    raise("Unkown flag: {2**i}! This points to a bug either in the code or in the data!")
+                    raise(f"Unkown flag: {2**i}! This points to a bug either in the code or in the data!")
         return flag_list
     else:
         flag_dictionary = pd.Series(data=cs_l1b_flag.attrs["flag_meanings"].split(" "),
@@ -148,9 +149,10 @@ def flag_translator(cs_l1b_flag):
 def gauss_filter_DataArray(da, dim, window_extent, std):
     # force window_extent to be uneven to ensure center to be where expected
     half_window_extent = window_extent//2
+    window_extent = 2*half_window_extent+1
     gauss_weights = scipy.stats.norm.pdf(np.arange(-half_window_extent, half_window_extent+1), scale=std)
     gauss_weights = xr.DataArray(gauss_weights/np.sum(gauss_weights), dims=["window_dim"])
-    if np.iscomplexobj:
+    if np.iscomplexobj(da):
         helper = da.rolling({dim: window_extent}, center=True).construct("window_dim").dot(gauss_weights)
         return helper/np.abs(helper)
     else:
