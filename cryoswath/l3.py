@@ -78,10 +78,6 @@ def med_mad_cnt_grid(l2_data: gpd.GeoDataFrame, *,
                      aggregation_period: relativedelta,
                      timestep: relativedelta,
                      spatial_res_meter: float):
-    # define how to grid and which stats to calculate
-    def cell_bounds(number: float):
-        floor = np.floor(number/spatial_res_meter)*spatial_res_meter
-        return slice(floor, floor+spatial_res_meter)
     def stats(data: pd.Series) -> pd.Series:
         median = data.median()
         mad = np.abs(data-median).median()
@@ -89,38 +85,14 @@ def med_mad_cnt_grid(l2_data: gpd.GeoDataFrame, *,
     time_axis = pd.date_range(start_datetime+pd.offsets.MonthBegin(0), end_datetime, freq=timestep)
     if time_axis.tz == None: time_axis = time_axis.tz_localize("UTC")
     # if l2_data.index[0].tz == None: l2_data.index = l2_data.index.tz_localize("UTC")
-    # split data into chunks
-    # reason: it seemed that index accessing time increases much for
-    # large data sets. remember it is not a database index (pandas
-    # doesn't whether it is sorted)
-    n_split = int((l2_data.shape[0]/.5e6)**.5)
-    minx, miny, maxx, maxy = l2_data.total_bounds
-    delx = (maxx-minx)//n_split+1 # + 1 m to be sure to cover the edges, probably not necessary
-    dely = (maxy-miny)//n_split+1
-    l2_list = [l2_data.cx[x:x+delx,y:y+dely] for x in np.arange(minx, maxx, delx) for y in np.arange(miny, maxy, dely)]
-    del l2_data
-    l2_list = [df for df in l2_list if not df.empty]
-    # here is probably improvement potential. e.g. assign x, y, t
-    # indices and use groupby. the below used many function calls.
-    # further, appending to a list needs to allocate memory per grid
-    # cell.
-    gridded_list = []
-    for parent_cell in l2_list:
-        while not parent_cell.empty:
-            print("# point data:", parent_cell.shape[0])
-            loc = parent_cell.iloc[0].geometry
-            # print("location", loc)
-            x_slice = cell_bounds(loc.x)
-            y_slice = cell_bounds(loc.y)
-            subset = parent_cell.cx[x_slice,y_slice]["h_diff"]
-            parent_cell.drop(index=subset.index, inplace=True)
-            print("# subset data:", subset.shape[0])
-            results_list = [None]*aggregation_period.months
-            for i in range(aggregation_period.months):
-                results_list[i] = subset.groupby(subset.index.get_level_values("time")-pd.offsets.QuarterBegin(1, normalize=True)+pd.DateOffset(months=i)).apply(stats)
-            result = pd.concat(results_list).unstack().sort_index().rename(columns={0: "med_elev_diff", 1: "mad_elev_diff", 2: "cnt_elev_diff"})#, inplace=True
-            result = result.loc[time_axis.join(result.index, how="inner")]
-            gridded_list.append(pd.concat([result], keys=[(x_slice.start,y_slice.start)], names=["x", "y", "time"]))
-        # consider saving a backup to disk after each parent_cell
-    return pd.concat(gridded_list).to_xarray()
+    def rolling_stats(data):
+        results_list = [None]*aggregation_period.months
+        for i in range(aggregation_period.months):
+            results_list[i] = data.groupby(subset.index.get_level_values("time")-pd.offsets.QuarterBegin(1, normalize=True)+pd.DateOffset(months=i)).apply(stats)
+        result = pd.concat(results_list).unstack().sort_index().rename(columns={0: "med_elev_diff", 1: "mad_elev_diff", 2: "cnt_elev_diff"})#, inplace=True
+        return result.loc[time_axis.join(result.index, how="inner")]
+    return l2.grid(l2_data, spatial_res_meter, rolling_stats).to_xarray()
 __all__.append("med_mad_cnt_grid")
+
+
+__all__ = sorted(__all__)
