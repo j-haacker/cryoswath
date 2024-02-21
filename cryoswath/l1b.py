@@ -16,6 +16,7 @@ import xarray as xr
 from . import gis
 from .misc import *
 
+import inspect
 
 __all__ = list()
 
@@ -34,8 +35,8 @@ class l1b_data(xr.Dataset):
                  ) -> None:
         # ! tbi customize or drop misleading attributes of xr.Dataset
         # currently only originally named CryoSat-2 SARIn files implemented
-        assert(fnmatch.fnmatch(l1b_filename, "*CS_????_SIR_SIN_1B_*"))
-        buffer = xr.open_dataset(l1b_filename)
+        assert(fnmatch.fnmatch(l1b_filename, "*CS_????_SIR_SIN_1B_*.nc"))
+        buffer = xr.open_dataset(l1b_filename)#, chunks={"time_20_ku": 256}
         # at least until baseline E ns_20_ku needs to be made a coordinate
         buffer = buffer.assign_coords(ns_20_ku=("ns_20_ku", np.arange(len(buffer.ns_20_ku))))
         # first: get azimuth bearing from smoothed incremental azimuths.
@@ -58,6 +59,7 @@ class l1b_data(xr.Dataset):
                                        * 2**buffer.echo_scale_pwr_20_ku
         if drop_bad_waveforms:
             # see available flags using data.flag.attrs["flag_meanings"]
+            # print("drop bad. cur buf:", buffer)
             buffer = drop_waveform(buffer, build_flag_mask(buffer.flag_mcd_20_ku, [
                 'block_degraded',
                 'blank_block',
@@ -76,6 +78,7 @@ class l1b_data(xr.Dataset):
                 'power_scale_error',
             ]))
         if drop_non_glacier_areas:
+            # print("drop off. cur lon len:", buffer.lon_20_ku.shape)
             # ! this takes too long: improve implementation
             # buffer = buffer.isel(time_20_ku=gis.points_on_glacier(gpd.GeoSeries(gpd.points_from_xy(buffer.lon_20_ku, buffer.lat_20_ku), crs=4326)))
             # ! needs to be tidied up:
@@ -119,10 +122,10 @@ class l1b_data(xr.Dataset):
     __all__.append("append_poca_and_swath_idxs")
         
     def append_ambiguous_reference_elevation(self):
-        # !! This function causes much of the computation time. I
-        # suspect that sparse memory accessing can be minimized with
-        # some tricks. However, first tries ordering the spatial data,
-        # took even (much) longer.
+        print(inspect.currentframe())
+        # !! This function causes much of the computation time. I suspect that
+        # sparse memory accessing can be minimized with some tricks. However,
+        # first tries ordering the spatial data, took even (much) longer.
         if not "xph_lats" in self.data_vars:
             self = self.locate_ambiguous_origin()
         # ! tbi: auto download ref dem if not present
@@ -185,6 +188,7 @@ class l1b_data(xr.Dataset):
     __all__.append("append_best_fit_phase_index")
     
     def append_elev_diff_to_ref(self):
+        print(inspect.currentframe())
         if not "xph_ref_elevs" in self.data_vars:
             self = self.append_ambiguous_reference_elevation()
         self["xph_elev_diffs"] = (self.xph_elevs-self.xph_ref_elevs)
@@ -257,6 +261,7 @@ class l1b_data(xr.Dataset):
 
     # ! rename to something like retrieve_ambiguous_origins
     def locate_ambiguous_origin(self):
+        print(inspect.currentframe())
         # Calculate normal distance: position on ellipsoid surface <--> major axis
         r_N = WGS84_ellpsoid.a/np.sqrt(1-WGS84_ellpsoid.es*np.sin(np.deg2rad(self.lat_20_ku))**2)
         # Add satellite height
@@ -323,7 +328,7 @@ class l1b_data(xr.Dataset):
                     tidy: bool = True):
         # implicitly test whether data was processed. if not, do so
         if not "ph_idx" in self.data_vars:
-            self.append_best_fit_phase_index()
+            self = self.append_best_fit_phase_index()
         if isinstance(out_vars, dict):
             self = self.drop_vars(list(out_vars.values()), errors="ignore")
             self = self.rename_vars(out_vars)
@@ -364,6 +369,7 @@ __all__.append("l1b_data")
     
 def build_flag_mask(cs_l1b_flag: xr.DataArray, black_list: list = [], white_list: str = "",
                     mode: str = "black_list"):
+    print(inspect.currentframe())
     if "flag_masks" in cs_l1b_flag.attrs and black_list != [] and mode == "black_list":
         flag_dictionary = pd.Series(data=cs_l1b_flag.attrs["flag_meanings"].split(" "),
                                     index=np.log2(np.abs(cs_l1b_flag.attrs["flag_masks"].astype("int64")
@@ -465,6 +471,7 @@ def drop_waveform(cs_l1b_ds, time_20_ku_mask):
     Returns:
         xr.Dataset or DataArray: Input dataset without marked waveforms.
     """
+    print(inspect.currentframe())
     return cs_l1b_ds.sel(time_20_ku=cs_l1b_ds.time_20_ku[~time_20_ku_mask])
 __all__.append("drop_waveform")
 
