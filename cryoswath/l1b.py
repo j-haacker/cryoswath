@@ -16,8 +16,6 @@ import xarray as xr
 from . import gis
 from .misc import *
 
-import inspect
-
 __all__ = list()
 
 # requires implicitly rasterio(?), flox(?), dask(?)
@@ -125,7 +123,6 @@ class l1b_data(xr.Dataset):
     __all__.append("append_poca_and_swath_idxs")
         
     def append_ambiguous_reference_elevation(self):
-        print(inspect.currentframe())
         # !! This function causes much of the computation time. I suspect that
         # sparse memory accessing can be minimized with some tricks. However,
         # first tries ordering the spatial data, took even (much) longer.
@@ -191,7 +188,6 @@ class l1b_data(xr.Dataset):
     __all__.append("append_best_fit_phase_index")
     
     def append_elev_diff_to_ref(self):
-        print(inspect.currentframe())
         if not "xph_ref_elevs" in self.data_vars:
             self = self.append_ambiguous_reference_elevation()
         self["xph_elev_diffs"] = (self.xph_elevs-self.xph_ref_elevs)
@@ -274,7 +270,6 @@ class l1b_data(xr.Dataset):
 
     # ! rename to something like retrieve_ambiguous_origins
     def locate_ambiguous_origin(self):
-        print(inspect.currentframe())
         # Calculate normal distance: position on ellipsoid surface <--> major axis
         r_N = WGS84_ellpsoid.a/np.sqrt(1-WGS84_ellpsoid.es*np.sin(np.deg2rad(self.lat_20_ku))**2)
         # Add satellite height
@@ -382,7 +377,6 @@ __all__.append("l1b_data")
     
 def build_flag_mask(cs_l1b_flag: xr.DataArray, black_list: list = [], white_list: str = "",
                     mode: str = "black_list"):
-    print(inspect.currentframe())
     if "flag_masks" in cs_l1b_flag.attrs and black_list != [] and mode == "black_list":
         flag_dictionary = pd.Series(data=cs_l1b_flag.attrs["flag_meanings"].split(" "),
                                     index=np.log2(np.abs(cs_l1b_flag.attrs["flag_masks"].astype("int64")
@@ -484,7 +478,6 @@ def drop_waveform(cs_l1b_ds, time_20_ku_mask):
     Returns:
         xr.Dataset or DataArray: Input dataset without marked waveforms.
     """
-    print(inspect.currentframe())
     return cs_l1b_ds.sel(time_20_ku=cs_l1b_ds.time_20_ku[~time_20_ku_mask])
 __all__.append("drop_waveform")
 
