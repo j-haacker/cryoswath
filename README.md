@@ -38,8 +38,6 @@ cryoswath builds on a number of other packages. See
 
 ### other issues
 
-- too many small glaciers can lead the kernel to crash while gis
-  calculations (encountered for the Alps on a notebook)
 - paths (partly) only for UNIX systems
 
 ## 🎯 what's coming
