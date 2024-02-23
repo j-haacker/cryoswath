@@ -11,3 +11,4 @@
 6. add poca processing
 7. make defusedxml optional
 8. add optional postgres
+9. make different baselines available
