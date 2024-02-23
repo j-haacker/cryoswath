@@ -1,3 +1,4 @@
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -6,6 +7,82 @@ from ..gis import *
 from ..misc import *
 
 __all__ = ["dem_transect"]
+
+def coherence(waveform, *,
+              ax: plt.Axes = None,
+              plot_properties: dict[str, dict[str, any]] = \
+                    dict(swath=dict(color="tab:blue",
+                                    marker='.',
+                                    markersize=5,
+                                    linewidth=1),
+                         poca=dict(color="tab:green",
+                                   marker='o',
+                                   markersize=5,
+                                   linewidth=1),
+                         excluded=dict(color="tab:pink",
+                                       marker='x',
+                                       markersize=5,
+                                    #    linestyle="solid",
+                                       linewidth=.6),
+                         omitted=dict(hatch='///',
+                                      linewidth=.4,
+                                      edgecolor="xkcd:light grey",
+                                      facecolor=None),
+                         threshold=dict(hatch='\\\\\\',
+                                        linewidth=.4,
+                                        edgecolor="xkcd:light grey",
+                                        facecolor=None))
+            ):
+    if ax is None:
+        ax = plt.subplots()[1]
+    try:
+        if plot_properties["threshold"]["facecolor"] is None:
+            plot_properties["threshold"]["facecolor"] = ax.get_facecolor()
+        y0 = -1
+        h_thr = ax.add_patch(mpl.patches.Rectangle((-100, y0),
+                                                     waveform.ns_20_ku[-1]+200, waveform.coherence_threshold-y0,
+                                                     **plot_properties["threshold"], label="threshold"))
+        h_list = [h_thr]
+    except KeyError:
+        h_list = []
+    try:
+        if plot_properties["omitted"]["facecolor"] is None:
+            plot_properties["omitted"]["facecolor"] = ax.get_facecolor()
+        x0 = -100
+        h_omitted = ax.add_patch(mpl.patches.Rectangle((x0, -1),
+                                                     waveform.swath_start[0]-x0, 3,
+                                                     **plot_properties["omitted"], label="omitted"))
+        h_list.insert(0, h_omitted)
+    except AttributeError:
+        pass
+    try:
+        excluded = waveform.where(waveform.exclude_mask)
+        h_excl, = ax.plot(excluded.ns_20_ku, excluded.coherence_waveform_20_ku[0], ls='',
+                          **plot_properties["excluded"], label="excluded")
+        h_list.insert(0, h_excl)
+        swath = waveform.where(~waveform.exclude_mask)
+        h_swath, = ax.plot(swath.ns_20_ku, swath.coherence_waveform_20_ku[0], ls='', **plot_properties["swath"],
+                           label="swath")
+        h_list.insert(0, h_swath)
+    except KeyError:
+        h_all, = ax.plot(waveform.ns_20_ku, waveform.coherence_waveform_20_ku[0], ls='', **plot_properties["swath"],
+                         label="all")
+        h_list.insert(0, h_all)
+    try:
+        poca = waveform.sel(ns_20_ku=waveform.poca_idx)
+        h_poca, = ax.plot(poca.ns_20_ku, poca.coherence_waveform_20_ku[0], ls='', **plot_properties["poca"],
+                          label="POCA")
+        h_list.insert(0, h_poca)
+    except KeyError:
+        pass
+    ax.set_xlim([waveform.ns_20_ku[0], waveform.ns_20_ku[-1]])
+    ax.set_ylim([0, 1.02])
+    ax.set_xlabel("sample number (ns_20_ku)")
+    ax.set_ylabel("coherence")
+    ax.legend(handles=h_list)
+    ax.set_title(f"id: {waveform.time_20_ku.values[0]}")
+    return ax
+
 
 def dem_transect(waveform, *,
                  ax: plt.Axes = None,
@@ -65,4 +142,7 @@ def dem_transect(waveform, *,
         pass
     h_list.append(h_dem)
     ax.legend(handles=h_list)
+    ax.set_xlabel("across-track distance to nadir, km")
+    ax.set_ylabel("elevation, m")
+    ax.set_title(f"id: {waveform.time_20_ku.values[0]}")
     return ax
