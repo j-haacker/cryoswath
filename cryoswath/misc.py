@@ -323,3 +323,10 @@ def load_glacier_outlines(identifier: str|list[str]) -> shapely.MultiPolygon:
         raise ValueError(f"Provided o1, o2, or RGI identifiers. \"{identifier}\" not understood.")
     return out.unary_union
 __all__.append("load_glacier_outlines")
+
+
+def nan_unique(data: np.typing.ArrayLike) -> list:
+    return [element for element in np.unique(data) if not np.isnan(element)]
+__all__.append("nan_unique")
+
+__all__ = sorted(__all__)

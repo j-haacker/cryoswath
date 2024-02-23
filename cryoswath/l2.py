@@ -61,9 +61,13 @@ def from_processed_l1b(l1b_data: l1b.l1b_data|None = None, crs: CRS = CRS.from_e
         pass
     else:
         if isinstance(crs, int): crs = CRS.from_epsg(crs)
-        # "flatten" data to avoid dim order confusion and convert to dataframe
-        l1b_data = l1b_data.to_dataframe().dropna(axis=0, how="any").rename_axis(("time", "sample"))
-        l1b_data.index = l1b_data.index.set_levels(pd.DatetimeIndex(l1b_data["time"].groupby(level=0).first(), tz="UTC"), level=0)
+        if "ns_20_ku" in l1b_data:
+            # "flatten" data to avoid dim order confusion and convert to dataframe
+            l1b_data = l1b_data.to_dataframe().dropna(axis=0, how="any").rename_axis(("time", "sample"))
+            l1b_data.index = l1b_data.index.set_levels(pd.DatetimeIndex(l1b_data["time"].groupby(level=0).first(), tz="UTC"), level=0)
+        else:
+            l1b_data = l1b_data.to_dataframe().dropna(axis=0, how="any")#.rename_axis(("time", ))
+            l1b_data.index = pd.DatetimeIndex(l1b_data["time"], tz="UTC")
         l1b_data.drop(columns="time", inplace=True)
         # convert either lat, lon or x, y data to points assuming that any crs but 4326 uses x, y coordinates
         if crs == CRS.from_epsg(4326):
@@ -74,6 +78,43 @@ def from_processed_l1b(l1b_data: l1b.l1b_data|None = None, crs: CRS = CRS.from_e
             l1b_data.drop(columns=["x", "y"], inplace=True)
         return gpd.GeoDataFrame(l1b_data, geometry=geometry, crs=crs, **kwargs)
 __all__.append("from_processed_l1b")
+
+
+def grid(l2_data: gpd.GeoDataFrame, spatial_res_meter: float, aggregation_function: callable) -> pd.DataFrame:
+    # define how to grid
+    def cell_bounds(number: float):
+        floor = np.floor(number/spatial_res_meter)*spatial_res_meter
+        return slice(floor, floor+spatial_res_meter)
+    # split data into chunks
+    # reason: it seemed that index accessing time increases much for
+    # large data sets. remember it is not a database index (pandas
+    # doesn't whether it is sorted)
+    n_split = int((l2_data.shape[0]/.5e6)**.5)
+    minx, miny, maxx, maxy = l2_data.total_bounds
+    delx = (maxx-minx)//n_split+1 # + 1 m to be sure to cover the edges, probably not necessary
+    dely = (maxy-miny)//n_split+1
+    l2_list = [l2_data.cx[x:x+delx,y:y+dely] for x in np.arange(minx, maxx, delx) for y in np.arange(miny, maxy, dely)]
+    del l2_data
+    l2_list = [df for df in l2_list if not df.empty]
+    # here is probably improvement potential. e.g. assign x, y, t
+    # indices and use groupby. the below used many function calls.
+    # further, appending to a list needs to allocate memory per grid
+    # cell.
+    gridded_list = []
+    for parent_cell in l2_list:
+        while not parent_cell.empty:
+            print("# point data:", parent_cell.shape[0])
+            loc = parent_cell.iloc[0].geometry
+            # print("location", loc)
+            x_slice = cell_bounds(loc.x)
+            y_slice = cell_bounds(loc.y)
+            subset = parent_cell.cx[x_slice,y_slice]["h_diff"]
+            result = aggregation_function(subset)
+            parent_cell.drop(index=subset.index, inplace=True)
+            print("# subset data:", subset.shape[0])
+            gridded_list.append(pd.concat([result], keys=[(x_slice.start,y_slice.start)], names=["x", "y", "time"]))
+        # consider saving a backup to disk after each parent_cell
+    return pd.concat(gridded_list)
 
 
 def limit_filter(data: pd.DataFrame, column: str, limit: float):

@@ -30,6 +30,8 @@ class l1b_data(xr.Dataset):
                  drop_bad_waveforms: bool = True,
                  mask_coherence_gt1: bool = True,
                  drop_non_glacier_areas: bool = True,
+                 coherence_threshold: float = 0.6,
+                 power_threshold: tuple = ("snr", 10),
                  ) -> None:
         # ! tbi customize or drop misleading attributes of xr.Dataset
         # currently only originally named CryoSat-2 SARIn files implemented
@@ -97,31 +99,14 @@ class l1b_data(xr.Dataset):
             else:
                 print(retain_indeces[retain_indeces].index)
                 buffer = buffer.isel(time_20_ku=retain_indeces[retain_indeces].index)
+        buffer = buffer.assign_attrs(coherence_threshold=coherence_threshold,
+                                     power_threshold=power_threshold)
+        buffer = append_exclude_mask(buffer)
+        buffer = append_poca_and_swath_idxs(buffer)
         # add potential phase wrap factor for later use
         buffer = buffer.assign_coords({"phase_wrap_factor": np.arange(-3, 4)})
         super().__init__(data_vars=buffer.data_vars, coords=buffer.coords, attrs=buffer.attrs)
     
-    def append_poca_and_swath_idxs(self):
-        # ! performance improvement potential
-        # should be possible to vectorize with numba
-        def find_poca_idx_and_swath_start_idx(smooth_coh):
-            poca_idx = np.argmax(smooth_coh>.85)
-            # poca expected 10 m after coherence exceeds threshold (no solid basis)
-            poca_idx = np.argmax(smooth_coh[poca_idx:poca_idx+int(10/sample_width)])+poca_idx
-            swath_start = poca_idx + int(5/sample_width)
-            diff_smooth_coh = np.diff(smooth_coh[swath_start:swath_start+int(50/sample_width)])
-            # swath can safest be used after the coherence dip
-            swath_start = np.argmax(diff_smooth_coh[np.argmax(np.abs(diff_smooth_coh)>.001):]>0) + swath_start
-            return poca_idx, swath_start
-        self[["poca_idx", "swath_start"]] = xr.apply_ufunc(
-            find_poca_idx_and_swath_start_idx,
-            gauss_filter_DataArray(self.coherence_waveform_20_ku, "ns_20_ku", 35, 35),
-            input_core_dims=[["ns_20_ku"]],
-            output_core_dims=[[], []],
-            vectorize=True)
-        return self
-    __all__.append("append_poca_and_swath_idxs")
-        
     def append_ambiguous_reference_elevation(self):
         # !! This function causes much of the computation time. I suspect that
         # sparse memory accessing can be minimized with some tricks. However,
@@ -137,7 +122,7 @@ class l1b_data(xr.Dataset):
             with rioxr.open_rasterio(dem_reader) as ref_dem:
                 # ! huge improvement potential: instead of the below, rasterio.sample could be used
                 # [edit] use postgis
-                ref_dem = ref_dem.rio.clip_box(np.nanmin(x), np.nanmin(y), np.nanmax(x), np.nanmax(y))
+                ref_dem = ref_dem.rio.clip_box(np.nanmin(x), np.nanmin(y), np.nanmax(x), np.nanmax(y)).squeeze()
                 self["xph_ref_elevs"] = ref_dem.sel(x=self.xph_x, y=self.xph_y, method="nearest")
         # rasterio suggests sorting like `for ind in np.lexsort([y, x]): rv.append((x[ind], y[ind]))`
         # sort_key = np.lexsort([y, x])
@@ -149,41 +134,31 @@ class l1b_data(xr.Dataset):
         return self
     __all__.append("append_ambiguous_reference_elevation")
 
-    def append_below_threshold_mask(self, coherence_threshold: float = 0.6,
-                                          power_threshold: tuple = ("snr", 10), *,
-                                          drop_first_peak: bool = True):
-        # for now require tuple. could be some auto recognition in future.
-        assert(isinstance(power_threshold, tuple))
-        # only signal-to-noise-ratio implemented
-        assert(power_threshold[0] == "snr")
-        if "swath_start" not in self:
-            self.append_poca_and_swath_idxs()
-        # ! the below is verbose but not fast. scrap the unnecessary computations
-        power_threshold = self.noise_power_20_ku+10*np.log10(power_threshold[1])
-        self["below_thresholds"] = np.logical_or(10*np.log10(self.power_waveform_20_ku) < power_threshold,
-                                                 self.coherence_waveform_20_ku < coherence_threshold)
-        if drop_first_peak:
-            self["below_thresholds"] = np.logical_or(self.below_thresholds,
-                                                     (self.ns_20_ku < self.swath_start).values.T)
-        return self
-    __all__.append("append_below_threshold_mask")
-
     def append_best_fit_phase_index(self):
         # ! Implement opt-out or/and grouping alternatives
         if not "group_id" in self.data_vars:
             self = self.tag_groups()
+            # it makes sense to always unwrap the phases immediately after finding
+            # the groups. assigning the best fitting indices otherwise messes up
+            # your data
+            self = self.unwrap_phase_diff()
         # before locating echos, find groups because also phase is unwrapped
         if not "xph_elev_diffs" in self.data_vars:
             self = self.append_elev_diff_to_ref()
         self = self.assign(ph_idx=(("time_20_ku", "ns_20_ku"),
                                    np.empty((len(self.time_20_ku), len(self.ns_20_ku)), dtype="int")))
-        self["ph_idx"] = np.abs(self.xph_elev_diffs.where(self.group_id.isnull())).idxmin("phase_wrap_factor")
-        # ! should be possible with numba and apply_ufunc
-        for wf in range(len(self.time_20_ku)):
-            if not self.group_id[wf].isnull().all():
-                self["ph_idx"][wf][~self.group_id[wf].isnull()] \
-                    = self.xph_elev_diffs[wf].groupby(self.group_id[wf]).map(
-                        lambda x: x.ns_20_ku*0+np.abs(x.mean("ns_20_ku")).idxmin("phase_wrap_factor"))
+        def min_abs_idx(ph_diff, group_ids):
+            out = np.zeros_like(group_ids)
+            for i in nan_unique(group_ids):
+                mask = group_ids == i
+                out[mask] = np.argmin(np.abs(np.sum(ph_diff[mask,:], axis=0)))-3
+            return out
+        self["ph_idx"] = xr.apply_ufunc(min_abs_idx, 
+                                        self.xph_elev_diffs, 
+                                        self.group_id,
+                                        input_core_dims=[["ns_20_ku", "phase_wrap_factor"], ["ns_20_ku"]],
+                                        output_core_dims=[["ns_20_ku"]])
+        self["ph_idx"] = xr.where(self.group_id.isnull(), np.abs(self.xph_elev_diffs).idxmin("phase_wrap_factor"), self.ph_idx)
         return self
     __all__.append("append_best_fit_phase_index")
     
@@ -243,10 +218,9 @@ class l1b_data(xr.Dataset):
         ph_diff_diff_tolerance = .1
         jump_mask =  np.logical_or(np.abs(ph_diff_diff) > ph_diff_diff_tolerance,
                                 np.abs(ph_diff_diff).rolling(ns_20_ku=2).sum() > 2* 0.8*ph_diff_diff_tolerance)
-        if not "below_threshold" in self.data_vars:
-            print("Note: Default thresholds applied.")
-            self = self.append_below_threshold_mask()
-        return xr.where(self.below_thresholds.sel(ns_20_ku=jump_mask.ns_20_ku), False, jump_mask)
+        if not "exclude_mask" in self.data_vars:
+            self = append_exclude_mask(self)
+        return xr.where(self.exclude_mask.sel(ns_20_ku=jump_mask.ns_20_ku), False, jump_mask)
     __all__.append("phase_jump")
 
     def phase_outlier(self, tol: float|None = None):
@@ -258,14 +232,10 @@ class l1b_data(xr.Dataset):
             # 0s below: set to an arbitrary off nadir angle at which the x_width should actually have the defined value
             tol = (np.arctan(np.tan(np.deg2rad(0))+temp_x_width/temp_H)-np.deg2rad(0)) \
                    * 2*np.pi / np.tan(speed_of_light/Ku_band_freq/antenna_baseline)
-        if not "below_threshold" in self.data_vars:
-            print("Note: Default thresholds applied.")
-            self = self.append_below_threshold_mask()
         if not "ph_diff_complex_smoothed" in self.data_vars:
             self = self.append_smoothed_complex_phase()
         # ph_diff_tol is small, so approx equal to secant length
-        return xr.where(self.below_thresholds, False, np.abs(np.exp(1j*self.ph_diff_waveform_20_ku)
-                                                             - self.ph_diff_complex_smoothed) > tol)
+        return np.abs(np.exp(1j*self.ph_diff_waveform_20_ku) - self.ph_diff_complex_smoothed) > tol
     __all__.append("phase_outlier")
 
     # ! rename to something like retrieve_ambiguous_origins
@@ -296,9 +266,9 @@ class l1b_data(xr.Dataset):
         return self.assign(xph_lons=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), lons),
                            xph_lats=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), lats),
                            # Assuming the local ellipsoid radius changes slowly:
-                           xph_elevs=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), (r_x - r_N).values),
-                           xph_thetas=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), theta.values),
-                           xph_dists=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), dist_off_groundtrack.values))
+                           xph_elevs=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), (r_x - r_N).transpose("time_20_ku", "ns_20_ku", "phase_wrap_factor").values),
+                           xph_thetas=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), theta.transpose("time_20_ku", "ns_20_ku", "phase_wrap_factor").values),
+                           xph_dists=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), dist_off_groundtrack.transpose("time_20_ku", "ns_20_ku", "phase_wrap_factor").values))
     __all__.append("locate_ambiguous_origin")
     
     def ref_range(self):
@@ -313,18 +283,27 @@ class l1b_data(xr.Dataset):
     __all__.append("ref_range")
     
     def tag_groups(self):
-        non_group_samples = self.phase_outlier()
-        group_tags = (np.logical_or(np.logical_or(self.phase_jump(), non_group_samples.rolling(ns_20_ku=3).sum()==0),
-                                    self.below_thresholds).astype('uint8').diff("ns_20_ku")==-1).cumsum("ns_20_ku") \
-                     + xr.DataArray(data=np.arange(len(self.time_20_ku))*len(self.ns_20_ku), dims="time_20_ku")
-        self["group_id"] = group_tags.where(~self.below_thresholds).where(~non_group_samples)
-        def unwrap(group):
-            smooth_phase_diff = np.angle(group.ph_diff_complex_smoothed)
-            diff = np.unwrap(smooth_phase_diff) - smooth_phase_diff
-            return group.ph_diff_waveform_20_ku + diff
-        unwrapped = self[["ph_diff_waveform_20_ku", "ph_diff_complex_smoothed"]].groupby(self.group_id).map(unwrap)
-        self["ph_diff_waveform_20_ku"] = \
-            xr.where(self.group_id.isnull(), *xr.align(self.ph_diff_waveform_20_ku, unwrapped, join="left"))
+        phase_outlier = self.phase_outlier()
+        ignore_mask = (self.exclude_mask + phase_outlier) != 0
+        gap_separator = ignore_mask.rolling(ns_20_ku=3).sum() == 3
+        any_separator = np.logical_or(*xr.align(self.phase_jump(), gap_separator, join="outer"))
+        rising_edge_per_waveform_counter = (any_separator.astype('int32').diff("ns_20_ku")==-1).cumsum("ns_20_ku") + 1
+        group_tags = rising_edge_per_waveform_counter \
+            + xr.DataArray(data=np.arange(len(self.time_20_ku))*len(self.ns_20_ku), dims="time_20_ku")
+        group_tags = xr.align(group_tags, self.power_waveform_20_ku, join="right")[0].where(~ignore_mask)
+        def filter_small_groups(group_ids):
+            out = group_ids
+            for i in nan_unique(group_ids):
+                mask = group_ids == i
+                if mask.sum() < 3:
+                    out[mask] = 0
+            return out
+        group_tags = xr.apply_ufunc(filter_small_groups,
+                       group_tags,
+                       input_core_dims=[["ns_20_ku"]],
+                       output_core_dims=[["ns_20_ku"]])
+        group_tags = group_tags.where(group_tags != 0)
+        self["group_id"] = group_tags
         return self
     __all__.append("tag_groups")
 
@@ -347,12 +326,12 @@ class l1b_data(xr.Dataset):
             retain_vars = list(retain_vars.values())
         # print(self[out_vars+retain_vars].to_dataframe())
         if swath_or_poca == "swath":
-            buffer = self[out_vars+retain_vars].where(~self.below_thresholds)\
+            buffer = self[out_vars+retain_vars].where(~self.exclude_mask)\
                                                .sel(phase_wrap_factor=self.ph_idx)\
                                                .dropna("time_20_ku", how="all")
         elif swath_or_poca == "poca":
-            buffer = self[out_vars+retain_vars].sel(ns_20_ku=self.poca_idx, phase_wrap_factor=self.ph_idx)\
-                                               .dropna("time_20_ku", how="all")
+            buffer = self[out_vars+retain_vars+["ph_idx"]].sel(ns_20_ku=self.poca_idx)
+            buffer = buffer[out_vars+retain_vars].sel(phase_wrap_factor=buffer.ph_idx).dropna("time_20_ku", how="all")
         elif swath_or_poca == "both":
             swath = self.to_l2(out_vars, retain_vars, tidy=tidy)
             poca = self.to_l2(out_vars, retain_vars, tidy=tidy, swath_or_poca="poca")
@@ -368,6 +347,21 @@ class l1b_data(xr.Dataset):
         return l2_data
     __all__.append("to_l2")
 
+    def unwrap_phase_diff(self):
+        def unwrap(ph_diff, group_ids):
+            out = ph_diff
+            for i in nan_unique(group_ids):
+                mask = group_ids == i
+                out[mask] = np.unwrap(ph_diff[mask])
+            return out
+        self["ph_diff_waveform_20_ku"] = xr.apply_ufunc(unwrap, 
+                                                        self.ph_diff_waveform_20_ku, 
+                                                        self.group_id,
+                                                        input_core_dims=[["ns_20_ku"], ["ns_20_ku"]],
+                                                        output_core_dims=[["ns_20_ku"]])
+        return self
+    __all__.append("unwrap_phase_diff")
+
     __all__ = sorted(__all__)
 
 __all__.append("l1b_data")
@@ -375,6 +369,50 @@ __all__.append("l1b_data")
 
 # helper functions ####################################################
     
+def append_exclude_mask(cs_l1b_ds):
+    # for now require tuple. could be some auto recognition in future.
+    assert(isinstance(cs_l1b_ds.power_threshold, tuple))
+    # only signal-to-noise-ratio implemented
+    assert(cs_l1b_ds.power_threshold[0] == "snr")
+    # if "swath_start" not in cs_l1b_ds:
+    #     cs_l1b_ds.append_poca_and_swath_idxs()
+    # ! the below is verbose but not fast. scrap the unnecessary computations
+    power_threshold = cs_l1b_ds.noise_power_20_ku+10*np.log10(cs_l1b_ds.power_threshold[1])
+    cs_l1b_ds["exclude_mask"] = \
+        np.logical_or(10*np.log10(cs_l1b_ds.power_waveform_20_ku) < power_threshold,
+                      cs_l1b_ds.coherence_waveform_20_ku < cs_l1b_ds.coherence_threshold)
+    # if drop_first_peak:
+    #     cs_l1b_ds["exclude_mask"] = np.logical_or(cs_l1b_ds.exclude_mask,
+    #                                                 (cs_l1b_ds.ns_20_ku < cs_l1b_ds.swath_start).values.T)
+    return cs_l1b_ds
+__all__.append("append_exclude_mask")
+    
+
+def append_poca_and_swath_idxs(cs_l1b_ds):
+    # ! performance improvement potential
+    # should be possible to accelerate with numba
+    def find_poca_idx_and_swath_start_idx(smooth_coh):
+        poca_idx = np.argmax(smooth_coh>.85)
+        # poca expected 10 m after coherence exceeds threshold (no solid basis)
+        poca_idx = np.argmax(smooth_coh[poca_idx:poca_idx+int(10/sample_width)])+poca_idx
+        swath_start = poca_idx + int(5/sample_width)
+        diff_smooth_coh = np.diff(smooth_coh[swath_start:swath_start+int(50/sample_width)])
+        # swath can safest be used after the coherence dip
+        swath_start = np.argmax(diff_smooth_coh[np.argmax(np.abs(diff_smooth_coh)>.001):]>0) + swath_start
+        return poca_idx, swath_start
+    cs_l1b_ds[["poca_idx", "swath_start"]] = xr.apply_ufunc(
+        find_poca_idx_and_swath_start_idx,
+        gauss_filter_DataArray(cs_l1b_ds.coherence_waveform_20_ku, "ns_20_ku", 35, 35),
+        input_core_dims=[["ns_20_ku"]],
+        output_core_dims=[[], []],
+        vectorize=True)
+    if "exclude_mask" not in cs_l1b_ds.data_vars:
+        cs_l1b_ds = append_exclude_mask(cs_l1b_ds)
+    cs_l1b_ds["exclude_mask"] = xr.where(cs_l1b_ds.ns_20_ku<cs_l1b_ds.swath_start, True, cs_l1b_ds.exclude_mask)
+    return cs_l1b_ds
+__all__.append("append_poca_and_swath_idxs")
+
+
 def build_flag_mask(cs_l1b_flag: xr.DataArray, black_list: list = [], white_list: str = "",
                     mode: str = "black_list"):
     if "flag_masks" in cs_l1b_flag.attrs and black_list != [] and mode == "black_list":
