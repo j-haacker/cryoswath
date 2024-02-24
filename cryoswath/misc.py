@@ -163,10 +163,10 @@ def gauss_filter_DataArray(da, dim, window_extent, std):
     gauss_weights = scipy.stats.norm.pdf(np.arange(-half_window_extent, half_window_extent+1), scale=std)
     gauss_weights = xr.DataArray(gauss_weights/np.sum(gauss_weights), dims=["window_dim"])
     if np.iscomplexobj(da):
-        helper = da.rolling({dim: window_extent}, center=True).construct("window_dim").dot(gauss_weights)
+        helper = da.rolling({dim: window_extent}, center=True, min_periods=1).construct("window_dim").dot(gauss_weights)
         return helper/np.abs(helper)
     else:
-        return da.rolling({dim: window_extent}, center=True).construct("window_dim").dot(gauss_weights)
+        return da.rolling({dim: window_extent}, center=True, min_periods=1).construct("window_dim").dot(gauss_weights)
 
 
 def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
