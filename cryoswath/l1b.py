@@ -330,7 +330,11 @@ class l1b_data(xr.Dataset):
                                                .sel(phase_wrap_factor=self.ph_idx)\
                                                .dropna("time_20_ku", how="all")
         elif swath_or_poca == "poca":
-            buffer = self[out_vars+retain_vars+["ph_idx"]].sel(ns_20_ku=self.poca_idx)
+            waveforms_with_poca = self.time_20_ku[~self.poca_idx.isnull()]
+            buffer = self[out_vars+retain_vars+["ph_idx"]].sel(time_20_ku=waveforms_with_poca)\
+                                                          .sel(ns_20_ku=self.poca_idx[~self.poca_idx.isnull()])
+            # waveforms_with_poca = self.time20_ku
+            # buffer = self[out_vars+retain_vars+["ph_idx"]][~self.poca_idx.isnull().values].sel(ns_20_ku=self.poca_idx[~self.poca_idx.isnull().values])
             buffer = buffer[out_vars+retain_vars].sel(phase_wrap_factor=buffer.ph_idx).dropna("time_20_ku", how="all")
         elif swath_or_poca == "both":
             swath = self.to_l2(out_vars, retain_vars, tidy=tidy)
