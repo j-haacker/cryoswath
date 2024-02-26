@@ -2,6 +2,7 @@ from dateutil.relativedelta import relativedelta
 import fnmatch
 import ftplib
 import geopandas as gpd
+import numbers
 import numpy as np
 import os
 import pandas as pd
@@ -46,11 +47,12 @@ class l1b_data(xr.Dataset):
                                                   lats2=buffer.lat_20_ku[1:], lons2=buffer.lon_20_ku[1:])[0],
                                      3)
         buffer = buffer.assign(azimuth=("time_20_ku", np.poly1d(poly3fit_params)(np.arange(len(buffer.time_20_ku)-.5))%360))
-        if waveform_selection != None:
-            if not isinstance(waveform_selection, slice) and not isinstance(waveform_selection, list):
+        # waveform selection is meant to be versatile. however the handling seems fragile
+        if waveform_selection is not None:
+            if not isinstance(waveform_selection, slice) and len(waveform_selection) == 1:
                 waveform_selection = [waveform_selection]
-            if (isinstance(waveform_selection, slice) and isinstance(waveform_selection.start, int)) \
-                    or (isinstance(waveform_selection, list) and isinstance(waveform_selection[0], int)):
+            if (isinstance(waveform_selection, slice) and isinstance(waveform_selection.start, numbers.Integral)) \
+                    or isinstance(waveform_selection[0], numbers.Integral):
                 buffer = buffer.isel(time_20_ku=waveform_selection)
             else:
                 buffer = buffer.sel(time_20_ku=waveform_selection)
