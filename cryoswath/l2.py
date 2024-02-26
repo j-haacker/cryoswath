@@ -62,9 +62,18 @@ def from_processed_l1b(l1b_data: l1b.l1b_data|None = None, crs: CRS = CRS.from_e
         pass
     else:
         if isinstance(crs, int): crs = CRS.from_epsg(crs)
-        l1b_data = l1b_data.to_dataframe().dropna(axis=0, how="any").rename_axis(("time", "sample"))
-        l1b_data.index = l1b_data.index.set_levels(pd.DatetimeIndex(l1b_data["time"].groupby(level=0).first(), tz="UTC"), level=0)
-        l1b_data.drop(columns="time", inplace=True)
+        l1b_data = l1b_data.to_dataframe().dropna(axis=0, how="any")
+        if isinstance(l1b_data.index, pd.MultiIndex): #
+            l1b_data.rename_axis(("time", "sample"), inplace=True)
+            l1b_data.index = l1b_data.index.set_levels(pd.DatetimeIndex(l1b_data["time"].groupby(level=0).first(), tz="UTC"), level=0)
+        elif l1b_data.index.name[:4].lower()=="time":
+            l1b_data.rename_axis(("time"), inplace=True)
+            l1b_data.index = pd.DatetimeIndex(l1b_data["time"], tz="UTC")
+        elif l1b_data.index.name[:2].lower()=="ns":
+            l1b_data.rename_axis(("sample"), inplace=True)
+        else:
+            warnings.warn("Unexpected index name. May lead to issues.")
+        l1b_data.drop(columns=[col for col in ["time", "sample"] if col in l1b_data.columns], inplace=True)
         # convert either lat, lon or x, y data to points assuming that any crs but 4326 uses x, y coordinates
         if crs == CRS.from_epsg(4326):
             geometry = gpd.points_from_xy(l1b_data.lon, l1b_data.lat)
