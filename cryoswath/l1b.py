@@ -499,7 +499,7 @@ def download_single_file(track_id: str) -> str:
         for remote_file in ftp.nlst():
             if remote_file[-3:] == ".nc" \
             and remote_file[19:34] == track_id:
-                local_path = os.path.join("../data/L1b/", pd.to_datetime(track_id).strftime("%Y/%m"))
+                local_path = os.path.join(data_path, "L1b", pd.to_datetime(track_id).strftime("%Y/%m"))
                 if not os.path.isdir(local_path):
                     os.makedirs(local_path)
                 local_path = os.path.join(local_path, remote_file)
