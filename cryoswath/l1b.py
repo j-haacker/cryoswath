@@ -91,14 +91,10 @@ class l1b_data(xr.Dataset):
             try:
                 o2code = o2regions[o2regions.geometry.contains(shapely.box(*buffered_points.total_bounds))]["o2region"].values[0]
                 retain_indeces = buffered_points.intersects(load_o2region(o2code).clip_by_rect(*buffered_points.total_bounds).unary_union)
-                # print(retain_indeces[retain_indeces].index)
                 buffer = buffer.isel(time_20_ku=retain_indeces[retain_indeces].index)
             except IndexError:
                 warnings.warn("Not enough waveforms left on glacier. Proceeding with 2 dummy waveforms to ensure no errors raised.")
                 buffer = buffer.isel(time_20_ku=[0,1])
-            else:
-                print(retain_indeces[retain_indeces].index)
-                buffer = buffer.isel(time_20_ku=retain_indeces[retain_indeces].index)
         buffer = buffer.assign_attrs(coherence_threshold=coherence_threshold,
                                      power_threshold=power_threshold)
         buffer = append_exclude_mask(buffer)
