@@ -432,10 +432,14 @@ def append_poca_and_swath_idxs(cs_l1b_ds):
             return np.nan, 0
         # poca expected 10 m after coherence exceeds threshold (no solid basis)
         poca_idx = np.argmax(smooth_coh[poca_idx:poca_idx+int(10/sample_width)])+poca_idx
-        swath_start = poca_idx + int(5/sample_width)
-        diff_smooth_coh = np.diff(smooth_coh[swath_start:swath_start+int(50/sample_width)])
-        # swath can safest be used after the coherence dip
-        swath_start = np.argmax(diff_smooth_coh[np.argmax(np.abs(diff_smooth_coh)>.001):]>0) + swath_start
+        try:
+            swath_start = poca_idx + int(5/sample_width)
+            diff_smooth_coh = np.diff(smooth_coh[swath_start:swath_start+int(50/sample_width)])
+            # swath can safest be used after the coherence dip
+            swath_start = np.argmax(diff_smooth_coh[np.argmax(np.abs(diff_smooth_coh)>.001):]>0) + swath_start
+        # if swath doesn't start in range window, just indeed set the index behind last element
+        except ValueError:
+            swath_start = len(smooth_coh)
         return float(poca_idx), swath_start
     cs_l1b_ds[["poca_idx", "swath_start"]] = xr.apply_ufunc(
         find_poca_idx_and_swath_start_idx,
