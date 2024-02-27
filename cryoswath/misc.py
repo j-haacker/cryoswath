@@ -20,7 +20,7 @@ from . import gis
 # make contents accessible
 __all__ = ["aux_path", "data_path", "dem_path", "cs_ground_tracks_path", "rgi_path", # paths ..........................
            "WGS84_ellpsoid", "antenna_baseline", "Ku_band_freq", "sample_width",     # vars ...........................
-           "speed_of_light",
+           "speed_of_light", "cryosat_id_pattern",
            "cs_id_to_time", "cs_time_to_id", "find_region_id", "flag_translator",    # funcs ..........................
            "gauss_filter_DataArray", "get_dem_reader", "load_cs_full_file_names", 
            "load_cs_ground_tracks", "load_o1region", "load_o2region", "load_basins",
@@ -64,6 +64,7 @@ pd.options.mode.copy_on_write = True
 antenna_baseline = 1.1676
 Ku_band_freq = 13.575e9
 sample_width = speed_of_light/(320e6*2)/2
+cryosat_id_pattern = re.compile("20[12][0-9][01][0-9][0-3][0-9]T[0-2][0-9]([0-5][0-9]){2}")
 
 ## Functions ##########################################################
 
@@ -309,7 +310,6 @@ def load_basins(rgi_ids: list[str]) -> gpd.GeoDataFrame:
 
 
 def load_glacier_outlines(identifier: str|list[str]) -> shapely.MultiPolygon:
-    print(identifier, len(identifier))
     if isinstance(identifier, list):
         out = load_basins(identifier)
     elif len(identifier) == (7+4+1+2+5+4) and identifier.split("-")[:3] == ["RGI2000", "v4.1", "G"]:
