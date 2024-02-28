@@ -87,9 +87,6 @@ class l1b_data(xr.Dataset):
                 'power_scale_error',
             ]))
         if drop_non_glacier_areas:
-            # print("drop off. cur lon len:", buffer.lon_20_ku.shape)
-            # ! this takes too long: improve implementation
-            # buffer = buffer.isel(time_20_ku=gis.points_on_glacier(gpd.GeoSeries(gpd.points_from_xy(buffer.lon_20_ku, buffer.lat_20_ku), crs=4326)))
             # ! needs to be tidied up:
             # (also: simplify needed?)
             buffered_points = gpd.GeoSeries(gpd.points_from_xy(buffer.lon_20_ku, buffer.lat_20_ku), crs=4326).to_crs(3413).buffer(30_000).simplify(5_000).to_crs(4326)
@@ -98,10 +95,10 @@ class l1b_data(xr.Dataset):
                 intersected_o2 = o2regions.geometry.intersects(shapely.box(*buffered_points.total_bounds))
                 if sum(intersected_o2) == 0:
                     raise IndexError
-                # not sure that it even occurs, but should a track intersect 2 o2 regions, load the bigger intersection
+                # should a track intersect 2 o2 regions, load the bigger intersection
                 elif sum(intersected_o2) > 1:
-                    intersections = o2regions.intersect(shapely.oriented_envelope(buffered_points.geometry))
-                    o2code = intersections.sortby("area")[-1].o2region.values[0]
+                    intersections = o2regions.intersection(shapely.oriented_envelope(buffered_points.geometry.unary_union)).set_crs(4326).to_crs(3413)
+                    o2code = o2regions.loc[intersections.geometry.area.idxmax(), "o2region"]
                 else:
                     o2code = o2regions[intersected_o2]["o2region"].values[0]
                 o2_extent = load_o2region(o2code).clip_by_rect(*buffered_points.total_bounds)
@@ -117,6 +114,7 @@ class l1b_data(xr.Dataset):
         buffer = append_exclude_mask(buffer)
         buffer = append_poca_and_swath_idxs(buffer)
         # ! smooth phase at poca
+        
         # add potential phase wrap factor for later use
         buffer = buffer.assign_coords({"phase_wrap_factor": np.arange(-3, 4)})
         super().__init__(data_vars=buffer.data_vars, coords=buffer.coords, attrs=buffer.attrs)
