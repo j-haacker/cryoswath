@@ -1,5 +1,6 @@
 import geopandas as gpd
 import inspect
+from multiprocessing import Pool
 import numpy as np
 import os
 import pandas as pd
@@ -17,10 +18,13 @@ __all__ = list()
 def from_id(track_idx: pd.DatetimeIndex|str, *,
             reprocess: bool = True,
             save_or_return: str = "both",
+            cores: int = len(os.sched_getaffinity(0)),
             **kwargs) -> tuple[gpd.GeoDataFrame]:
     # this function collects processed data and processes the remaining.
     # combining new and old data can show unexpected behavior if
     # settings changed.
+    # if ESA complains there were too many parallel ftp connections, reduce
+    # the number of cores. 8 cores worked for me, 16 was too many
     if not isinstance(track_idx, pd.DatetimeIndex):
         track_idx = pd.DatetimeIndex(track_idx if isinstance(track_idx, list) else [track_idx])
     if track_idx.tz == None: track_idx.tz_localize("UTC")
@@ -38,53 +42,14 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                         l2_paths.loc[cs_id_to_time(match.group()), l2_type] = filename
             else:
                 os.makedirs(os.path.join(data_path, f"L2_{l2_type}", current_subdir))
-        # below could be parallelized in different ways:
-        # a) downloading missing L1b; b) processing L1b; c) collecting
-        for current_track_idx in pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index: # super work-around :/
-            print("getting", current_track_idx)
-            try:
-                if reprocess or any(l2_paths.loc[current_track_idx,:].isnull()):
-                    raise FileNotFoundError()
-                if save_or_return != "save":
-                    swath_list.append(gpd.read_feather(
-                        os.path.join(data_path, "L2_swath", current_subdir, l2_paths.loc[current_track_idx, "swath"])))
-                    poca_list.append(gpd.read_feather(
-                        os.path.join(data_path, "L2_poca", current_subdir, l2_paths.loc[current_track_idx, "poca"])))
-            except (KeyError, FileNotFoundError):
-                # print("processing", current_track_idx)
-                # save results. make optional?
-                if "cs_full_file_names" not in locals():
-                    cs_full_file_names = load_cs_full_file_names(update="no")
-                # filter l1b_data kwargs
-                params = inspect.signature(l1b.l1b_data).parameters
-                l1b_kwargs = {k: v for k, v in kwargs.items() if k in params}
-                # filter to_l2 kwargs
-                params = inspect.signature(l1b.l1b_data.to_l2).parameters
-                to_l2_kwargs = {k: v for k, v in kwargs.items() if k in params and k != "swath_or_poca"}
-                l2_buffer = l1b.l1b_data.from_id(cs_time_to_id(current_track_idx), **l1b_kwargs)\
-                                        .to_l2(swath_or_poca="both", **to_l2_kwargs)
-                # print("l2_buffer", l2_buffer)
-                if save_or_return != "save":
-                    swath_list.append(l2_buffer[0])
-                    poca_list.append(l2_buffer[1])
-                if save_or_return != "return":
-                    # ! consider writing empty files
-                    # the below skips if there are no data. this means, that processing is
-                    # attempted the next time again. I consider this safer and the
-                    # performance loss is on the order of seconds. however, there might be
-                    # better options
-                    try:
-                        l2_buffer[0].to_feather(os.path.join(data_path, "L2_swath", current_subdir,
-                                                             cs_full_file_names.loc[current_track_idx]+".feather"))
-                        l2_buffer[1].to_feather(os.path.join(data_path, "L2_poca", current_subdir,
-                                                             cs_full_file_names.loc[current_track_idx]+".feather"))
-                    except ValueError:
-                        if l2_buffer[0].empty:
-                            which = "Neither POCA nor swath"
-                        else:
-                            which = "No POCA"
-                        warnings.warn(f"{which} points for {cs_time_to_id(current_track_idx)}.")
-                # print("done processing")
+        with Pool(processes=cores) as p:
+            # function is defined at the bottom of this module
+            collective_swath_poca_list = p.starmap(process_track, [(idx, reprocess, l2_paths, save_or_return, data_path, current_subdir, kwargs) for idx in pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index]) # indices per month with work-around :/ should be easier
+        if save_or_return != "save":
+            for l2_buffer in collective_swath_poca_list:
+                swath_list.append(l2_buffer[0])
+                poca_list.append(l2_buffer[1])
+        print("done processing", current_month)
     if save_or_return != "save":
         return pd.concat(swath_list), pd.concat(poca_list)
 __all__.append("from_id")
@@ -179,7 +144,57 @@ def process_and_save(region_of_interest: str|shapely.Polygon,
                      **kwargs):
     start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
     cs_tracks = load_cs_ground_tracks(region_of_interest, start_datetime, end_datetime, buffer_region_by=buffer_region_by)
-    from_id(cs_tracks.index, **kwargs)
+    from_id(cs_tracks.index, save_or_return="save", **kwargs)
     print("processing L1b -> L2 finished")
     return 0
 __all__.append("process_and_save")
+
+__all__ = sorted(__all__)
+
+
+# local helper function. can't be defined where it is needed because of namespace issues
+def process_track(current_track_idx, reprocess, l2_paths, save_or_return, data_path, current_subdir, kwargs):
+    print("getting", current_track_idx)
+    try:
+        if reprocess or any(l2_paths.loc[current_track_idx,:].isnull()):
+            raise FileNotFoundError()
+        if save_or_return != "save":
+            l2_buffer = (
+                gpd.read_feather(os.path.join(data_path, "L2_swath", current_subdir,
+                                                l2_paths.loc[current_track_idx, "swath"])),
+                gpd.read_feather(os.path.join(data_path, "L2_poca", current_subdir,
+                                                l2_paths.loc[current_track_idx, "poca"])))
+    except (KeyError, FileNotFoundError):
+        # print("processing", current_track_idx)
+        # save results. make optional?
+        if "cs_full_file_names" not in locals():
+            cs_full_file_names = load_cs_full_file_names(update="no")
+        # filter l1b_data kwargs
+        params = inspect.signature(l1b.l1b_data).parameters
+        l1b_kwargs = {k: v for k, v in kwargs.items() if k in params}
+        # filter to_l2 kwargs
+        params = inspect.signature(l1b.l1b_data.to_l2).parameters
+        to_l2_kwargs = {k: v for k, v in kwargs.items() if k in params and k != "swath_or_poca"}
+        l2_buffer = l1b.l1b_data.from_id(cs_time_to_id(current_track_idx), **l1b_kwargs)\
+                                .to_l2(swath_or_poca="both", **to_l2_kwargs)
+        # print("l2_buffer", l2_buffer)
+        if save_or_return != "return":
+            # ! consider writing empty files
+            # the below skips if there are no data. this means, that processing is
+            # attempted the next time again. I consider this safer and the
+            # performance loss is on the order of seconds. however, there might be
+            # better options
+            try:
+                l2_buffer[0].to_feather(os.path.join(data_path, "L2_swath", current_subdir,
+                                                        cs_full_file_names.loc[current_track_idx]+".feather"))
+                l2_buffer[1].to_feather(os.path.join(data_path, "L2_poca", current_subdir,
+                                                        cs_full_file_names.loc[current_track_idx]+".feather"))
+            except ValueError:
+                if l2_buffer[0].empty:
+                    which = "Neither POCA nor swath"
+                else:
+                    which = "No POCA"
+                warnings.warn(f"{which} points for {cs_time_to_id(current_track_idx)}.")
+    if save_or_return != "save":
+        return l2_buffer
+        
