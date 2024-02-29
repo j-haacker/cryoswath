@@ -76,21 +76,22 @@ def cs_time_to_id(time: pd.Timestamp) -> str:
     return time.strftime("%Y%m%dT%H%M%S")
 
 
-def download_file(url: str, out_path: str = ".") -> str:
-    # snippet adapted from https://stackoverflow.com/a/16696317
-    # authors: https://stackoverflow.com/users/427457/roman-podlinov
-    #      and https://stackoverflow.com/users/12641442/jenia
-    local_filename = os.join(out_path, url.split('/')[-1])
-    # NOTE the stream=True parameter below
-    with requests.get(url, stream=True) as r:
-        r.raise_for_status()
-        with open(local_filename, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=8192): 
-                # If you have chunk encoded response uncomment if
-                # and set chunk_size parameter to None.
-                #if chunk: 
-                f.write(chunk)
-    return local_filename
+# not used and clutters namespace
+# def download_file(url: str, out_path: str = ".") -> str:
+#     # snippet adapted from https://stackoverflow.com/a/16696317
+#     # authors: https://stackoverflow.com/users/427457/roman-podlinov
+#     #      and https://stackoverflow.com/users/12641442/jenia
+#     local_filename = os.join(out_path, url.split('/')[-1])
+#     # NOTE the stream=True parameter below
+#     with requests.get(url, stream=True) as r:
+#         r.raise_for_status()
+#         with open(local_filename, 'wb') as f:
+#             for chunk in r.iter_content(chunk_size=8192): 
+#                 # If you have chunk encoded response uncomment if
+#                 # and set chunk_size parameter to None.
+#                 #if chunk: 
+#                 f.write(chunk)
+#     return local_filename
 
 
 def find_region_id(location: any, scope: str = "o2") -> str:
