@@ -46,9 +46,9 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
             # function is defined at the bottom of this module
             collective_swath_poca_list = p.starmap(process_track, [(idx, reprocess, l2_paths, save_or_return, data_path, current_subdir, kwargs) for idx in pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index]) # indices per month with work-around :/ should be easier
         if save_or_return != "save":
-            for l2_buffer in collective_swath_poca_list:
-                swath_list.append(l2_buffer[0])
-                poca_list.append(l2_buffer[1])
+            for swath_poca_tuple in collective_swath_poca_list:
+                swath_list.append(swath_poca_tuple[0])
+                poca_list.append(swath_poca_tuple[1])
         print("done processing", current_month)
     if save_or_return != "save":
         return pd.concat(swath_list), pd.concat(poca_list)
@@ -153,20 +153,18 @@ __all__ = sorted(__all__)
 
 
 # local helper function. can't be defined where it is needed because of namespace issues
-def process_track(current_track_idx, reprocess, l2_paths, save_or_return, data_path, current_subdir, kwargs):
-    print("getting", current_track_idx)
+def process_track(idx, reprocess, l2_paths, save_or_return, data_path, current_subdir, kwargs):
+    print("getting", idx)
     try:
-        if reprocess or any(l2_paths.loc[current_track_idx,:].isnull()):
+        if reprocess or any(l2_paths.loc[idx,:].isnull()):
             raise FileNotFoundError()
         if save_or_return != "save":
-            l2_buffer = (
+            swath_poca_tuple = (
                 gpd.read_feather(os.path.join(data_path, "L2_swath", current_subdir,
-                                                l2_paths.loc[current_track_idx, "swath"])),
+                                                l2_paths.loc[idx, "swath"])),
                 gpd.read_feather(os.path.join(data_path, "L2_poca", current_subdir,
-                                                l2_paths.loc[current_track_idx, "poca"])))
+                                                l2_paths.loc[idx, "poca"])))
     except (KeyError, FileNotFoundError):
-        # print("processing", current_track_idx)
-        # save results. make optional?
         if "cs_full_file_names" not in locals():
             cs_full_file_names = load_cs_full_file_names(update="no")
         # filter l1b_data kwargs
@@ -175,9 +173,8 @@ def process_track(current_track_idx, reprocess, l2_paths, save_or_return, data_p
         # filter to_l2 kwargs
         params = inspect.signature(l1b.l1b_data.to_l2).parameters
         to_l2_kwargs = {k: v for k, v in kwargs.items() if k in params and k != "swath_or_poca"}
-        l2_buffer = l1b.l1b_data.from_id(cs_time_to_id(current_track_idx), **l1b_kwargs)\
-                                .to_l2(swath_or_poca="both", **to_l2_kwargs)
-        # print("l2_buffer", l2_buffer)
+        swath_poca_tuple = l1b.l1b_data.from_id(cs_time_to_id(idx), **l1b_kwargs)\
+                                       .to_l2(swath_or_poca="both", **to_l2_kwargs)
         if save_or_return != "return":
             # ! consider writing empty files
             # the below skips if there are no data. this means, that processing is
@@ -185,16 +182,16 @@ def process_track(current_track_idx, reprocess, l2_paths, save_or_return, data_p
             # performance loss is on the order of seconds. however, there might be
             # better options
             try:
-                l2_buffer[0].to_feather(os.path.join(data_path, "L2_swath", current_subdir,
-                                                        cs_full_file_names.loc[current_track_idx]+".feather"))
-                l2_buffer[1].to_feather(os.path.join(data_path, "L2_poca", current_subdir,
-                                                        cs_full_file_names.loc[current_track_idx]+".feather"))
+                swath_poca_tuple[0].to_feather(os.path.join(data_path, "L2_swath", current_subdir,
+                                                            cs_full_file_names.loc[idx]+".feather"))
+                swath_poca_tuple[1].to_feather(os.path.join(data_path, "L2_poca", current_subdir,
+                                                            cs_full_file_names.loc[idx]+".feather"))
             except ValueError:
-                if l2_buffer[0].empty:
+                if swath_poca_tuple[0].empty:
                     which = "Neither POCA nor swath"
                 else:
                     which = "No POCA"
-                warnings.warn(f"{which} points for {cs_time_to_id(current_track_idx)}.")
+                warnings.warn(f"{which} points for {cs_time_to_id(idx)}.")
     if save_or_return != "save":
-        return l2_buffer
+        return swath_poca_tuple
         
