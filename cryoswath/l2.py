@@ -189,9 +189,9 @@ def process_track(idx, reprocess, l2_paths, save_or_return, data_path, current_s
             raise FileNotFoundError()
         if save_or_return != "save":
             swath_poca_tuple = (
-                gpd.read_feather(os.path.join(data_path, "L2_swath", current_subdir,
+                gpd.read_feather(os.path.join(l2_swath_path, current_subdir,
                                                 l2_paths.loc[idx, "swath"])),
-                gpd.read_feather(os.path.join(data_path, "L2_poca", current_subdir,
+                gpd.read_feather(os.path.join(l2_poca_path, current_subdir,
                                                 l2_paths.loc[idx, "poca"])))
     except (KeyError, FileNotFoundError):
         if "cs_full_file_names" not in locals():
@@ -215,9 +215,9 @@ def process_track(idx, reprocess, l2_paths, save_or_return, data_path, current_s
             # performance loss is on the order of seconds. however, there might be
             # better options
             try:
-                swath_poca_tuple[0].to_feather(os.path.join(data_path, "L2_swath", current_subdir,
+                swath_poca_tuple[0].to_feather(os.path.join(l2_swath_path, current_subdir,
                                                             cs_full_file_names.loc[idx]+".feather"))
-                swath_poca_tuple[1].to_feather(os.path.join(data_path, "L2_poca", current_subdir,
+                swath_poca_tuple[1].to_feather(os.path.join(l2_poca_path, current_subdir,
                                                             cs_full_file_names.loc[idx]+".feather"))
             except ValueError:
                 if swath_poca_tuple[0].empty:

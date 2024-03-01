@@ -50,6 +50,8 @@ __all__.append("personal_email")
 
 ## Paths ##############################################################
 data_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "data")
+l2_swath_path = os.path.join(data_path, "L2_swath")
+l2_poca_path = os.path.join(data_path, "L2_poca")
 aux_path = os.path.join(data_path, "auxiliary")
 cs_ground_tracks_path = os.path.join(aux_path, "CryoSat-2_SARIn_ground_tracks.feather")
 rgi_path = os.path.join(aux_path, "RGI")
