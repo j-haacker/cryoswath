@@ -300,11 +300,12 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
                 continue
             break
     if "o1region" not in locals():
-        print("Make sure RGI files are available in data/auxiliary/RGI. If",
-              "you did not download them already, you can find them at",
+        print(f"RGI file RGI2000-v7\.0-{product}-{o1code[:2]}_... couldn't be found.",
+              "Make sure RGI files are available in data/auxiliary/RGI. If you did",
+              "not download them already, you can find them at",
               f"https://daacdata.apps.nsidc.org/pub/DATASETS/nsidc0770_rgi_v7/regional_files/RGI2000-v7.0-{product}/.",
-              "Mind that you need to unzip them. If you decide to put them",
-              "into a directory, name it as the file is named (e.g. RGI2000-v7.0-G-01_alaska).")
+              "Mind that you need to unzip them. If you decide to put them into a",
+              "directory, name it as the file is named (e.g. RGI2000-v7.0-G-01_alaska).")
         raise FileNotFoundError
     if product == "C":
         # ! work-around: drop small glaciers
