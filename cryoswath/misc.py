@@ -2,6 +2,7 @@ import configparser
 from dateutil.relativedelta import relativedelta
 import ftplib
 import geopandas as gpd
+import glob
 import numpy as np
 import os
 import pandas as pd
@@ -73,6 +74,28 @@ def cs_id_to_time(cs_id: str) -> pd.Timestamp:
 
 def cs_time_to_id(time: pd.Timestamp) -> str:
     return time.strftime("%Y%m%dT%H%M%S")
+
+
+def convert_all_esri_to_feather(dir_path: str = None) -> None:
+    for shp_file in glob.glob("*.shp", root_dir=dir_path):
+        try:
+            gis.esri_to_feather(os.path.join(dir_path, shp_file))
+        except Exception as err:
+            print("Error occured while translating", shp_file, " ... skipped.")
+            print("Error message:", str(err))
+        else:
+            print("Converted", shp_file)
+            basename = os.path.extsep.join(shp_file.split(os.path.extsep)[:-1])
+            for associated_file in glob.glob(basename+".*", root_dir=dir_path):
+                if associated_file.split(os.path.extsep)[-1] != "feather":
+                    try:
+                        os.remove(os.path.join(dir_path, associated_file))
+                    except Exception as err:
+                        print("Couldn't clean up", associated_file, " ... skipped.")
+                        print("Error message:", str(err))
+                    else:
+                        print("Removed", associated_file)
+__all__.append("convert_all_esri_to_feather")
 
 
 # def download_file(url: str, out_path: str = ".") -> str:
