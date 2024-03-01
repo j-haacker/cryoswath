@@ -38,10 +38,10 @@ def ensure_pyproj_crs(crs: CRS) -> CRS:
 __all__.append("ensure_pyproj_crs")
 
 
-def esri_to_feather(file_path):
-    if file_path[-4:].lower() == ".shp":
-        file_path = file_path[:-4]
-    gpd.read_file(file_path).to_feather(file_path+".feather")
+def esri_to_feather(file_path: str = None) -> None:
+    if file_path.split(os.path.extsep)[-1].lower() == "shp":
+        basename = os.path.extsep.join(file_path.split(os.path.extsep)[:-1])
+    gpd.read_file(file_path).to_feather(basename+os.path.extsep+"feather")
 __all__.append("esri_to_feather")
 
 
