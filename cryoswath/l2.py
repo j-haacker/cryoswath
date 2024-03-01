@@ -35,6 +35,7 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
     # download in advance. on the fly is always possible, however, with
     # parallel processing this can lead to issues because ESA blocks ftp
     # connections if there are too many.
+    print("Note that you can speed up processing substantially by previously downloading the L1b data.")
     # stop_event = Event()
     # download_thread = Thread(target=l1b.download_wrapper,
     #                          kwargs=dict(track_idx=track_idx, num_processes=8, stop_event=stop_event),
