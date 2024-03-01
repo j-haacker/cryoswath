@@ -1,5 +1,4 @@
 import geopandas as gpd
-import inspect
 from multiprocessing import Pool
 import numpy as np
 import os
@@ -200,12 +199,8 @@ def process_track(idx, reprocess, l2_paths, save_or_return, data_path, current_s
                 cs_full_file_names = kwargs.pop("cs_full_file_names")
             else:
                 cs_full_file_names = load_cs_full_file_names(update="no")
-        # filter l1b_data kwargs
-        params = inspect.signature(l1b.l1b_data).parameters
-        l1b_kwargs = {k: v for k, v in kwargs.items() if k in params}
-        # filter to_l2 kwargs
-        params = inspect.signature(l1b.l1b_data.to_l2).parameters
-        to_l2_kwargs = {k: v for k, v in kwargs.items() if k in params and k != "swath_or_poca"}
+        l1b_kwargs = filter_kwargs(l1b.l1b_data, kwargs)
+        to_l2_kwargs = filter_kwargs(l1b.l1b_data.to_l2, kwargs, blacklist=["swath_or_poca"])
         swath_poca_tuple = l1b.l1b_data.from_id(cs_time_to_id(idx), **l1b_kwargs)\
                                        .to_l2(swath_or_poca="both", **to_l2_kwargs)
         if save_or_return != "return":

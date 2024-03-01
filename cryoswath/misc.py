@@ -3,6 +3,7 @@ from dateutil.relativedelta import relativedelta
 import ftplib
 import geopandas as gpd
 import glob
+import inspect
 import numpy as np
 import os
 import pandas as pd
@@ -133,6 +134,23 @@ __all__.append("convert_all_esri_to_feather")
 #                 #if chunk: 
 #                 f.write(chunk)
 #     return local_filename
+
+
+# ! make recursive
+def filter_kwargs(func: callable,
+                  kwargs: dict, *,
+                  blacklist: list[str] = None,
+                  whitelist: list[str] = None,
+                  ) -> dict:
+    def ensure_list(tmp_list):
+        if tmp_list is None: return []
+        elif isinstance(tmp_list, str): return [tmp_list]
+        else: return tmp_list
+    blacklist = ensure_list(blacklist)
+    whitelist = ensure_list(whitelist)
+    params = inspect.signature(func).parameters
+    return {k: v for k, v in kwargs.items() if (k in params and k not in blacklist) or k in whitelist}
+__all__.append("filter_kwargs")
 
 
 def find_region_id(location: any, scope: str = "o2") -> str:
