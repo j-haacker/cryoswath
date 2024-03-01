@@ -7,6 +7,7 @@ import pandas as pd
 from pyproj import CRS
 import re
 import shapely
+from threading import Event, Thread
 import warnings
 
 from .misc import *
@@ -27,31 +28,58 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
     # the number of cores. 8 cores worked for me, 16 was too many
     if not isinstance(track_idx, pd.DatetimeIndex):
         track_idx = pd.DatetimeIndex(track_idx if isinstance(track_idx, list) else [track_idx])
-    if track_idx.tz == None: track_idx.tz_localize("UTC")
-    start_datetime, end_datetime = track_idx.sort_values()[[0,-1]]
-    swath_list = []
-    poca_list = []
-    for current_month in pd.date_range(start_datetime.normalize()-pd.offsets.MonthBegin(), end_datetime,freq="MS"):
-        current_subdir = current_month.strftime(f"%Y{os.path.sep}%m")
-        l2_paths = pd.DataFrame(columns=["swath", "poca"])
-        for l2_type in ["swath", "poca"]:
-            if os.path.isdir(os.path.join(data_path, f"L2_{l2_type}", current_subdir)):
-                for filename in os.listdir(os.path.join(data_path, f"L2_{l2_type}", current_subdir)):
-                    match = re.search(cryosat_id_pattern, filename)
-                    if match is not None:
-                        l2_paths.loc[cs_id_to_time(match.group()), l2_type] = filename
-            else:
-                os.makedirs(os.path.join(data_path, f"L2_{l2_type}", current_subdir))
-        with Pool(processes=cores) as p:
-            # function is defined at the bottom of this module
-            collective_swath_poca_list = p.starmap(process_track, [(idx, reprocess, l2_paths, save_or_return, data_path, current_subdir, kwargs) for idx in pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index]) # indices per month with work-around :/ should be easier
+    if track_idx.tz == None:
+        track_idx.tz_localize("UTC")
+    # somehow the download thread prevents the processing of tracks. it may
+    # be due to GIL lock. for now, it is just disabled, so one has to
+    # download in advance. on the fly is always possible, however, with
+    # parallel processing this can lead to issues because ESA blocks ftp
+    # connections if there are too many.
+    # stop_event = Event()
+    # download_thread = Thread(target=l1b.download_wrapper,
+    #                          kwargs=dict(track_idx=track_idx, num_processes=8, stop_event=stop_event),
+    #                          name="dl_l1b_mother_thread",
+    #                          daemon=False)
+    # download_thread.start()
+    try:
+        start_datetime, end_datetime = track_idx.sort_values()[[0,-1]]
+        swath_list = []
+        poca_list = []
+        kwargs["cs_full_file_names"] = load_cs_full_file_names(update="no")
+        for current_month in pd.date_range(start_datetime.normalize()-pd.offsets.MonthBegin(), end_datetime, freq="MS"):
+            current_subdir = current_month.strftime(f"%Y{os.path.sep}%m")
+            l2_paths = pd.DataFrame(columns=["swath", "poca"])
+            for l2_type in ["swath", "poca"]:
+                if os.path.isdir(os.path.join(data_path, f"L2_{l2_type}", current_subdir)):
+                    for filename in os.listdir(os.path.join(data_path, f"L2_{l2_type}", current_subdir)):
+                        match = re.search(cryosat_id_pattern, filename)
+                        if match is not None:
+                            l2_paths.loc[cs_id_to_time(match.group()), l2_type] = filename
+                else:
+                    os.makedirs(os.path.join(data_path, f"L2_{l2_type}", current_subdir))
+            print("start processing", current_month)
+            with Pool(processes=cores) as p:
+                # function is defined at the bottom of this module
+                collective_swath_poca_list = p.starmap(
+                    process_track,
+                    [(idx, reprocess, l2_paths, save_or_return, data_path, current_subdir, kwargs)
+                     for idx
+                     # indices per month with work-around :/ should be easier
+                     in pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index],
+                     chunksize=1)
+            if save_or_return != "save":
+                for swath_poca_tuple in collective_swath_poca_list: # .get()
+                    swath_list.append(swath_poca_tuple[0])
+                    poca_list.append(swath_poca_tuple[1])
+            print("done processing", current_month)
         if save_or_return != "save":
-            for swath_poca_tuple in collective_swath_poca_list:
-                swath_list.append(swath_poca_tuple[0])
-                poca_list.append(swath_poca_tuple[1])
-        print("done processing", current_month)
-    if save_or_return != "save":
-        return pd.concat(swath_list), pd.concat(poca_list)
+            return pd.concat(swath_list), pd.concat(poca_list)
+    except:
+        # print("Waiting for download threads to join.")
+        # stop_event.set()
+        # print("Waiting for download threads to join.")
+        # download_thread.join(30)
+        raise
 __all__.append("from_id")
 
 
@@ -155,18 +183,22 @@ __all__ = sorted(__all__)
 # local helper function. can't be defined where it is needed because of namespace issues
 def process_track(idx, reprocess, l2_paths, save_or_return, data_path, current_subdir, kwargs):
     print("getting", idx)
+    # print("kwargs", wargs)
     try:
         if reprocess or any(l2_paths.loc[idx,:].isnull()):
             raise FileNotFoundError()
         if save_or_return != "save":
             swath_poca_tuple = (
-                gpd.read_feather(os.path.join(data_path, "L2_swath", current_subdir,
+                gpd.read_feather(os.path.join(l2_swath_path, current_subdir,
                                                 l2_paths.loc[idx, "swath"])),
-                gpd.read_feather(os.path.join(data_path, "L2_poca", current_subdir,
+                gpd.read_feather(os.path.join(l2_poca_path, current_subdir,
                                                 l2_paths.loc[idx, "poca"])))
     except (KeyError, FileNotFoundError):
         if "cs_full_file_names" not in locals():
-            cs_full_file_names = load_cs_full_file_names(update="no")
+            if "cs_full_file_names" in kwargs:
+                cs_full_file_names = kwargs.pop("cs_full_file_names")
+            else:
+                cs_full_file_names = load_cs_full_file_names(update="no")
         # filter l1b_data kwargs
         params = inspect.signature(l1b.l1b_data).parameters
         l1b_kwargs = {k: v for k, v in kwargs.items() if k in params}
@@ -176,15 +208,16 @@ def process_track(idx, reprocess, l2_paths, save_or_return, data_path, current_s
         swath_poca_tuple = l1b.l1b_data.from_id(cs_time_to_id(idx), **l1b_kwargs)\
                                        .to_l2(swath_or_poca="both", **to_l2_kwargs)
         if save_or_return != "return":
+            print("saving", idx)
             # ! consider writing empty files
             # the below skips if there are no data. this means, that processing is
             # attempted the next time again. I consider this safer and the
             # performance loss is on the order of seconds. however, there might be
             # better options
             try:
-                swath_poca_tuple[0].to_feather(os.path.join(data_path, "L2_swath", current_subdir,
+                swath_poca_tuple[0].to_feather(os.path.join(l2_swath_path, current_subdir,
                                                             cs_full_file_names.loc[idx]+".feather"))
-                swath_poca_tuple[1].to_feather(os.path.join(data_path, "L2_poca", current_subdir,
+                swath_poca_tuple[1].to_feather(os.path.join(l2_poca_path, current_subdir,
                                                             cs_full_file_names.loc[idx]+".feather"))
             except ValueError:
                 if swath_poca_tuple[0].empty:
@@ -194,4 +227,6 @@ def process_track(idx, reprocess, l2_paths, save_or_return, data_path, current_s
                 warnings.warn(f"{which} points for {cs_time_to_id(idx)}.")
     if save_or_return != "save":
         return swath_poca_tuple
+    else: # not sure that its necessary
+        return 0
         

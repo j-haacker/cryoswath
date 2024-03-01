@@ -50,6 +50,8 @@ __all__.append("personal_email")
 
 ## Paths ##############################################################
 data_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "data")
+l2_swath_path = os.path.join(data_path, "L2_swath")
+l2_poca_path = os.path.join(data_path, "L2_poca")
 aux_path = os.path.join(data_path, "auxiliary")
 cs_ground_tracks_path = os.path.join(aux_path, "CryoSat-2_SARIn_ground_tracks.feather")
 rgi_path = os.path.join(aux_path, "RGI")
@@ -114,6 +116,22 @@ __all__.append("convert_all_esri_to_feather")
 #                 f.write(chunk)
 #     return local_filename
 # __all__.append("download_file")
+# not used and clutters namespace
+# def download_file(url: str, out_path: str = ".") -> str:
+#     # snippet adapted from https://stackoverflow.com/a/16696317
+#     # authors: https://stackoverflow.com/users/427457/roman-podlinov
+#     #      and https://stackoverflow.com/users/12641442/jenia
+#     local_filename = os.join(out_path, url.split('/')[-1])
+#     # NOTE the stream=True parameter below
+#     with requests.get(url, stream=True) as r:
+#         r.raise_for_status()
+#         with open(local_filename, 'wb') as f:
+#             for chunk in r.iter_content(chunk_size=8192): 
+#                 # If you have chunk encoded response uncomment if
+#                 # and set chunk_size parameter to None.
+#                 #if chunk: 
+#                 f.write(chunk)
+#     return local_filename
 
 
 def find_region_id(location: any, scope: str = "o2") -> str:
