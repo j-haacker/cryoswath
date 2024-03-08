@@ -1,3 +1,4 @@
+from dask import dataframe as dd
 import geopandas as gpd
 from multiprocessing import Pool
 import numpy as np
@@ -18,6 +19,7 @@ __all__ = list()
 def from_id(track_idx: pd.DatetimeIndex|str, *,
             reprocess: bool = True,
             save_or_return: str = "both",
+            cache: str = None,
             cores: int = len(os.sched_getaffinity(0)),
             **kwargs) -> tuple[gpd.GeoDataFrame]:
     # this function collects processed data and processes the remaining.
@@ -28,13 +30,13 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
     if not isinstance(track_idx, pd.DatetimeIndex):
         track_idx = pd.DatetimeIndex(track_idx if isinstance(track_idx, list) else [track_idx])
     if track_idx.tz == None:
-        track_idx.tz_localize("UTC")
+        track_idx = track_idx.tz_localize("UTC")
     # somehow the download thread prevents the processing of tracks. it may
     # be due to GIL lock. for now, it is just disabled, so one has to
     # download in advance. on the fly is always possible, however, with
     # parallel processing this can lead to issues because ESA blocks ftp
     # connections if there are too many.
-    print("Note that you can speed up processing substantially by previously downloading the L1b data.")
+    print("[note] You can speed up processing substantially by previously downloading the L1b data.")
     # stop_event = Event()
     # download_thread = Thread(target=l1b.download_wrapper,
     #                          kwargs=dict(track_idx=track_idx, num_processes=8, stop_event=stop_event),
@@ -43,10 +45,28 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
     # download_thread.start()
     try:
         start_datetime, end_datetime = track_idx.sort_values()[[0,-1]]
+        # ! below will not return data that is cached even it save_or_return is "both"
+        # this is a flaw in the current logic. rework.
+        if cache is not None and save_or_return != "return":
+            try:
+                with pd.HDFStore(cache, "r") as hdf:
+                    cached = hdf.select("poca", columns=[])
+                skip_months = np.unique(cached.index.normalize()+pd.DateOffset(day=1))
+                # print(skip_months)
+                del cached
+            except (OSError, KeyError) as err:
+                if isinstance(err, KeyError):
+                    warnings.warn(f"Removed cache because of KeyError (\"{str(err)}\").")
+                    os.remove(cache)
+                skip_months = np.empty(0)
         swath_list = []
         poca_list = []
         kwargs["cs_full_file_names"] = load_cs_full_file_names(update="no")
-        for current_month in pd.date_range(start_datetime.normalize()-pd.offsets.MonthBegin(), end_datetime, freq="MS"):
+        for current_month in pd.date_range(start_datetime.normalize()-pd.DateOffset(day=1),
+                                           end_datetime, freq="MS"):
+            if cache is not None and save_or_return != "return" and current_month in skip_months:
+                print("Skipping cached month", current_month.strftime("%Y-%m"))
+                continue
             current_subdir = current_month.strftime(f"%Y{os.path.sep}%m")
             l2_paths = pd.DataFrame(columns=["swath", "poca"])
             for l2_type in ["swath", "poca"]:
@@ -58,22 +78,45 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                 else:
                     os.makedirs(os.path.join(data_path, f"L2_{l2_type}", current_subdir))
             print("start processing", current_month)
-            with Pool(processes=cores) as p:
-                # function is defined at the bottom of this module
-                collective_swath_poca_list = p.starmap(
-                    process_track,
-                    [(idx, reprocess, l2_paths, save_or_return, data_path, current_subdir, kwargs)
-                     for idx
-                     # indices per month with work-around :/ should be easier
-                     in pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index],
-                     chunksize=1)
+            if cores > 1:
+                with Pool(processes=cores) as p:
+                    # function is defined at the bottom of this module
+                    collective_swath_poca_list = p.starmap(
+                        process_track,
+                        [(idx, reprocess, l2_paths, save_or_return, current_subdir, kwargs) for idx
+                        # indices per month with work-around :/ should be easier
+                        in pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index],
+                        chunksize=1)
+            else:
+                collective_swath_poca_list = []
+                for idx in pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index:
+                    collective_swath_poca_list.append(process_track(idx, reprocess, l2_paths, save_or_return,
+                                                                    current_subdir, kwargs))
+            if cache is not None:
+                for l2_type, i in zip(["swath", "poca"], [0, 1]):
+                    l2_data = pd.concat([item[i] for item in collective_swath_poca_list])
+                    if l2_type == "swath":
+                        l2_data.index = l2_data.index.get_level_values(0).astype(np.int64) \
+                                        + l2_data.index.get_level_values(1)
+                    l2_data.rename_axis("time", inplace=True)
+                    l2_data = pd.DataFrame(index=l2_data.index, 
+                                           data=pd.concat([l2_data.h_diff, l2_data.geometry.get_coordinates()],
+                                                          axis=1, copy=False))
+                    l2_data.astype(dict(h_diff=np.float32, x=np.int32, y=np.int32)).to_hdf(cache, key=l2_type, mode="a", append=True, format="table")
             if save_or_return != "save":
-                for swath_poca_tuple in collective_swath_poca_list: # .get()
-                    swath_list.append(swath_poca_tuple[0])
-                    poca_list.append(swath_poca_tuple[1])
+                    swath_list.append(pd.concat([item[0] for item in collective_swath_poca_list]))
+                    poca_list.append(pd.concat([item[1] for item in collective_swath_poca_list]))
             print("done processing", current_month)
         if save_or_return != "save":
-            return pd.concat(swath_list), pd.concat(poca_list)
+            if swath_list == []:
+                swath_list = pd.DataFrame()
+            else:
+                swath_list = pd.concat(swath_list)
+            if poca_list == []:
+                poca_list = pd.DataFrame()
+            else:
+                poca_list = pd.concat(poca_list)
+            return swath_list, poca_list
     except:
         # print("Waiting for download threads to join.")
         # stop_event.set()
