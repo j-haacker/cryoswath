@@ -2,6 +2,7 @@ import dask.dataframe
 from dask.distributed import LocalCluster, Client
 from dateutil.relativedelta import relativedelta
 import geopandas as gpd
+import numba
 import numpy as np
 import os
 import pandas as pd
@@ -67,6 +68,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     print("Gridding the data...")
     cluster = LocalCluster()
     client = Client(cluster)
+    print(client)
     l2_ddf = dask.dataframe.read_hdf(cache_path, l2_type, sorted_index=True) # chunksize=1024
     l2_ddf = l2_ddf.set_index(l2_ddf.index.astype("datetime64[ns]"), sorted=True, sort=False)
     l2_ddf = l2_ddf.loc[ext_t_axis[0]:ext_t_axis[-1]]
@@ -80,36 +82,40 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
         # print(data)
         result_list = [None]*(aggregation_period.months//timestep.months)
         for i in range(0, aggregation_period.months, timestep.months):
-            tmp0 = data.resample(f"{aggregation_period.months}MS",
-                                        origin=pd.to_datetime("2010-07-01")-aggregation_period+pd.DateOffset(months=i)).quantile([.25, .5, .75]).unstack()
-            tmp1 = data.resample(f"{aggregation_period.months}MS",
-                                        origin=pd.to_datetime("2010-07-01")-aggregation_period+pd.DateOffset(months=i)).count().rename("count")
-            result_list[i] = pd.concat([tmp0, tmp1], axis=1)
-        # print(result_list)
+            # result_list[i] = data.resample(f"{aggregation_period.months}MS",
+            #                             origin=pd.to_datetime("2010-07-01")-aggregation_period+pd.DateOffset(months=i)).agg(lambda series: pd.DataFrame([[*stats(series.to_numpy())]], index=[series.name]))#, raw=True, engine="numba"
+            result_list[i] = data.resample(
+                f"{aggregation_period.months}MS",
+                origin=pd.to_datetime("2010-07-01")-aggregation_period+pd.DateOffset(months=i)
+                ).agg({"median_h_diff": "median",
+                       "IQR_h_diff": lambda x: x.quantile([.25, .75]).diff().iloc[1],
+                       "data_count": "count"})
+        # print(pd.concat(result_list, axis=0))
         return pd.concat(result_list, axis=0)
-    l3_data = l2_ddf.groupby(["x", "y"])["h_diff"].apply(resample, meta={.25: "float", .5: "float", .75: "float", "count": "int"})#.compute()
+    # l3_data = l2_ddf.groupby(["x", "y"])["h_diff"].apply(resample, meta={0: "float", 1: "float", 2: "int"})#, meta={.25: "float", .5: "float", .75: "float", "count": "int"}.compute()
+    l3_data = l2_ddf.groupby(["x", "y"])["h_diff"].apply(resample, meta={"median_h_diff": "float", "IQR_h_diff": "float", "data_count": "int"})#
     print("debug4")
     # l3_data.visualize("dask_debug4.svg")
-    l3_data["IQR_h_diff"] = l3_data[.75]-l3_data[.25]
-    l3_data = l3_data.drop(columns=[.25, .75])
-    l3_data = l3_data.rename(columns={0.5: "median_h_diff"})
-    print("debug5")
-    # l3_data.visualize("dask_debug5.svg")
     l3_data = l3_data.compute()
     print("debug6")
     # setting the time labels to begin central month. should you prefer the
     # 15th, add +pd.offsets.SemiMonthBegin() or day=15 to the DateOffset
     l3_data.index = l3_data.index.set_levels(l3_data.index.levels[2]+pd.DateOffset(months=aggregation_period.months//2), level="time")#
     l3_data = l3_data.query(f"time >= '{start_datetime}' and time <= '{end_datetime}'")
-    # l3_data = med_mad_cnt_grid(l2_ddf, region_of_interest=region_of_interest,
-    #                             ext_t_axis=ext_t_axis,
-    #                             aggregation_period=aggregation_period,
-    #                             spatial_res_meter=spatial_res_meter,
-    #                             )
     print("debug7", l3_data)
+    l3_data.to_pickle(build_path(region_id, timestep, spatial_res_meter, aggregation_period)[:-3]+".pkl")
+    print("debug8: pickled dataframe")
     l3_data.to_xarray().to_netcdf(build_path(region_id, timestep, spatial_res_meter, aggregation_period))
     return l3_data
 __all__.append("build_dataset")
+
+@numba.njit(nogil=True)
+def stats(data) -> tuple[float, float, int]:
+    count = len(data)
+    if count == 0:
+        return np.nan, np.nan, count
+    quartiles = np.quantile(data, [.25, .5, .75])
+    return quartiles[1], quartiles[2]-quartiles[0], count
 
 
 def build_path(region_of_interest, timestep, spatial_res_meter, aggregation_period):

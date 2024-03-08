@@ -45,13 +45,21 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
     # download_thread.start()
     try:
         start_datetime, end_datetime = track_idx.sort_values()[[0,-1]]
-        # ! below will not return data that is cached even it save_or_return is "both"
+        # ! below will not return data that is cached, even if save_or_return="both"
         # this is a flaw in the current logic. rework.
         if cache is not None and save_or_return != "return":
             try:
                 with pd.HDFStore(cache, "r") as hdf:
                     cached = hdf.select("poca", columns=[])
-                skip_months = np.unique(cached.index.normalize()+pd.DateOffset(day=1))
+                # for better performance: reduce indices to two per month
+                sample_rate_ns = int(15*(24*60*60)*1e9)
+                tmp = cached.index.astype("int64")//sample_rate_ns
+                tmp = pd.arrays.DatetimeArray(np.append(np.unique(tmp)*sample_rate_ns,
+                                                        # adding first and last element
+                                                        # included for debugging. on default, at least adding the last
+                                                        # index should not be added to prevent missing data
+                                                        cached.index[[0,-1]].astype("int64")))
+                skip_months = np.unique(tmp.normalize()+pd.DateOffset(day=1))
                 # print(skip_months)
                 del cached
             except (OSError, KeyError) as err:
@@ -64,7 +72,7 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
         kwargs["cs_full_file_names"] = load_cs_full_file_names(update="no")
         for current_month in pd.date_range(start_datetime.normalize()-pd.DateOffset(day=1),
                                            end_datetime, freq="MS"):
-            if cache is not None and save_or_return != "return" and current_month in skip_months:
+            if cache is not None and save_or_return != "return" and current_month.tz_localize(None) in skip_months:
                 print("Skipping cached month", current_month.strftime("%Y-%m"))
                 continue
             current_subdir = current_month.strftime(f"%Y{os.path.sep}%m")
@@ -224,7 +232,7 @@ __all__ = sorted(__all__)
 
 
 # local helper function. can't be defined where it is needed because of namespace issues
-def process_track(idx, reprocess, l2_paths, save_or_return, data_path, current_subdir, kwargs):
+def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwargs):
     print("getting", idx)
     # print("kwargs", wargs)
     try:
