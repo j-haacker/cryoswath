@@ -483,14 +483,18 @@ def build_flag_mask(cs_l1b_flag: xr.DataArray, black_list: list = [], white_list
 __all__.append("build_flag_mask")
 
 
-def download_files(region_of_interest: str|shapely.Polygon,
-                   start_datetime: str|pd.Timestamp = "2010-10-10",
-                   end_datetime: str|pd.Timestamp = "2011-11-11", *,
+def download_files(region_of_interest: str|shapely.Polygon = None,
+                   start_datetime: str|pd.Timestamp = "2010",
+                   end_datetime: str|pd.Timestamp = "2035", *,
                    buffer_region_by: float = None,
+                   track_idx: pd.DatetimeIndex|str,
                    #baseline: str = "latest",
                    ):
-    start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
-    cs_tracks = load_cs_ground_tracks(region_of_interest, start_datetime, end_datetime, buffer_region_by=buffer_region_by)
+    if track_idx is None:
+        start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
+        track_idx = load_cs_ground_tracks(region_of_interest, start_datetime, end_datetime, buffer_region_by=buffer_region_by).index
+    else:
+        start_datetime, end_datetime = track_idx.sort_values()[[0,-1]]
     for period in pd.date_range(start_datetime,
                                 end_datetime+np.timedelta64(1, 'm'), freq="M"):
         try:
@@ -509,7 +513,7 @@ def download_files(region_of_interest: str|shapely.Polygon,
                 print("\n_______\nentering", period.strftime("%Y - %m"))
             for remote_file in ftp.nlst():
                 if remote_file[-3:] == ".nc" \
-                and pd.to_datetime(remote_file[19:34]) in cs_tracks.index \
+                and pd.to_datetime(remote_file[19:34]) in track_idx \
                 and remote_file not in currently_present_files:
                     local_path = os.path.join("../data/L1b/", period.strftime("%Y/%m"), remote_file)
                     try:
