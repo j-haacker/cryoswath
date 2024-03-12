@@ -365,3 +365,41 @@ def drop_waveform(cs_l1b_ds, time_20_ku_mask):
         xr.Dataset or DataArray: Input dataset without marked waveforms.
     """
     return cs_l1b_ds.sel(time_20_ku=cs_l1b_ds.time_20_ku[~time_20_ku_mask])
+
+def choose_group_phase_wrap(waveform):
+    # this should be possible for all waveforms in parallel (see below). However, this takes much longer for some
+    # reason. Check again, when using dask (looks like a sparse memory accessing issue).
+    # ds["ph_idx"][~ds.group_id.isnull()] = ds.xph_swath_h_diff.groupby(ds.group_id).map(lambda x: x.ns_20_ku*0+x.mean("stacked_time_20_ku_ns_20_ku").idxmin("phase_wrap_factor"))
+    return waveform.xph_elev_diffs.groupby(waveform.group_id).map(lambda x: x.ns_20_ku*0+x.mean("ns_20_ku").idxmin("phase_wrap_factor"))
+
+def get_buffered_glacier_outlines(l1b_ds):
+    # Implement finding polygon based on track lat/lon
+    glacier_shp_filename = "../../2022__Novaya_Zemlya/data/shape_files/RGI60_glaciers__Nowaya_Zemlya.shp"
+    buffered_glaciered_area_polygon = gpd.read_file(glacier_shp_filename)
+    return gpd.GeoSeries(buffered_glaciered_area_polygon.unary_union,
+                         crs=buffered_glaciered_area_polygon.crs)\
+                             .to_crs(3414).buffer(30000).to_crs(4326)
+
+
+def get_xtrack_dem_transect(waveform, dem, half_beam_width=15e3, sampling_interval=100):
+    sampling_dist = np.arange(-half_beam_width, half_beam_width+1, sampling_interval)
+    num_samples = len(sampling_dist)
+    lats, lons = WGS84_ellpsoid.fwd(lons=[waveform.lon_20_ku]*num_samples,
+                              lats=[waveform.lat_20_ku]*num_samples,
+                              az=[waveform.azimuth+90]*num_samples,
+                              dist=sampling_dist)[1::-1]
+    trans_4326_to_dem_crs = Transformer.from_crs("EPSG:4326", dem.rio.crs)
+    xs, ys = trans_4326_to_dem_crs.transform(lats, lons)
+    return gpd.GeoDataFrame(dict(elevation=list(dem.sample([(x, y) for x, y in zip(xs, ys)])),
+                                 geometry=list(shapely.geometry.Point(x, y) for x, y in zip(xs, ys))),
+                            crs=dem.crs)
+
+
+def get_rot_mat_dem_to_waveform(dem_central_lon, wf_lon, wf_az):
+    # Assumes prime meridian to be the same
+    return Rotation.from_euler('z', dem_central_lon-wf_lon+wf_az, degrees=True)
+
+
+
+
+    
