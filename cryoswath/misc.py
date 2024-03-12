@@ -2,13 +2,13 @@ import configparser
 from dateutil.relativedelta import relativedelta
 import ftplib
 import geopandas as gpd
-import glob
 import numpy as np
 import os
 import pandas as pd
 from pyproj import Geod
 import rasterio
 import re
+import requests
 from scipy.constants import speed_of_light
 import scipy.stats
 import shapely
@@ -76,28 +76,7 @@ def cs_time_to_id(time: pd.Timestamp) -> str:
     return time.strftime("%Y%m%dT%H%M%S")
 
 
-def convert_all_esri_to_feather(dir_path: str = None) -> None:
-    for shp_file in glob.glob("*.shp", root_dir=dir_path):
-        try:
-            gis.esri_to_feather(os.path.join(dir_path, shp_file))
-        except Exception as err:
-            print("Error occured while translating", shp_file, " ... skipped.")
-            print("Error message:", str(err))
-        else:
-            print("Converted", shp_file)
-            basename = os.path.extsep.join(shp_file.split(os.path.extsep)[:-1])
-            for associated_file in glob.glob(basename+".*", root_dir=dir_path):
-                if associated_file.split(os.path.extsep)[-1] != "feather":
-                    try:
-                        os.remove(os.path.join(dir_path, associated_file))
-                    except Exception as err:
-                        print("Couldn't clean up", associated_file, " ... skipped.")
-                        print("Error message:", str(err))
-                    else:
-                        print("Removed", associated_file)
-__all__.append("convert_all_esri_to_feather")
-
-
+# not used and clutters namespace
 # def download_file(url: str, out_path: str = ".") -> str:
 #     # snippet adapted from https://stackoverflow.com/a/16696317
 #     # authors: https://stackoverflow.com/users/427457/roman-podlinov
@@ -113,7 +92,6 @@ __all__.append("convert_all_esri_to_feather")
 #                 #if chunk: 
 #                 f.write(chunk)
 #     return local_filename
-# __all__.append("download_file")
 
 
 def find_region_id(location: any, scope: str = "o2") -> str:
@@ -133,7 +111,7 @@ def find_region_id(location: any, scope: str = "o2") -> str:
     elif scope == "o2":
         return rgi_region["o2region"].values[0]
     elif scope == "basin":
-        rgi_glacier_gpdf = load_o2region(rgi_region["o2region"].values[0])
+        rgi_glacier_gpdf = load_o2region(rgi_region["o2region"].values[0], "glaciers")
         return rgi_glacier_gpdf[rgi_glacier_gpdf.contains(location.centroid)]["rgi_id"].values[0]
     else:
         raise Exception("`scope` can be one of \"o1\", \"o2\", or \"basin\".")
@@ -254,9 +232,9 @@ def load_cs_full_file_names(update: str = "regular") -> pd.Series:
                 return file_names
 
 
-def load_cs_ground_tracks(region_of_interest: shapely.Polygon,
-                          start_datetime: pd.Timestamp,
-                          end_datetime: pd.Timestamp, *,
+def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
+                          start_datetime: str|pd.Timestamp = "2010",
+                          end_datetime: str|pd.Timestamp = "2100", *,
                           buffer_period_by: relativedelta = None,
                           buffer_region_by: float = None,
                           ) -> gpd.GeoDataFrame:
@@ -267,16 +245,17 @@ def load_cs_ground_tracks(region_of_interest: shapely.Polygon,
         start_datetime = start_datetime - buffer_period_by
         end_datetime = end_datetime + buffer_period_by
     cs_tracks = cs_tracks.loc[start_datetime:end_datetime+pd.offsets.Day(1)]
-    if isinstance(region_of_interest, str):
-        region_of_interest = load_glacier_outlines(region_of_interest)
-    if buffer_region_by is not None:
-        region_of_interest = gis.buffer_4326_shp(region_of_interest, buffer_region_by)
-    region_of_interest = gis.simplify_4326_shp(region_of_interest)
-    # find all tracks that intersect the buffered region of interest.
-    # mind that this are calculations on a sphere. currently, the
-    # polygon is transformed to ellipsoidal coordinates. not a 100 %
-    # sure that this doesn't raise issues close to the poles.
-    cs_tracks = cs_tracks[cs_tracks.intersects(region_of_interest)]
+    if region_of_interest is not None:
+        if isinstance(region_of_interest, str):
+            region_of_interest = load_glacier_outlines(region_of_interest)
+        if buffer_region_by is not None:
+            region_of_interest = gis.buffer_4326_shp(region_of_interest, buffer_region_by)
+        region_of_interest = gis.simplify_4326_shp(region_of_interest)
+        # find all tracks that intersect the buffered region of interest.
+        # mind that this are calculations on a sphere. currently, the
+        # polygon is transformed to ellipsoidal coordinates. not a 100 %
+        # sure that this doesn't raise issues close to the poles.
+        cs_tracks = cs_tracks[cs_tracks.intersects(region_of_interest)]
     return cs_tracks.set_crs(4326)
 
 
@@ -299,12 +278,11 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
                 continue
             break
     if "o1region" not in locals():
-        print(f"RGI file RGI2000-v7\.0-{product}-{o1code[:2]}_... couldn't be found.",
-              "Make sure RGI files are available in data/auxiliary/RGI. If you did",
-              "not download them already, you can find them at",
+        print("Make sure RGI files are available in data/auxiliary/RGI. If",
+              "you did not download them already, you can find them at",
               f"https://daacdata.apps.nsidc.org/pub/DATASETS/nsidc0770_rgi_v7/regional_files/RGI2000-v7.0-{product}/.",
-              "Mind that you need to unzip them. If you decide to put them into a",
-              "directory, name it as the file is named (e.g. RGI2000-v7.0-G-01_alaska).")
+              "Mind that you need to unzip them. If you decide to put them",
+              "into a directory, name it as the file is named (e.g. RGI2000-v7.0-G-01_alaska).")
         raise FileNotFoundError
     if product == "C":
         # ! work-around: drop small glaciers

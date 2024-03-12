@@ -8,6 +8,8 @@ import pandas as pd
 from pyproj import Transformer
 import rioxarray as rioxr
 import shapely
+from threading import Event, Thread
+import time
 import warnings
 import xarray as xr
 
@@ -33,7 +35,19 @@ class l1b_data(xr.Dataset):
         # ! tbi customize or drop misleading attributes of xr.Dataset
         # currently only originally named CryoSat-2 SARIn files implemented
         assert(fnmatch.fnmatch(l1b_filename, "*CS_????_SIR_SIN_1B_*.nc"))
-        tmp = xr.open_dataset(l1b_filename)#, chunks={"time_20_ku": 256}
+        try:
+            tmp = xr.open_dataset(l1b_filename)#, chunks={"time_20_ku": 256}
+        except (OSError, ValueError) as err:
+            if isinstance(err, OSError):
+                if not err.errno == -101:
+                    raise err
+                else:
+                    warnings.warn(err.strerror+" was raised. Downloading file again.")
+            else:
+                warnings.warn(str(err)+" was raised. Downloading file again.")
+            os.remove(l1b_filename)
+            download_single_file(os.path.split(l1b_filename)[-1][19:34])
+            tmp = xr.open_dataset(l1b_filename)
         # at least until baseline E ns_20_ku needs to be made a coordinate
         tmp = tmp.assign_coords(ns_20_ku=("ns_20_ku", np.arange(len(tmp.ns_20_ku))))
         # first: get azimuth bearing from smoothed incremental azimuths.
@@ -479,76 +493,125 @@ def build_flag_mask(cs_l1b_flag: xr.DataArray, black_list: list = [], white_list
 __all__.append("build_flag_mask")
 
 
-def download_files(region_of_interest: str|shapely.Polygon = None,
+def download_wrapper(region_of_interest: str|shapely.Polygon = None,
                    start_datetime: str|pd.Timestamp = "2010",
                    end_datetime: str|pd.Timestamp = "2035", *,
                    buffer_region_by: float = None,
-                   track_idx: pd.DatetimeIndex|str,
+                   track_idx: pd.DatetimeIndex|str = None,
+                   stop_event: Event = None,
+                   num_processes: int = 2,
                    #baseline: str = "latest",
                    ):
     if track_idx is None:
         start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
         track_idx = load_cs_ground_tracks(region_of_interest, start_datetime, end_datetime, buffer_region_by=buffer_region_by).index
     else:
-        start_datetime, end_datetime = track_idx.sort_values()[[0,-1]]
-    for period in pd.date_range(start_datetime,
-                                end_datetime+np.timedelta64(1, 'm'), freq="M"):
+        track_idx = track_idx.sort_values()
+        start_datetime, end_datetime = track_idx[[0,-1]]
+    months = pd.date_range(start_datetime.normalize(), end_datetime+pd.offsets.MonthBegin(), freq="M")
+    if len(track_idx) > 100:
+        if stop_event is None:
+            stop_event = Event()
+        download_threads = []
+        for i in range(min(num_processes, len(months))):
+            idx_selection = track_idx[track_idx.snap("M").normalize().isin(months[i::num_processes])]
+            download_threads.append(Thread(target=download_files,
+                                           kwargs=dict(track_idx=idx_selection, stop_event=stop_event),
+                                           name=f"dl_l1b_child_thread_{i}",
+                                           daemon=False))
+            download_threads[-1].start()
+        print(f"Started {num_processes} download threads;",
+              f"each ensuring {len(months)/num_processes:.1f} months' availability.")
+        while ~stop_event.is_set() and any([thread.is_alive() for thread in download_threads]):
+            stop_event.wait(60)
+        if any([thread.is_alive() for thread in download_threads]):
+            for thread in download_threads:
+                thread.join(30)
+            print("Closed all download threads. Likely not all files were downloaded.")
+            return 1
+        else:
+            print("All downloads finished.")
+    else:
+        download_files(track_idx, stop_event=stop_event)
+__all__.append("download_wrapper")
+
+
+def download_files(track_idx: pd.DatetimeIndex|str,
+                   stop_event: Event = None,
+                   #baseline: str = "latest",
+                   ):
+    year_month_str_list = [month.strftime(f"%Y{os.path.sep}%m") for month in track_idx.snap("M").normalize().unique()]
+    print(f"Start downloading {len(track_idx)} L1b .nc files if not present for months:", year_month_str_list)
+    for year_month_str in year_month_str_list:
+        if stop_event is not None and stop_event.is_set():
+            return
         try:
-            currently_present_files = os.listdir("../data/L1b/"+period.strftime("%Y/%m"))
+            currently_present_files = os.listdir(os.path.join(data_path, "L1b", year_month_str))
         except FileNotFoundError:
-            os.makedirs("../data/L1b/"+period.strftime("%Y/%m"))
+            os.makedirs("../data/L1b/"+year_month_str)
             currently_present_files = []
         with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
             ftp.login(passwd=personal_email)
             try:
-                ftp.cwd("/SIR_SIN_L1/"+period.strftime("%Y/%m"))
+                # ! this will fail on windows/non-UNIX
+                ftp.cwd("/SIR_SIN_L1/"+year_month_str)
             except ftplib.error_perm:
-                warnings.warn("Directory /SIR_SIN_L1/"+period.strftime("%Y/%m")+" couldn't be accessed.")
+                warnings.warn("Directory /SIR_SIN_L1/"+year_month_str+" couldn't be accessed.")
                 continue
-            else:
-                print("\n_______\nentering", period.strftime("%Y - %m"))
             for remote_file in ftp.nlst():
+                if stop_event is not None and stop_event.is_set():
+                    return
                 if remote_file[-3:] == ".nc" \
-                and pd.to_datetime(remote_file[19:34]) in track_idx \
-                and remote_file not in currently_present_files:
-                    local_path = os.path.join("../data/L1b/", period.strftime("%Y/%m"), remote_file)
+                        and pd.to_datetime(remote_file[19:34]) in track_idx \
+                        and remote_file not in currently_present_files:
+                    local_path = os.path.join("../data/L1b/", year_month_str, remote_file)
                     try:
-                        with open(local_path, "wb") \
-                        as local_file:
-                            print("___\ndownloading "+remote_file)
+                        with open(local_path, "wb") as local_file:
+                            print("downloading", remote_file)
                             ftp.retrbinary("RETR "+remote_file, local_file.write)
-                            print("done")
                     except:
+                        print("download failed for", remote_file)
                         if os.path.isfile(local_path):
                             os.remove(local_path)
                         raise
+    print("finished downloading tracks for months:\n", year_month_str_list)
 __all__.append("download_files")
+
 
 def download_single_file(track_id: str) -> str:
     # currently only CryoSat-2
-    with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
-        ftp.login(passwd=personal_email)
-        ftp.cwd("/SIR_SIN_L1/"+pd.to_datetime(track_id).strftime("%Y/%m"))
-        for remote_file in ftp.nlst():
-            if remote_file[-3:] == ".nc" \
-            and remote_file[19:34] == track_id:
-                local_path = os.path.join(data_path, "L1b", pd.to_datetime(track_id).strftime("%Y/%m"))
-                if not os.path.isdir(local_path):
-                    os.makedirs(local_path)
-                local_path = os.path.join(local_path, remote_file)
-                try:
-                    with open(local_path, "wb") as local_file:
-                        print("___\ndownloading "+remote_file)
-                        ftp.retrbinary("RETR "+remote_file, local_file.write)
-                        print("done")
-                        return local_path
-                except:
-                    if os.path.isfile(local_path):
-                        os.remove(local_path)
-                    raise
-        print(f"File for id {track_id} couldn't be found in remote dir {ftp.pwd()}.")
-        raise FileNotFoundError()
+    retries = 10
+    while retries > 0:
+        try:
+            with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
+                ftp.login(passwd=personal_email)
+                ftp.cwd("/SIR_SIN_L1/"+pd.to_datetime(track_id).strftime("%Y/%m"))
+                for remote_file in ftp.nlst():
+                    if remote_file[-3:] == ".nc" \
+                    and remote_file[19:34] == track_id:
+                        local_path = os.path.join(data_path, "L1b", pd.to_datetime(track_id).strftime("%Y/%m"))
+                        if not os.path.isdir(local_path):
+                            os.makedirs(local_path)
+                        local_path = os.path.join(local_path, remote_file)
+                        try:
+                            with open(local_path, "wb") as local_file:
+                                print("downloading "+remote_file)
+                                ftp.retrbinary("RETR "+remote_file, local_file.write)
+                                return local_path
+                        except:
+                            print("download failed for", remote_file)
+                            if os.path.isfile(local_path):
+                                os.remove(local_path)
+                            raise
+                print(f"File for id {track_id} couldn't be found in remote dir {ftp.pwd()}.")
+                # ! should this raise an error?
+                raise FileNotFoundError()
+        except ftplib.error_temp as err:
+            print(str(err), f"raised. Retrying to download file with id {track_id} in 10 s for the {11-retries}. time.")
+            time.sleep(10)
+            retries -= 1
 __all__.append("download_single_file")
+
 
 def drop_waveform(cs_l1b_ds, time_20_ku_mask):
     """Use mask along time dim to drop waveforms.
