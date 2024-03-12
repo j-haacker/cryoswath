@@ -28,7 +28,7 @@ class l1b_data(xr.Dataset):
     __all__ = list()
 
     def __init__(self, l1b_filename: str, *,
-                 waveform_selection: list|slice = None,
+                 waveform_selection: int|pd.Timestamp|list[int|pd.Timestamp]|slice = None,
                  drop_bad_waveforms: bool = True,
                  mask_coherence_gt1: bool = True,
                  drop_non_glacier_areas: bool = True,
@@ -47,10 +47,13 @@ class l1b_data(xr.Dataset):
                                      3)
         buffer = buffer.assign(azimuth=("time_20_ku", np.poly1d(poly3fit_params)(np.arange(len(buffer.time_20_ku)-.5))%360))
         if waveform_selection != None:
-            if not isinstance(waveform_selection, slice) and len(waveform_selection) < 2:
-                Exception("You need to select at least 2 waveforms. This is a bug, but not issue filed yet.")
-            # assuming index selection
-            buffer = buffer.isel(time_20_ku=waveform_selection)
+            if not isinstance(waveform_selection, slice) and not isinstance(waveform_selection, list):
+                waveform_selection = [waveform_selection]
+            if (isinstance(waveform_selection, slice) and isinstance(waveform_selection.start, int)) \
+                    or (isinstance(waveform_selection, list) and isinstance(waveform_selection[0], int)):
+                buffer = buffer.isel(time_20_ku=waveform_selection)
+            else:
+                buffer = buffer.sel(time_20_ku=waveform_selection)
             # print(buffer)
         if mask_coherence_gt1:
             buffer["coherence_waveform_20_ku"] = buffer.coherence_waveform_20_ku.where(buffer.coherence_waveform_20_ku <= 1)
@@ -88,7 +91,7 @@ class l1b_data(xr.Dataset):
             try:
                 o2code = o2regions[o2regions.geometry.contains(shapely.box(*buffered_points.total_bounds))]["o2region"].values[0]
                 retain_indeces = buffered_points.intersects(load_o2region(o2code).clip_by_rect(*buffered_points.total_bounds).unary_union)
-                if retain_indeces.sum() < 2: raise IndexError()
+                # print(retain_indeces[retain_indeces].index)
                 buffer = buffer.isel(time_20_ku=retain_indeces[retain_indeces].index)
             except IndexError:
                 warnings.warn("Not enough waveforms left on glacier. Proceeding with 2 dummy waveforms to ensure no errors raised.")
