@@ -4,7 +4,7 @@ geopandas # implies among others: shapely
 matplotlib
 netCDF4
 # numbagg # for numpy: for exponential rolling window operations
-rioxarry # implies among others: rasterio
+rioxarray # implies among others: rasterio
 scipy
 
 ## cryoswath optional #################################################
