@@ -37,39 +37,39 @@ class l1b_data(xr.Dataset):
         # ! tbi customize or drop misleading attributes of xr.Dataset
         # currently only originally named CryoSat-2 SARIn files implemented
         assert(fnmatch.fnmatch(l1b_filename, "*CS_????_SIR_SIN_1B_*.nc"))
-        buffer = xr.open_dataset(l1b_filename)#, chunks={"time_20_ku": 256}
+        tmp = xr.open_dataset(l1b_filename)#, chunks={"time_20_ku": 256}
         # at least until baseline E ns_20_ku needs to be made a coordinate
-        buffer = buffer.assign_coords(ns_20_ku=("ns_20_ku", np.arange(len(buffer.ns_20_ku))))
+        tmp = tmp.assign_coords(ns_20_ku=("ns_20_ku", np.arange(len(tmp.ns_20_ku))))
         # first: get azimuth bearing from smoothed incremental azimuths.
         # this needs to be done before dropping part of the recording
-        poly3fit_params = np.polyfit(np.arange(len(buffer.time_20_ku)-1), 
-                                     WGS84_ellpsoid.inv(lats1=buffer.lat_20_ku[:-1], lons1=buffer.lon_20_ku[:-1],
-                                                  lats2=buffer.lat_20_ku[1:], lons2=buffer.lon_20_ku[1:])[0],
+        poly3fit_params = np.polyfit(np.arange(len(tmp.time_20_ku)-1), 
+                                     WGS84_ellpsoid.inv(lats1=tmp.lat_20_ku[:-1], lons1=tmp.lon_20_ku[:-1],
+                                                        lats2=tmp.lat_20_ku[1:], lons2=tmp.lon_20_ku[1:])[0],
                                      3)
-        buffer = buffer.assign(azimuth=("time_20_ku", np.poly1d(poly3fit_params)(np.arange(len(buffer.time_20_ku)-.5))%360))
+        tmp = tmp.assign(azimuth=("time_20_ku", np.poly1d(poly3fit_params)(np.arange(len(tmp.time_20_ku)-.5))%360))
         # waveform selection is meant to be versatile. however the handling seems fragile
         if waveform_selection is not None:
             if not isinstance(waveform_selection, slice) and len(waveform_selection) == 1:
                 waveform_selection = [waveform_selection]
             if (isinstance(waveform_selection, slice) and isinstance(waveform_selection.start, numbers.Integral)) \
                     or isinstance(waveform_selection[0], numbers.Integral):
-                buffer = buffer.isel(time_20_ku=waveform_selection)
+                tmp = tmp.isel(time_20_ku=waveform_selection)
             else:
                 # for compatibility with lower precision timestamps, use backfill or
                 # nearest. I prefer nearest because it should also work in cases where
                 # the timestmap was rounded instead of floored. for cryosat it should be
                 # safe to allow a mismatch of up to +-25 milliseconds (20 Hz).
-                buffer = buffer.sel(time_20_ku=waveform_selection, method="nearest",
-                                    tolerance=np.timedelta64(25, "ms"))
+                tmp = tmp.sel(time_20_ku=waveform_selection, method="nearest",
+                              tolerance=np.timedelta64(25, "ms"))
         if mask_coherence_gt1:
-            buffer["coherence_waveform_20_ku"] = buffer.coherence_waveform_20_ku.where(buffer.coherence_waveform_20_ku <= 1)
-        buffer["power_waveform_20_ku"] = buffer.pwr_waveform_20_ku \
-                                       * buffer.echo_scale_factor_20_ku \
-                                       * 2**buffer.echo_scale_pwr_20_ku
+            tmp["coherence_waveform_20_ku"] = tmp.coherence_waveform_20_ku.where(tmp.coherence_waveform_20_ku <= 1)
+        tmp["power_waveform_20_ku"] = tmp.pwr_waveform_20_ku \
+                                       * tmp.echo_scale_factor_20_ku \
+                                       * 2**tmp.echo_scale_pwr_20_ku
         if drop_bad_waveforms:
             # see available flags using data.flag.attrs["flag_meanings"]
             # print("drop bad. cur buf:", buffer)
-            buffer = drop_waveform(buffer, build_flag_mask(buffer.flag_mcd_20_ku, [
+            tmp = drop_waveform(tmp, build_flag_mask(tmp.flag_mcd_20_ku, [
                 'block_degraded',
                 'blank_block',
                 'datation_degraded',
@@ -89,7 +89,8 @@ class l1b_data(xr.Dataset):
         if drop_non_glacier_areas:
             # ! needs to be tidied up:
             # (also: simplify needed?)
-            buffered_points = gpd.GeoSeries(gpd.points_from_xy(buffer.lon_20_ku, buffer.lat_20_ku), crs=4326).to_crs(3413).buffer(30_000).simplify(5_000).to_crs(4326)
+            buffered_points = gpd.GeoSeries(gpd.points_from_xy(tmp.lon_20_ku, tmp.lat_20_ku), crs=4326)\
+                .to_crs(3413).buffer(30_000).simplify(5_000).to_crs(4326)
             o2regions = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
             try:
                 intersected_o2 = o2regions.geometry.intersects(shapely.box(*buffered_points.total_bounds))
@@ -97,7 +98,9 @@ class l1b_data(xr.Dataset):
                     raise IndexError
                 # should a track intersect 2 o2 regions, load the bigger intersection
                 elif sum(intersected_o2) > 1:
-                    intersections = o2regions.intersection(shapely.oriented_envelope(buffered_points.geometry.unary_union)).set_crs(4326).to_crs(3413)
+                    intersections = o2regions.intersection(
+                        shapely.oriented_envelope(buffered_points.geometry.unary_union)
+                        ).set_crs(4326).to_crs(3413)
                     o2code = o2regions.loc[intersections.geometry.area.idxmax(), "o2region"]
                 else:
                     o2code = o2regions[intersected_o2]["o2region"].values[0]
@@ -105,19 +108,19 @@ class l1b_data(xr.Dataset):
                 if all(o2_extent.is_empty):
                     raise IndexError
                 retain_indeces = buffered_points.intersects(o2_extent.unary_union)
-                buffer = buffer.isel(time_20_ku=retain_indeces[retain_indeces].index)
+                tmp = tmp.isel(time_20_ku=retain_indeces[retain_indeces].index)
             except IndexError:
                 warnings.warn("No waveforms left on glacier. Proceeding with empty dataset.")
-                buffer = buffer.isel(time_20_ku=[])
-        buffer = buffer.assign_attrs(coherence_threshold=coherence_threshold,
-                                     power_threshold=power_threshold)
-        buffer = append_exclude_mask(buffer)
-        buffer = append_poca_and_swath_idxs(buffer)
+                tmp = tmp.isel(time_20_ku=[])
+        tmp = tmp.assign_attrs(coherence_threshold=coherence_threshold,
+                               power_threshold=power_threshold)
+        tmp = append_exclude_mask(tmp)
+        tmp = append_poca_and_swath_idxs(tmp)
         # ! smooth phase at poca
         
         # add potential phase wrap factor for later use
-        buffer = buffer.assign_coords({"phase_wrap_factor": np.arange(-3, 4)})
-        super().__init__(data_vars=buffer.data_vars, coords=buffer.coords, attrs=buffer.attrs)
+        tmp = tmp.assign_coords({"phase_wrap_factor": np.arange(-3, 4)})
+        super().__init__(data_vars=tmp.data_vars, coords=tmp.coords, attrs=tmp.attrs)
     
     def append_ambiguous_reference_elevation(self):
         # !! This function causes much of the computation time. I suspect that
@@ -349,26 +352,24 @@ class l1b_data(xr.Dataset):
         elif retain_vars is None:
             retain_vars = []
         if swath_or_poca == "swath":
-            buffer = self[out_vars+retain_vars].where(~self.exclude_mask)\
+            tmp = self[out_vars+retain_vars].where(~self.exclude_mask)\
                                                .sel(phase_wrap_factor=self.ph_idx)\
                                                .dropna("time_20_ku", how="all")
         elif swath_or_poca == "poca":
             waveforms_with_poca = self.time_20_ku[~self.poca_idx.isnull()]
             buffer = self[out_vars+retain_vars+["ph_idx"]].sel(time_20_ku=waveforms_with_poca)\
                                                           .sel(ns_20_ku=self.poca_idx[~self.poca_idx.isnull()])
-            # waveforms_with_poca = self.time20_ku
-            # buffer = self[out_vars+retain_vars+["ph_idx"]][~self.poca_idx.isnull().values].sel(ns_20_ku=self.poca_idx[~self.poca_idx.isnull().values])
             buffer = buffer[out_vars+retain_vars].sel(phase_wrap_factor=buffer.ph_idx).dropna("time_20_ku", how="all")
         elif swath_or_poca == "both":
-            swath = self.to_l2(out_vars, retain_vars, tidy=tidy)
-            poca = self.to_l2(out_vars, retain_vars, tidy=tidy, swath_or_poca="poca")
+            swath = self.to_l2(out_vars, retain_vars=retain_vars, swath_or_poca="swath", **kwargs)
+            poca = self.to_l2(out_vars, retain_vars=retain_vars, swath_or_poca="poca", **kwargs)
             return swath, poca
         else:
             raise ValueError(f"You provided \"swath_or_poca={swath_or_poca}\". Choose \"swath\", \"poca\",",
                              "or \"both\".")
-        drop_coords = [coord for coord in buffer.coords if coord not in ["time", "sample"]]
+        drop_coords = [coord for coord in tmp.coords if coord not in ["time", "sample"]]
         from . import l2 # can't be in preamble as this would lead to circularity
-        l2_data = l2.from_processed_l1b(buffer.squeeze().drop_vars(drop_coords), **kwargs)
+        l2_data = l2.from_processed_l1b(tmp.squeeze().drop_vars(drop_coords), **kwargs)
         return l2_data
     __all__.append("to_l2")
 
