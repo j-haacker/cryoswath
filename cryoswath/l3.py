@@ -1,4 +1,4 @@
-
+from dateutil.relativedelta import relativedelta
 import geopandas as gpd
 import numpy as np
 import os
@@ -52,21 +52,23 @@ class l3_data(xr.Dataset):
 
 def build_dataset(region_of_interest: shapely.Polygon,
                   start_datetime: str|pd.Timestamp,
-                  end_datetime: str|pd.Timestamp,
-                  agg_time: pd.DateOffset = pd.DateOffset(months=3),
-                  timestep: pd.DateOffset = pd.DateOffset(months=1),
-                  spatial_res_meter: float = 500):
-    if len(agg_time.kwds.keys()) != 1 \
-    or len(timestep.kwds.keys()) != 1 \
-    or list(agg_time.kwds.keys())[0] not in ["years", "months", "days"] \
-    or list(timestep.kwds.keys())[0] not in ["years", "months", "days"]:
-        raise Exception("Only use one of years, months, days for agg_time and timestep.")
+                  end_datetime: str|pd.Timestamp, *,
+                  aggregation_period: relativedelta = relativedelta(months=3),
+                  timestep: relativedelta = relativedelta(months=1),
+                  spatial_res_meter: float = 500,
+                  **kwargs):
+    # if len(aggregation_period.kwds.keys()) != 1 \
+    # or len(timestep.kwds.keys()) != 1 \
+    # or list(aggregation_period.kwds.keys())[0] not in ["years", "months", "days"] \
+    # or list(timestep.kwds.keys())[0] not in ["years", "months", "days"]:
+    #     raise Exception("Only use one of years, months, days for agg_time and timestep.")
     if isinstance(start_datetime, str):
         start_datetime = pd.to_datetime(start_datetime)
     if isinstance(end_datetime, str):
         end_datetime = pd.to_datetime(end_datetime)
     cs_tracks = gis.load_cs_ground_tracks()
-    cs_tracks = cs_tracks.loc[start_datetime:end_datetime.normalize()+pd.offsets.Day(1)]
+    time_buffer = (aggregation_period-timestep)/2
+    cs_tracks = cs_tracks.loc[start_datetime-time_buffer:end_datetime.normalize()+time_buffer+pd.offsets.Day(1)]
     if isinstance(region_of_interest, str) and re.match("[012][0-9]-[012][0-9]", region_of_interest):
         region_of_interest = load_o2region(region_of_interest).unary_union
     # find all tracks that intersect the buffered region of interest.
@@ -78,8 +80,8 @@ def build_dataset(region_of_interest: shapely.Polygon,
     # on .drop. an alternative would be to define l2_data nonlocal
     # within the gridding function
     l3_data =  med_mad_cnt_grid(l2.from_id(cs_tracks.index), start_datetime=start_datetime, end_datetime=end_datetime,
-                                agg_time=agg_time, timestep=timestep, spatial_res_meter=spatial_res_meter)
-    l3_data.to_netcdf(build_path(region_of_interest, timestep, spatial_res_meter, agg_time))
+                                aggregation_period=aggregation_period, timestep=timestep, spatial_res_meter=spatial_res_meter)
+    l3_data.to_netcdf(build_path(region_of_interest, timestep, spatial_res_meter, aggregation_period))
     return l3_data
 __all__.append("build_dataset")
 
@@ -106,8 +108,8 @@ __all__.append("build_path")
 def med_mad_cnt_grid(l2_data: gpd.GeoDataFrame, *,
                      start_datetime: pd.Timestamp,
                      end_datetime: pd.Timestamp,
-                     agg_time: pd.DateOffset,
-                     timestep: pd.DateOffset,
+                     aggregation_period: relativedelta,
+                     timestep: relativedelta,
                      spatial_res_meter: float):
     # define how to grid and which stats to calculate
     def cell_bounds(number: float):
@@ -146,8 +148,8 @@ def med_mad_cnt_grid(l2_data: gpd.GeoDataFrame, *,
             subset = parent_cell.cx[x_slice,y_slice]["h_diff"]
             parent_cell.drop(index=subset.index, inplace=True)
             print("# subset data:", subset.shape[0])
-            results_list = [None]*agg_time.months
-            for i in range(agg_time.months):
+            results_list = [None]*aggregation_period.months
+            for i in range(aggregation_period.months):
                 results_list[i] = subset.groupby(subset.index.get_level_values("time")-pd.offsets.QuarterBegin(1, normalize=True)+pd.DateOffset(months=i)).apply(stats)
             result = pd.concat(results_list).unstack().sort_index().rename(columns={0: "med_elev_diff", 1: "mad_elev_diff", 2: "cnt_elev_diff"})#, inplace=True
             result = result.loc[time_axis.join(result.index, how="inner")]
