@@ -4,6 +4,7 @@ import os
 import pandas as pd
 from pyproj import Transformer
 from pyproj.crs import CRS
+import rasterio
 import shapely
 
 from .misc import *
@@ -11,18 +12,24 @@ from .misc import *
 # ! tbi:
 rgi_o1_epsg_dict = dict()
 
-def buffer_4326_shp(shp, radius: float):
+def buffer_4326_shp(shp, radius: float, simplify: bool = True):
     # ! currently only works for the Arctic
     to_planar = Transformer.from_crs(CRS.from_epsg(4326), CRS.from_epsg(3413))
     to_4326 = Transformer.from_crs(CRS.from_epsg(3413), CRS.from_epsg(4326))
-    return shapely.ops.transform(to_4326.transform, shapely.ops.transform(to_planar.transform, shp).buffer(radius))
+    buffered = shapely.ops.transform(to_planar.transform, shp).buffer(radius)
+    if simplify: buffered = buffered.simplify(radius/2)
+    return shapely.ops.transform(to_4326.transform, buffered)
 
-def ensure_pyproj_crs(crs):
+
+def ensure_pyproj_crs(crs: CRS) -> CRS:
     # Token function to convert (any?) CRS object to a pyproj.crs.CRS
-    # For now using from_epsg as it smells safest. Inflicts many dependencies
-    # (crs needs to have a code, crs object needs to have .to_epsg, ...)
+    # For now using from_epsg as it smells safest.
     if not isinstance(crs, CRS):
-        crs = CRS.from_epsg(crs.to_epsg())
+        try:
+            epsg = crs.to_epsg()
+        except AttributeError:
+            epsg = crs
+        crs = CRS.from_epsg(epsg)
     return crs
 
 
@@ -38,8 +45,9 @@ def get_lon_origin(crs):
     return ensure_pyproj_crs(crs).coordinate_operation.params[1].value
     
 
-def get_4326_to_dem_Transformer(dem):
-    return Transformer.from_crs("EPSG:4326", ensure_pyproj_crs(dem.crs))
+def get_4326_to_dem_Transformer(dem_reader: rasterio.DatasetReader) -> Transformer:
+    return Transformer.from_crs("EPSG:4326", ensure_pyproj_crs(dem_reader.crs))
+
 
 def points_on_glacier(points: gpd.GeoSeries) -> pd.Index:
     o2regions = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
