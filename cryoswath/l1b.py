@@ -1,3 +1,4 @@
+from dateutil.relativedelta import relativedelta
 import fnmatch
 import ftplib
 import geopandas as gpd
@@ -338,28 +339,17 @@ def build_flag_mask(cs_l1b_flag: xr.DataArray, black_list: list = [], white_list
     return xr.apply_ufunc(np.vectorize(flag_func), cs_l1b_flag.astype(int), dask="allowed")
 __all__.append("build_flag_mask")
 
-def download_files(region_of_interest: shapely.Polygon, # buffered region in 4326
-                    start_datetime: str = "2010-10-10",
-                    end_datetime: str = "2011-11-11",
-                    baseline: str = "latest"):
-    # ! not tested
 
-    # currently only CryoSat-2
-    if isinstance(start_datetime, str):
-        start_datetime = pd.to_datetime(start_datetime)
-    if isinstance(end_datetime, str):
-        end_datetime = pd.to_datetime(end_datetime)
-    cs_tracks = gis.load_cs_ground_tracks()
-    cs_tracks = cs_tracks.loc[start_datetime:end_datetime]
-    lon1, lat1, lon2, lat2 = region_of_interest.total_bounds
-    # find all tracks that intersect the buffered region of interest.
-    # mind that this are calculations on a sphere. currently, the
-    # polygon is transformed to ellipsoidial coordinates. not a 100 %
-    # sure that this doesn't raise issues close to the poles.
-    cs_tracks = cs_tracks.cx[lon1:lon2,lat1:lat2]
+def download_files(region_of_interest: str|shapely.Polygon,
+                   start_datetime: str|pd.Timestamp = "2010-10-10",
+                   end_datetime: str|pd.Timestamp = "2011-11-11", *,
+                   buffer_region_by: float = None,
+                   #baseline: str = "latest",
+                   ):
+    start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
+    cs_tracks = load_cs_ground_tracks(region_of_interest, start_datetime, end_datetime, buffer_region_by=buffer_region_by)
     for period in pd.date_range(start_datetime,
                                 end_datetime+np.timedelta64(1, 'm'), freq="M"):
-        print("\n_______\nentering", period.strftime("%Y - %m"))
         try:
             currently_present_files = os.listdir("../data/L1b/"+period.strftime("%Y/%m"))
         except FileNotFoundError:
@@ -367,12 +357,18 @@ def download_files(region_of_interest: shapely.Polygon, # buffered region in 432
             currently_present_files = []
         with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
             ftp.login(passwd=personal_email)
-            ftp.cwd("/SIR_SIN_L1/"+period.strftime("%Y/%m"))
+            try:
+                ftp.cwd("/SIR_SIN_L1/"+period.strftime("%Y/%m"))
+            except ftplib.error_perm:
+                warnings.warn("Directory /SIR_SIN_L1/"+period.strftime("%Y/%m")+" couldn't be accessed.")
+                continue
+            else:
+                print("\n_______\nentering", period.strftime("%Y - %m"))
             for remote_file in ftp.nlst():
                 if remote_file[-3:] == ".nc" \
-                and pd.to_datetime(remote_file[19:34]) in cs_tracks[cs_tracks.intersects(gis.buffer_4326_shp(region_of_interest.unary_union, 30000))].index \
+                and pd.to_datetime(remote_file[19:34]) in cs_tracks.index \
                 and remote_file not in currently_present_files:
-                    local_path = os.path.join(["../data/L1b/", period.strftime("%Y/%m"), remote_file])
+                    local_path = os.path.join("../data/L1b/", period.strftime("%Y/%m"), remote_file)
                     try:
                         with open(local_path, "wb") \
                         as local_file:
