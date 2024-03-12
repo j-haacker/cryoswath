@@ -13,8 +13,9 @@ from . import gis, l1b
 __all__ = list()
 
 
-def from_id(track_idx: pd.DatetimeIndex|str,
-            max_elev_diff: float = 100):
+def from_id(track_idx: pd.DatetimeIndex|str, *,
+            max_elev_diff: float = np.nan,
+            reprocess: bool = True):
     # this function collects processed data and processes the remaining.
     # combining new and old data can show unexpected behavior if
     # settings changed.
@@ -23,7 +24,7 @@ def from_id(track_idx: pd.DatetimeIndex|str,
     if track_idx.tz == None: track_idx.tz_localize("UTC")
     start_datetime, end_datetime = track_idx.sort_values()[[0,-1]]
     l2_list = []
-    for current_month in pd.date_range(start_datetime+pd.offsets.MonthBegin(0, normalize=True), end_datetime, freq="MS"):
+    for current_month in pd.date_range(start_datetime.normalize()-pd.offsets.MonthBegin(), end_datetime,freq="MS"):
         current_L2_base_path = os.path.join("..", "data", "L2", current_month.strftime(f"%Y{os.path.sep}%m"))
         if os.path.isdir(current_L2_base_path):
             l2_paths = os.listdir(current_L2_base_path)
@@ -36,16 +37,16 @@ def from_id(track_idx: pd.DatetimeIndex|str,
         # a) downloading missing L1b; b) processing L1b; c) collecting
         for current_track_idx in pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index: # super work-around :/
             print("appending", current_track_idx)
-            if current_track_idx in l2_paths.index:
+            if not reprocess and current_track_idx in l2_paths.index:
                 l2_list.append(gpd.read_feather(os.path.join(current_L2_base_path, l2_paths.loc[current_track_idx])))
             else:
                 # print("processing", track_idx)
-                l2_buffer = limit_filter(l1b.l1b_data.from_id(cs_time_to_id(current_track_idx)).to_l2(),
+                l2_buffer = limit_filter(l1b.l1b_data.from_id(cs_time_to_id(current_track_idx)).to_l2(tidy=False),
                                          "h_diff", max_elev_diff)
                 l2_list.append(l2_buffer)
                 # save results. make optional?
                 if "cs_full_file_names" not in locals():
-                    cs_full_file_names = load_cs_full_file_names()
+                    cs_full_file_names = load_cs_full_file_names(update="no")
                 l2_buffer.to_feather(os.path.join(current_L2_base_path, cs_full_file_names.loc[current_track_idx]+".feather"))
                 # print("done processing")
     return pd.concat(l2_list)
@@ -117,7 +118,9 @@ def grid(l2_data: gpd.GeoDataFrame, spatial_res_meter: float, aggregation_functi
     return pd.concat(gridded_list)
 
 
-def limit_filter(data: pd.DataFrame, column: str, limit: float):
+def limit_filter(data: pd.DataFrame, column: str, limit: float) -> pd.DataFrame:
+    if np.isnan(limit) or limit <= 0:
+        return data
     return data[np.abs(data[column])<limit]
 __all__.append("limit_filter")
 
