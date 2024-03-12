@@ -350,7 +350,7 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
                           buffer_period_by: relativedelta = None,
                           buffer_region_by: float = None,
                           update: str = "no",
-                          nthreads: int = 8,
+                          n_threads: int = 8,
                           ) -> gpd.GeoDataFrame:
     """Read the GeoDataFrame of CryoSat-2 tracks from disk.
 
@@ -378,7 +378,7 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
             update frequently with `update="regular"`. If you believe tracks are
             missing for some reason, choose `update="full"` (be aware this takes
             a while). Defaults to "no".  
-        nthreads (int, optional): Number of parallel ftp connections. If you
+        n_threads (int, optional): Number of parallel ftp connections. If you
             choose too many, ESA will refuse the connection. Defaults to 8.
 
     Raises:
@@ -398,7 +398,7 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
         cs_tracks = gpd.GeoSeries()
         update = "full"
     if update == "full":
-        last_idx = pd.Timestamp("2010-06-01")
+        last_idx = pd.Timestamp("2010-07-01")
     elif update == "regular":
         last_idx = pd.to_datetime(cs_tracks.index[-1])
     elif update != "no":
@@ -417,14 +417,12 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
             new_track_series.to_feather(cs_ground_tracks_path)
 
         def collect_missing_tracks(remote_files: list[str],
-                                   present_tracks: gpd.GeoSeries,
-                                   result_queue: queue.Queue) -> gpd.GeoSeries:
+                                   present_tracks: gpd.GeoSeries) -> gpd.GeoSeries:
             """Gets track if not in list already.
 
             Args:
                 files (list[str]): HDR file names. All of the same month.
                 present_tracks (gpd.GeoSeries): Known tracks.
-                result_queue (queue.Queue): Place to collect results from.
 
             Returns:
                 gpd.GeoSeries: Missing tracks to be added to the collection.
@@ -451,22 +449,10 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
                     elif rf_name[-3:].lower() != ".nc":
                         warnings.warn("Encountered unexpected file:"+rf_name
                                       +"\n\tShould this appear more often, adapt this function.")
-            result_queue.put(tracks_to_be_added)
+            return tracks_to_be_added
 
-        # set up and start worker-threads
-        task_queue = queue.SimpleQueue()
-        def worker():
-            while True:
-                try:
-                    next_batch = task_queue.get()
-                except TypeError:
-                    pass
-                if next_batch is not None:
-                    task_queue.put(collect_missing_tracks(*next_batch))
-        for i in range(nthreads):
-            worker_thread = threading.Thread(target=worker, daemon=True)
-            worker_thread.start()
-
+        result_queue = queue.SimpleQueue()
+        task_queue = request_workers(collect_missing_tracks, n_threads, result_queue)
         # for each month after last_idx, list all HDR-files and check whether
         # they are in the local collection.
         while True:
@@ -480,14 +466,13 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
                     break
                 remote_files = ftp.nlst()
             # cut the file list into chunks and dispatch to workers
-            batch_size = len(remote_files)//(nthreads*3)+1
-            result_queue = queue.SimpleQueue()
+            batch_size = len(remote_files)//(n_threads*3)+1
             while remote_files:
                 try:
-                    task_queue.put((remote_files[:batch_size], cs_tracks, result_queue))
+                    task_queue.put((remote_files[:batch_size], cs_tracks))
                     remote_files[:batch_size] = []
                 except IndexError:
-                    task_queue.put((remote_files[:], cs_tracks, result_queue))
+                    task_queue.put((remote_files[:], cs_tracks))
                     remote_files[:] = []
             # wait for and collect new tracks
             new_tracks_collection = []
@@ -613,5 +598,25 @@ __all__.append("load_glacier_outlines")
 def nan_unique(data: np.typing.ArrayLike) -> list:
     return [element for element in np.unique(data) if not np.isnan(element)]
 __all__.append("nan_unique")
+
+
+def request_workers(task_func: callable, n_workers: int, result_queue: queue.Queue = None) -> queue.Queue:
+    task_queue = queue.Queue()
+    def worker():
+        while True:
+            try:
+                next_task = task_queue.get()
+            except TypeError:
+                continue
+            if next_task is not None:
+                result = task_func(*next_task)
+                if result_queue is not None:
+                    result_queue.put(result)
+    for i in range(n_workers):
+        worker_thread = threading.Thread(target=worker, daemon=True)
+        worker_thread.start()
+    return task_queue
+__all__.append("request_workers")
+
 
 __all__ = sorted(__all__)
