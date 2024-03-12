@@ -55,8 +55,12 @@ class l1b_data(xr.Dataset):
                     or isinstance(waveform_selection[0], numbers.Integral):
                 buffer = buffer.isel(time_20_ku=waveform_selection)
             else:
-                buffer = buffer.sel(time_20_ku=waveform_selection)
-            # print(buffer)
+                # for compatibility with lower precision timestamps, use backfill or
+                # nearest. I prefer nearest because it should also work in cases where
+                # the timestmap was rounded instead of floored. for cryosat it should be
+                # safe to allow a mismatch of up to +-25 milliseconds (20 Hz).
+                buffer = buffer.sel(time_20_ku=waveform_selection, method="nearest",
+                                    tolerance=np.timedelta64(25, "ms"))
         if mask_coherence_gt1:
             buffer["coherence_waveform_20_ku"] = buffer.coherence_waveform_20_ku.where(buffer.coherence_waveform_20_ku <= 1)
         buffer["power_waveform_20_ku"] = buffer.pwr_waveform_20_ku \
@@ -101,6 +105,7 @@ class l1b_data(xr.Dataset):
                                      power_threshold=power_threshold)
         buffer = append_exclude_mask(buffer)
         buffer = append_poca_and_swath_idxs(buffer)
+        # ! smooth phase at poca
         # add potential phase wrap factor for later use
         buffer = buffer.assign_coords({"phase_wrap_factor": np.arange(-3, 4)})
         super().__init__(data_vars=buffer.data_vars, coords=buffer.coords, attrs=buffer.attrs)
