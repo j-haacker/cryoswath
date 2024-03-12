@@ -43,8 +43,10 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     # I believe passing loading l2 data to the function prevents copying
     # on .drop. an alternative would be to define l2_data nonlocal
     # within the gridding function
-    l3_data =  med_mad_cnt_grid(l2.from_id(cs_tracks.index), start_datetime=start_datetime, end_datetime=end_datetime,
-                                aggregation_period=aggregation_period, timestep=timestep, spatial_res_meter=spatial_res_meter)
+    l3_data =  med_mad_cnt_grid(l2.from_id(cs_tracks.index, **filter_kwargs(l2.from_id, kwargs)),
+                                start_datetime=start_datetime, end_datetime=end_datetime,
+                                aggregation_period=aggregation_period, timestep=timestep,
+                                spatial_res_meter=spatial_res_meter)
     l3_data.to_netcdf(build_path(region_of_interest, timestep, spatial_res_meter, aggregation_period))
     return l3_data
 __all__.append("build_dataset")

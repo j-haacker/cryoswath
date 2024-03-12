@@ -2,13 +2,14 @@ import configparser
 from dateutil.relativedelta import relativedelta
 import ftplib
 import geopandas as gpd
+import glob
+import inspect
 import numpy as np
 import os
 import pandas as pd
 from pyproj import Geod
 import rasterio
 import re
-import requests
 from scipy.constants import speed_of_light
 import scipy.stats
 import shapely
@@ -79,6 +80,44 @@ def cs_time_to_id(time: pd.Timestamp) -> str:
     return time.strftime("%Y%m%dT%H%M%S")
 
 
+def convert_all_esri_to_feather(dir_path: str = None) -> None:
+    for shp_file in glob.glob("*.shp", root_dir=dir_path):
+        try:
+            gis.esri_to_feather(os.path.join(dir_path, shp_file))
+        except Exception as err:
+            print("Error occured while translating", shp_file, " ... skipped.")
+            print("Error message:", str(err))
+        else:
+            print("Converted", shp_file)
+            basename = os.path.extsep.join(shp_file.split(os.path.extsep)[:-1])
+            for associated_file in glob.glob(basename+".*", root_dir=dir_path):
+                if associated_file.split(os.path.extsep)[-1] != "feather":
+                    try:
+                        os.remove(os.path.join(dir_path, associated_file))
+                    except Exception as err:
+                        print("Couldn't clean up", associated_file, " ... skipped.")
+                        print("Error message:", str(err))
+                    else:
+                        print("Removed", associated_file)
+__all__.append("convert_all_esri_to_feather")
+
+
+# def download_file(url: str, out_path: str = ".") -> str:
+#     # snippet adapted from https://stackoverflow.com/a/16696317
+#     # authors: https://stackoverflow.com/users/427457/roman-podlinov
+#     #      and https://stackoverflow.com/users/12641442/jenia
+#     local_filename = os.join(out_path, url.split('/')[-1])
+#     # NOTE the stream=True parameter below
+#     with requests.get(url, stream=True) as r:
+#         r.raise_for_status()
+#         with open(local_filename, 'wb') as f:
+#             for chunk in r.iter_content(chunk_size=8192): 
+#                 # If you have chunk encoded response uncomment if
+#                 # and set chunk_size parameter to None.
+#                 #if chunk: 
+#                 f.write(chunk)
+#     return local_filename
+# __all__.append("download_file")
 # not used and clutters namespace
 # def download_file(url: str, out_path: str = ".") -> str:
 #     # snippet adapted from https://stackoverflow.com/a/16696317
@@ -95,6 +134,23 @@ def cs_time_to_id(time: pd.Timestamp) -> str:
 #                 #if chunk: 
 #                 f.write(chunk)
 #     return local_filename
+
+
+# ! make recursive
+def filter_kwargs(func: callable,
+                  kwargs: dict, *,
+                  blacklist: list[str] = None,
+                  whitelist: list[str] = None,
+                  ) -> dict:
+    def ensure_list(tmp_list):
+        if tmp_list is None: return []
+        elif isinstance(tmp_list, str): return [tmp_list]
+        else: return tmp_list
+    blacklist = ensure_list(blacklist)
+    whitelist = ensure_list(whitelist)
+    params = inspect.signature(func).parameters
+    return {k: v for k, v in kwargs.items() if (k in params and k not in blacklist) or k in whitelist}
+__all__.append("filter_kwargs")
 
 
 def find_region_id(location: any, scope: str = "o2") -> str:
@@ -281,11 +337,12 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
                 continue
             break
     if "o1region" not in locals():
-        print("Make sure RGI files are available in data/auxiliary/RGI. If",
-              "you did not download them already, you can find them at",
+        print(f"RGI file RGI2000-v7\.0-{product}-{o1code[:2]}_... couldn't be found.",
+              "Make sure RGI files are available in data/auxiliary/RGI. If you did",
+              "not download them already, you can find them at",
               f"https://daacdata.apps.nsidc.org/pub/DATASETS/nsidc0770_rgi_v7/regional_files/RGI2000-v7.0-{product}/.",
-              "Mind that you need to unzip them. If you decide to put them",
-              "into a directory, name it as the file is named (e.g. RGI2000-v7.0-G-01_alaska).")
+              "Mind that you need to unzip them. If you decide to put them into a",
+              "directory, name it as the file is named (e.g. RGI2000-v7.0-G-01_alaska).")
         raise FileNotFoundError
     if product == "C":
         # ! work-around: drop small glaciers
