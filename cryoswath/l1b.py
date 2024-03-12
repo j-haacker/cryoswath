@@ -96,6 +96,27 @@ class l1b_data(xr.Dataset):
         # add potential phase wrap factor for later use
         buffer = buffer.assign_coords({"phase_wrap_factor": np.arange(-3, 4)})
         super().__init__(data_vars=buffer.data_vars, coords=buffer.coords, attrs=buffer.attrs)
+    
+    def append_poca_and_swath_idxs(self):
+        # ! performance improvement potential
+        # should be possible to vectorize with numba
+        def find_poca_idx_and_swath_start_idx(smooth_coh):
+            poca_idx = np.argmax(smooth_coh>.85)
+            # poca expected 10 m after coherence exceeds threshold (no solid basis)
+            poca_idx = np.argmax(smooth_coh[poca_idx:poca_idx+int(10/sample_width)])+poca_idx
+            swath_start = poca_idx + int(5/sample_width)
+            diff_smooth_coh = np.diff(smooth_coh[swath_start:swath_start+int(50/sample_width)])
+            # swath can safest be used after the coherence dip
+            swath_start = np.argmax(diff_smooth_coh[np.argmax(np.abs(diff_smooth_coh)>.001):]>0) + swath_start
+            return poca_idx, swath_start
+        self[["poca_idx", "swath_start"]] = xr.apply_ufunc(
+            find_poca_idx_and_swath_start_idx,
+            gauss_filter_DataArray(self.coherence_waveform_20_ku, "ns_20_ku", 35, 35),
+            input_core_dims=[["ns_20_ku"]],
+            output_core_dims=[[], []],
+            vectorize=True)
+        return self
+    __all__.append("append_poca_and_swath_idxs")
         
     def append_ambiguous_reference_elevation(self):
         # !! This function causes much of the computation time. I
@@ -125,14 +146,22 @@ class l1b_data(xr.Dataset):
         return self
     __all__.append("append_ambiguous_reference_elevation")
 
-    def append_below_threshold_mask(self, coherence_threshold: float = 0.6, power_threshold: tuple = ("snr", 10)):
+    def append_below_threshold_mask(self, coherence_threshold: float = 0.6,
+                                          power_threshold: tuple = ("snr", 10), *,
+                                          drop_first_peak: bool = True):
         # for now require tuple. could be some auto recognition in future.
         assert(isinstance(power_threshold, tuple))
         # only signal-to-noise-ratio implemented
         assert(power_threshold[0] == "snr")
+        if "swath_start" not in self:
+            self.append_poca_and_swath_idxs()
+        # ! the below is verbose but not fast. scrap the unnecessary computations
         power_threshold = self.noise_power_20_ku+10*np.log10(power_threshold[1])
         self["below_thresholds"] = np.logical_or(10*np.log10(self.power_waveform_20_ku) < power_threshold,
-                                                self.coherence_waveform_20_ku < coherence_threshold)
+                                                 self.coherence_waveform_20_ku < coherence_threshold)
+        if drop_first_peak:
+            self["below_thresholds"] = np.logical_or(self.below_thresholds,
+                                                     (self.ns_20_ku < self.swath_start).values.T)
         return self
     __all__.append("append_below_threshold_mask")
 
@@ -286,15 +315,15 @@ class l1b_data(xr.Dataset):
         return self
     __all__.append("tag_groups")
 
-    def to_l2(self,
-              out_vars: list|dict = {"time_20_ku": "time", "xph_x": "x", "xph_y": "y",
-                                     "xph_elevs": "height", "xph_ref_elevs": "h_ref", "xph_elev_diffs": "h_diff",
-                                     }, 
-              retain_vars: list|dict = [], 
-              tidy: bool = True):
+    def to_l2(self, out_vars: list|dict = {"time_20_ku": "time", "xph_x": "x", "xph_y": "y",
+                                           "xph_elevs": "height", "xph_ref_elevs": "h_ref", "xph_elev_diffs": "h_diff",
+                                           },
+                    retain_vars: list|dict = [], *,
+                    swath_or_poca: str = "swath",
+                    tidy: bool = True):
         # implicitly test whether data was processed. if not, do so
         if not "ph_idx" in self.data_vars:
-            self = self.append_best_fit_phase_index()
+            self.append_best_fit_phase_index()
         if isinstance(out_vars, dict):
             self = self.drop_vars(list(out_vars.values()), errors="ignore")
             self = self.rename_vars(out_vars)
@@ -304,9 +333,20 @@ class l1b_data(xr.Dataset):
             self = self.rename_vars(retain_vars)
             retain_vars = list(retain_vars.values())
         # print(self[out_vars+retain_vars].to_dataframe())
-        buffer = self[out_vars+retain_vars].where(~self.below_thresholds)\
-                                           .sel(phase_wrap_factor=self.ph_idx)\
-                                           .dropna("time_20_ku", how="all")
+        if swath_or_poca == "swath":
+            buffer = self[out_vars+retain_vars].where(~self.below_thresholds)\
+                                               .sel(phase_wrap_factor=self.ph_idx)\
+                                               .dropna("time_20_ku", how="all")
+        elif swath_or_poca == "poca":
+            buffer = self[out_vars+retain_vars].sel(ns_20_ku=self.poca_idx, phase_wrap_factor=self.ph_idx)\
+                                               .dropna("time_20_ku", how="all")
+        elif swath_or_poca == "both":
+            swath = self.to_l2(out_vars, retain_vars, tidy=tidy)
+            poca = self.to_l2(out_vars, retain_vars, tidy=tidy, swath_or_poca="poca")
+            return swath, poca
+        else:
+            raise ValueError(f"You provided \"swath_or_poca={swath_or_poca}\". Choose \"swath\", \"poca\",",
+                             "or \"both\".")
         # print(buffer.drop_vars(buffer.coords).drop_dims("band"))
         drop_coords = [coord for coord in buffer.coords if coord not in ["time"]]
         from . import l2 # needs to stay here to prevent circular import!
