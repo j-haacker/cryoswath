@@ -1,5 +1,6 @@
 
 import geopandas as gpd
+import numpy as np
 import os
 import pandas as pd
 from pyproj import CRS
@@ -11,7 +12,7 @@ from . import gis, l1b
 
 
 def limit_filter(data: pd.DataFrame, column: str, limit: float):
-    return data[data[column]<limit]
+    return data[np.abs(data[column])<limit]
 
 
 def from_processed_l1b(l1b_data: l1b.l1b_data|None = None, crs: CRS = CRS.from_epsg(3413), **kwargs) -> gpd.GeoDataFrame:
