@@ -2,9 +2,7 @@
 import geopandas as gpd
 import os
 import pandas as pd
-import psutil
-from pyproj.crs import CRS
-from pyproj.transformer import Transformer
+import re
 import shapely
 import xarray as xr
 
@@ -66,6 +64,8 @@ def build_dataset(region_of_interest: shapely.Polygon,
         end_datetime = pd.to_datetime(end_datetime)
     cs_tracks = gis.load_cs_ground_tracks()
     cs_tracks = cs_tracks.loc[start_datetime:end_datetime.normalize()+pd.offsets.Day(1)]
+    if isinstance(region_of_interest, str) and re.match("[012][0-9]-[012][0-9]", region_of_interest):
+        region_of_interest = load_o2region(region_of_interest).unary_union
     # find all tracks that intersect the buffered region of interest.
     # mind that this are calculations on a sphere. currently, the
     # polygon is transformed to ellipsoidal coordinates. not a 100 %
