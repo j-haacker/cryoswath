@@ -327,8 +327,8 @@ class l1b_data(xr.Dataset):
                                            .sel(phase_wrap_factor=self.ph_idx)\
                                            .dropna("time_20_ku", how="all")
         # print(buffer.drop_vars(buffer.coords).drop_dims("band"))
-        drop_coords = [coord for coord in buffer.coords if coord not in ["time"]]
-        from . import l2 # needs to stay here to prevent circular import!
+        drop_coords = [coord for coord in buffer.coords if coord not in ["time", "sample"]]
+        from . import l2 # can't be in preamble as this would lead to circularity
         l2_data = l2.from_processed_l1b(buffer.squeeze().drop_vars(drop_coords))
         if tidy: l2_data = l2.limit_filter(l2_data, "h_diff", 150)
         return l2_data
