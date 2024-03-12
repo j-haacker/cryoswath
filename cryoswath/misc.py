@@ -25,9 +25,7 @@ import xarray as xr
 from . import gis
 
 # make contents accessible
-__all__ = ["aux_path", "data_path", "dem_path", "cs_ground_tracks_path", "rgi_path", # paths ..........................
-           "l2_swath_path", "l2_poca_path", 
-           "WGS84_ellpsoid", "antenna_baseline", "Ku_band_freq", "sample_width",     # vars ...........................
+__all__ = ["WGS84_ellpsoid", "antenna_baseline", "Ku_band_freq", "sample_width",     # vars ...........................
            "speed_of_light", "cryosat_id_pattern",
            "cs_id_to_time", "cs_time_to_id", "find_region_id", "flag_translator",    # funcs ..........................
            "gauss_filter_DataArray", "get_dem_reader", "load_cs_full_file_names", 
@@ -58,12 +56,17 @@ __all__.append("personal_email")
 
 ## Paths ##############################################################
 data_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "data")
+l1b_path = os.path.join(data_path, "L1b")
 l2_swath_path = os.path.join(data_path, "L2_swath")
 l2_poca_path = os.path.join(data_path, "L2_poca")
+l3_path = os.path.join(data_path, "L3")
 aux_path = os.path.join(data_path, "auxiliary")
 cs_ground_tracks_path = os.path.join(aux_path, "CryoSat-2_SARIn_ground_tracks.feather")
 rgi_path = os.path.join(aux_path, "RGI")
 dem_path = os.path.join(aux_path, "DEM")
+__all__.extend(["data_path",
+                "l1b_path", "l2_swath_path", "l2_poca_path", "l3_path",
+                "aux_path", "cs_ground_tracks_path", "rgi_path", "dem_path"])
 
 ## Config #############################################################
 WGS84_ellpsoid = Geod(ellps="WGS84")
@@ -548,7 +551,7 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
         raise ValueError(f"Argument product should be either glaciers or complexes not \"{product}\".")
     rgi_files = os.listdir(rgi_path)
     for file in rgi_files:
-        if re.match(f"RGI2000-v7\.0-{product}-{o1code[:2]}_.*", file):
+        if re.match(f"RGI2000-v7\\.0-{product}-{o1code[:2]}_.*", file):
             file_path = os.path.join(rgi_path, file)
             if file[-8:] == ".feather":
                 o1region = gpd.read_feather(file_path)
@@ -558,7 +561,7 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
                 continue
             break
     if "o1region" not in locals():
-        print(f"RGI file RGI2000-v7\.0-{product}-{o1code[:2]}_... couldn't be found.",
+        print(f"RGI file RGI2000-v7.0-{product}-{o1code[:2]}_... couldn't be found.",
               "Make sure RGI files are available in data/auxiliary/RGI. If you did",
               "not download them already, you can find them at",
               f"https://daacdata.apps.nsidc.org/pub/DATASETS/nsidc0770_rgi_v7/regional_files/RGI2000-v7.0-{product}/.",

@@ -546,9 +546,10 @@ def download_files(track_idx: pd.DatetimeIndex|str,
         if stop_event is not None and stop_event.is_set():
             return
         try:
-            currently_present_files = os.listdir(os.path.join(data_path, "L1b", year_month_str))
+            print(dir())
+            currently_present_files = os.listdir(os.path.join(l1b_path, year_month_str))
         except FileNotFoundError:
-            os.makedirs("../data/L1b/"+year_month_str)
+            os.makedirs(os.path.join(l1b_path, year_month_str))
             currently_present_files = []
         with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
             ftp.login(passwd=personal_email)
@@ -564,7 +565,7 @@ def download_files(track_idx: pd.DatetimeIndex|str,
                 if remote_file[-3:] == ".nc" \
                         and pd.to_datetime(remote_file[19:34]) in track_idx \
                         and remote_file not in currently_present_files:
-                    local_path = os.path.join("../data/L1b/", year_month_str, remote_file)
+                    local_path = os.path.join(l1b_path, year_month_str, remote_file)
                     try:
                         with open(local_path, "wb") as local_file:
                             print("downloading", remote_file)
