@@ -435,7 +435,7 @@ def get_xtrack_dem_transect(waveform, half_beam_width=15e3, sampling_interval=10
                               lats=[waveform.lat_20_ku]*num_samples,
                               az=[waveform.azimuth+90]*num_samples,
                               dist=sampling_dist)[1::-1]
-    dem_reader = rio.open(os.path.join(dem_path, "09-02_novaya_zemlya.tif"), "r")
+    dem_reader = get_dem_reader()
     trans_4326_to_dem_crs = Transformer.from_crs("EPSG:4326", dem_reader.crs)
     xs, ys = trans_4326_to_dem_crs.transform(lats, lons)
     return gpd.GeoDataFrame(dict(elevation=list(dem_reader.sample([(x, y) for x, y in zip(xs, ys)])),
