@@ -131,21 +131,12 @@ __all__.append("limit_filter")
 
 def process_and_save(region_of_interest: str|shapely.Polygon,
                      start_datetime: str|pd.Timestamp,
-                     end_datetime: str|pd.Timestamp):
+                     end_datetime: str|pd.Timestamp, *,
+                     buffer_region_by: float = 10_000,
+                     **kwargs):
     start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
-    cs_tracks = gis.load_cs_ground_tracks().loc[start_datetime:end_datetime]
-    # find all tracks that intersect the buffered region of interest.
-    # mind that this are calculations on a sphere. currently, the
-    # polygon is transformed to ellipsoidial coordinates. not a 100 %
-    # sure that this doesn't raise issues close to the poles.
-    
-    if not isinstance(region_of_interest, shapely.Polygon):
-        if not re.match("[012][0-9]-[012][0-9]", region_of_interest):
-            raise Exception("Error: can only parse RGI o2 codes, e.g., 19-15.")
-        region_of_interest = load_o2region(region_of_interest).unary_union
-    cs_tracks = cs_tracks[cs_tracks.intersects(gis.buffer_4326_shp(region_of_interest, 30000))]
-    print(cs_tracks.shape[0], "tracks remain")
-    from_id(cs_tracks.index)
+    cs_tracks = load_cs_ground_tracks(region_of_interest, start_datetime, end_datetime, buffer_region_by=buffer_region_by)
+    from_id(cs_tracks.index, **kwargs)
     print("processing L1b -> L2 finished")
     return 0
 __all__.append("process_and_save")
