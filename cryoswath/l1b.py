@@ -84,7 +84,7 @@ class l1b_data(xr.Dataset):
             o2regions = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
             try:
                 o2code = o2regions[o2regions.geometry.contains(shapely.box(*buffered_points.total_bounds))]["o2region"].values[0]
-                retain_indeces = buffered_points.within(load_o2region(o2code).clip_by_rect(*buffered_points.total_bounds).unary_union)
+                retain_indeces = buffered_points.intersects(load_o2region(o2code).clip_by_rect(*buffered_points.total_bounds).unary_union)
                 if retain_indeces.sum() < 2: raise IndexError()
                 buffer = buffer.isel(time_20_ku=retain_indeces[retain_indeces].index)
             except IndexError:
