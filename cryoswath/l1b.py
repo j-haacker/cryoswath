@@ -16,6 +16,7 @@ import xarray as xr
 from . import gis
 from .misc import *
 
+
 __all__ = list()
 
 # requires implicitly rasterio(?), flox(?), dask(?)
@@ -26,15 +27,15 @@ class l1b_data(xr.Dataset):
     __all__ = list()
 
     def __init__(self, l1b_filename: str, *,
-                 waveform_selection: int|pd.Timestamp|list[int|pd.Timestamp]|slice = None,
+                 waveform_selection: list|slice = None,
                  drop_bad_waveforms: bool = True,
                  mask_coherence_gt1: bool = True,
                  drop_non_glacier_areas: bool = True,
                  ) -> None:
         # ! tbi customize or drop misleading attributes of xr.Dataset
         # currently only originally named CryoSat-2 SARIn files implemented
-        assert(fnmatch.fnmatch(l1b_filename, "*CS_????_SIR_SIN_1B_*.nc"))
-        buffer = xr.open_dataset(l1b_filename)#, chunks={"time_20_ku": 256}
+        assert(fnmatch.fnmatch(l1b_filename, "*CS_????_SIR_SIN_1B_*"))
+        buffer = xr.open_dataset(l1b_filename)
         # at least until baseline E ns_20_ku needs to be made a coordinate
         buffer = buffer.assign_coords(ns_20_ku=("ns_20_ku", np.arange(len(buffer.ns_20_ku))))
         # first: get azimuth bearing from smoothed incremental azimuths.
@@ -45,13 +46,10 @@ class l1b_data(xr.Dataset):
                                      3)
         buffer = buffer.assign(azimuth=("time_20_ku", np.poly1d(poly3fit_params)(np.arange(len(buffer.time_20_ku)-.5))%360))
         if waveform_selection != None:
-            if not isinstance(waveform_selection, slice) and not isinstance(waveform_selection, list):
-                waveform_selection = [waveform_selection]
-            if (isinstance(waveform_selection, slice) and isinstance(waveform_selection.start, int)) \
-                    or (isinstance(waveform_selection, list) and isinstance(waveform_selection[0], int)):
-                buffer = buffer.isel(time_20_ku=waveform_selection)
-            else:
-                buffer = buffer.sel(time_20_ku=waveform_selection)
+            if not isinstance(waveform_selection, slice) and len(waveform_selection) < 2:
+                Exception("You need to select at least 2 waveforms. This is a bug, but not issue filed yet.")
+            # assuming index selection
+            buffer = buffer.isel(time_20_ku=waveform_selection)
             # print(buffer)
         if mask_coherence_gt1:
             buffer["coherence_waveform_20_ku"] = buffer.coherence_waveform_20_ku.where(buffer.coherence_waveform_20_ku <= 1)
@@ -60,7 +58,6 @@ class l1b_data(xr.Dataset):
                                        * 2**buffer.echo_scale_pwr_20_ku
         if drop_bad_waveforms:
             # see available flags using data.flag.attrs["flag_meanings"]
-            # print("drop bad. cur buf:", buffer)
             buffer = drop_waveform(buffer, build_flag_mask(buffer.flag_mcd_20_ku, [
                 'block_degraded',
                 'blank_block',
@@ -79,7 +76,6 @@ class l1b_data(xr.Dataset):
                 'power_scale_error',
             ]))
         if drop_non_glacier_areas:
-            # print("drop off. cur lon len:", buffer.lon_20_ku.shape)
             # ! this takes too long: improve implementation
             # buffer = buffer.isel(time_20_ku=gis.points_on_glacier(gpd.GeoSeries(gpd.points_from_xy(buffer.lon_20_ku, buffer.lat_20_ku), crs=4326)))
             # ! needs to be tidied up:
@@ -88,8 +84,8 @@ class l1b_data(xr.Dataset):
             o2regions = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
             try:
                 o2code = o2regions[o2regions.geometry.contains(shapely.box(*buffered_points.total_bounds))]["o2region"].values[0]
-                retain_indeces = buffered_points.intersects(load_o2region(o2code).clip_by_rect(*buffered_points.total_bounds).unary_union)
-                # print(retain_indeces[retain_indeces].index)
+                retain_indeces = buffered_points.within(load_o2region(o2code).clip_by_rect(*buffered_points.total_bounds).unary_union)
+                if retain_indeces.sum() < 2: raise IndexError()
                 buffer = buffer.isel(time_20_ku=retain_indeces[retain_indeces].index)
             except IndexError:
                 warnings.warn("Not enough waveforms left on glacier. Proceeding with 2 dummy waveforms to ensure no errors raised.")
@@ -100,32 +96,12 @@ class l1b_data(xr.Dataset):
         # add potential phase wrap factor for later use
         buffer = buffer.assign_coords({"phase_wrap_factor": np.arange(-3, 4)})
         super().__init__(data_vars=buffer.data_vars, coords=buffer.coords, attrs=buffer.attrs)
-    
-    def append_poca_and_swath_idxs(self):
-        # ! performance improvement potential
-        # should be possible to vectorize with numba
-        def find_poca_idx_and_swath_start_idx(smooth_coh):
-            poca_idx = np.argmax(smooth_coh>.85)
-            # poca expected 10 m after coherence exceeds threshold (no solid basis)
-            poca_idx = np.argmax(smooth_coh[poca_idx:poca_idx+int(10/sample_width)])+poca_idx
-            swath_start = poca_idx + int(5/sample_width)
-            diff_smooth_coh = np.diff(smooth_coh[swath_start:swath_start+int(50/sample_width)])
-            # swath can safest be used after the coherence dip
-            swath_start = np.argmax(diff_smooth_coh[np.argmax(np.abs(diff_smooth_coh)>.001):]>0) + swath_start
-            return poca_idx, swath_start
-        self[["poca_idx", "swath_start"]] = xr.apply_ufunc(
-            find_poca_idx_and_swath_start_idx,
-            gauss_filter_DataArray(self.coherence_waveform_20_ku, "ns_20_ku", 35, 35),
-            input_core_dims=[["ns_20_ku"]],
-            output_core_dims=[[], []],
-            vectorize=True)
-        return self
-    __all__.append("append_poca_and_swath_idxs")
         
     def append_ambiguous_reference_elevation(self):
-        # !! This function causes much of the computation time. I suspect that
-        # sparse memory accessing can be minimized with some tricks. However,
-        # first tries ordering the spatial data, took even (much) longer.
+        # !! This function causes much of the computation time. I
+        # suspect that sparse memory accessing can be minimized with
+        # some tricks. However, first tries ordering the spatial data,
+        # took even (much) longer.
         if not "xph_lats" in self.data_vars:
             self = self.locate_ambiguous_origin()
         # ! tbi: auto download ref dem if not present
@@ -149,22 +125,14 @@ class l1b_data(xr.Dataset):
         return self
     __all__.append("append_ambiguous_reference_elevation")
 
-    def append_below_threshold_mask(self, coherence_threshold: float = 0.6,
-                                          power_threshold: tuple = ("snr", 10), *,
-                                          drop_first_peak: bool = True):
+    def append_below_threshold_mask(self, coherence_threshold: float = 0.6, power_threshold: tuple = ("snr", 10)):
         # for now require tuple. could be some auto recognition in future.
         assert(isinstance(power_threshold, tuple))
         # only signal-to-noise-ratio implemented
         assert(power_threshold[0] == "snr")
-        if "swath_start" not in self:
-            self.append_poca_and_swath_idxs()
-        # ! the below is verbose but not fast. scrap the unnecessary computations
         power_threshold = self.noise_power_20_ku+10*np.log10(power_threshold[1])
         self["below_thresholds"] = np.logical_or(10*np.log10(self.power_waveform_20_ku) < power_threshold,
-                                                 self.coherence_waveform_20_ku < coherence_threshold)
-        if drop_first_peak:
-            self["below_thresholds"] = np.logical_or(self.below_thresholds,
-                                                     (self.ns_20_ku < self.swath_start).values.T)
+                                                self.coherence_waveform_20_ku < coherence_threshold)
         return self
     __all__.append("append_below_threshold_mask")
 
@@ -183,7 +151,7 @@ class l1b_data(xr.Dataset):
             if not self.group_id[wf].isnull().all():
                 self["ph_idx"][wf][~self.group_id[wf].isnull()] \
                     = self.xph_elev_diffs[wf].groupby(self.group_id[wf]).map(
-                        lambda x: x.ns_20_ku*0+np.abs(x.mean("ns_20_ku")).idxmin("phase_wrap_factor"))
+                        lambda x: x.ns_20_ku*0+x.mean("ns_20_ku").idxmin("phase_wrap_factor"))
         return self
     __all__.append("append_best_fit_phase_index")
     
@@ -201,18 +169,8 @@ class l1b_data(xr.Dataset):
     __all__.append("append_smoothed_complex_phase")
     
     @classmethod
-    def from_id(cls, track_id: str|pd.Timestamp, **kwargs) -> "l1b_data":
-        track_id = pd.to_datetime(track_id)
-        # edge cases with exactly 0 nanoseconds may fail. however, since this is
-        # only relevant for detail inspection, edge cases are ignored
-        if track_id.nanosecond != 0:
-            kwargs=dict(waveform_selection=track_id)
-            # file name list as look up table
-            full_file_names = load_cs_full_file_names(update="no")
-            idx_loc = full_file_names.index.get_indexer([track_id], method="pad")[0]
-            track_id = full_file_names.index[idx_loc]
-        l1b_data_dir = os.path.join(data_path, "L1b", track_id.strftime(f"%Y{os.path.sep}%m"))
-        track_id = cs_time_to_id(track_id)
+    def from_id(cls, track_id: str, **kwargs) -> "l1b_data":
+        l1b_data_dir = os.path.join(data_path, "L1b", pd.to_datetime(track_id).strftime(f"%Y{os.path.sep}%m"))
         if os.path.isdir(l1b_data_dir):
             for file_name in os.listdir(l1b_data_dir):
                 if fnmatch.fnmatch(file_name, "*CS_????_SIR_SIN_1B_*") \
@@ -328,12 +286,12 @@ class l1b_data(xr.Dataset):
         return self
     __all__.append("tag_groups")
 
-    def to_l2(self, out_vars: list|dict = {"time_20_ku": "time", "xph_x": "x", "xph_y": "y",
-                                           "xph_elevs": "height", "xph_ref_elevs": "h_ref", "xph_elev_diffs": "h_diff",
-                                           },
-                    retain_vars: list|dict = [], *,
-                    swath_or_poca: str = "swath",
-                    tidy: bool = True):
+    def to_l2(self,
+              out_vars: list|dict = {"time_20_ku": "time", "xph_x": "x", "xph_y": "y",
+                                     "xph_elevs": "height", "xph_ref_elevs": "h_ref", "xph_elev_diffs": "h_diff",
+                                     }, 
+              retain_vars: list|dict = [], 
+              tidy: bool = True):
         # implicitly test whether data was processed. if not, do so
         if not "ph_idx" in self.data_vars:
             self = self.append_best_fit_phase_index()
@@ -346,20 +304,9 @@ class l1b_data(xr.Dataset):
             self = self.rename_vars(retain_vars)
             retain_vars = list(retain_vars.values())
         # print(self[out_vars+retain_vars].to_dataframe())
-        if swath_or_poca == "swath":
-            buffer = self[out_vars+retain_vars].where(~self.below_thresholds)\
-                                               .sel(phase_wrap_factor=self.ph_idx)\
-                                               .dropna("time_20_ku", how="all")
-        elif swath_or_poca == "poca":
-            buffer = self[out_vars+retain_vars].sel(ns_20_ku=self.poca_idx, phase_wrap_factor=self.ph_idx)\
-                                               .dropna("time_20_ku", how="all")
-        elif swath_or_poca == "both":
-            swath = self.to_l2(out_vars, retain_vars, tidy=tidy)
-            poca = self.to_l2(out_vars, retain_vars, tidy=tidy, swath_or_poca="poca")
-            return swath, poca
-        else:
-            raise ValueError(f"You provided \"swath_or_poca={swath_or_poca}\". Choose \"swath\", \"poca\",",
-                             "or \"both\".")
+        buffer = self[out_vars+retain_vars].where(~self.below_thresholds)\
+                                           .sel(phase_wrap_factor=self.ph_idx)\
+                                           .dropna("time_20_ku", how="all")
         # print(buffer.drop_vars(buffer.coords).drop_dims("band"))
         drop_coords = [coord for coord in buffer.coords if coord not in ["time"]]
         from . import l2 # needs to stay here to prevent circular import!
