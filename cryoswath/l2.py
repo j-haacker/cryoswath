@@ -1,13 +1,13 @@
 
-import ftplib
 import geopandas as gpd
-import numpy as np
 import os
+import pandas as pd
 from pyproj import CRS
-import xarray as xr
+import re
+import shapely
 
-from misc import *
-import gis, l1b
+from .misc import *
+from . import gis, l1b
 
 
 def limit_filter(data: pd.DataFrame, column: str, limit: float):
@@ -75,18 +75,19 @@ def from_id(track_idx: pd.DatetimeIndex|str,
     return pd.concat(l2_list)
 
 
-def process_and_save(region_of_interest: str = "09-02",
-                     start_datetime: str = "2010-10-10",
-                     end_datetime: str = "2011-11-11"):
+def process_and_save(region_of_interest: str|shapely.Polygon,
+                     start_datetime: pd.Timestamp,
+                     end_datetime: pd.Timestamp):
     cs_tracks = gis.load_cs_ground_tracks().loc[start_datetime:end_datetime]
     # find all tracks that intersect the buffered region of interest.
     # mind that this are calculations on a sphere. currently, the
     # polygon is transformed to ellipsoidial coordinates. not a 100 %
     # sure that this doesn't raise issues close to the poles.
     
-    # if not isinstance(region_of_interest, ...)
-    o1region = gpd.read_feather("../data/auxiliary/RGI/RGI2000-v7.0-G-09_russian_arctic.feather")
-    region_of_interest = o1region[o1region["o2region"]==region_of_interest].unary_union
+    if not isinstance(region_of_interest, shapely.Polygon):
+        if not re.match("[012][0-9]-[012][0-9]", region_of_interest):
+            raise Exception("Error: can only parse RGI o2 codes, e.g., 19-15.")
+        region_of_interest = load_o2region(region_of_interest).unary_union
     cs_tracks = cs_tracks[cs_tracks.intersects(gis.buffer_4326_shp(region_of_interest, 30000))]
     print(cs_tracks.shape[0], "tracks remain")
     from_id(cs_tracks.index)
