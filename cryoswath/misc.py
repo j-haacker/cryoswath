@@ -49,7 +49,7 @@ __all__.append("personal_email")
 
 
 ## Paths ##############################################################
-data_path = os.path.join(os.path.dirname(__file__), "..", "data")
+data_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "data")
 aux_path = os.path.join(data_path, "auxiliary")
 cs_ground_tracks_path = os.path.join(aux_path, "CryoSat-2_SARIn_ground_tracks.feather")
 rgi_path = os.path.join(aux_path, "RGI")
