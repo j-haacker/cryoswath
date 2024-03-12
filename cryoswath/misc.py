@@ -1,5 +1,7 @@
 import configparser
 from dateutil.relativedelta import relativedelta
+from defusedxml.ElementTree import fromstring as ET_from_str
+import fnmatch
 import ftplib
 import geopandas as gpd
 import glob
@@ -8,11 +10,15 @@ import numpy as np
 import os
 import pandas as pd
 from pyproj import Geod
+import queue
 import rasterio
 import re
 from scipy.constants import speed_of_light
 import scipy.stats
 import shapely
+import shutil
+import time
+import threading
 import warnings
 import xarray as xr
 
@@ -71,6 +77,33 @@ sample_width = speed_of_light/(320e6*2)/2
 cryosat_id_pattern = re.compile("20[12][0-9][01][0-9][0-3][0-9]T[0-2][0-9]([0-5][0-9]){2}")
 
 ## Functions ##########################################################
+
+def append_filename(file_name: str, appendix: str) -> str:
+    fn_parts = file_name.split(os.path.extsep)
+    return os.path.extsep.join(fn_parts[:-1]) + appendix + os.path.extsep + fn_parts[-1]
+__all__.append("append_filename")
+
+
+# security issue?
+class binary_chache():
+    __all__ = []
+    def __init__(self):
+        self._cache = bytearray()
+    
+    @property
+    def cache(self):
+        return self._cache.decode()
+    __all__.append("cache")
+
+    @cache.deleter
+    def cache(self):
+        del self._cache[:]
+
+    def add(self, new_part):
+        self._cache.extend(new_part)
+    __all__.append("add")
+__all__.append("binary_chache")
+
 
 def cs_id_to_time(cs_id: str) -> pd.Timestamp:
     return pd.to_datetime(cs_id, format="%Y%m%dT%H%M%S")
@@ -245,7 +278,24 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
     return rasterio.open(os.path.join(dem_path, "arcticdem_mosaic_100m_v4.1_dem.tif"))
 
 
-def load_cs_full_file_names(update: str = "regular") -> pd.Series:
+def load_cs_full_file_names(update: str = "no") -> pd.Series:
+    """Loads a pandas.Series of the original CryoSat-2 L1b file names.
+
+    Having the file names available can be handy to organize your local 
+    data.
+
+    This function can be used to update your local list by setting `update`.
+
+    Args:
+        update (str, optional): One of "no", "quick", "regular, or "full".
+            "quick" continues from the last locally known file name,
+            "regular" checks for changes between the stages OFFL and LTA,
+            and "full" replaces the local data base with a new one. Defaults
+            to "no".
+
+    Returns:
+        pd.Series: Full L1b file names without path or extension.
+    """
     # update one of: "no", "quick", "regular", "full"
     file_names_path = os.path.join(aux_path, "CryoSat-2_SARIn_file_names.pkl")
     if os.path.isfile(file_names_path):
@@ -293,13 +343,171 @@ def load_cs_full_file_names(update: str = "regular") -> pd.Series:
 
 def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
                           start_datetime: str|pd.Timestamp = "2010",
-                          end_datetime: str|pd.Timestamp = "2100", *,
+                          end_datetime: str|pd.Timestamp = "2030", *,
                           buffer_period_by: relativedelta = None,
                           buffer_region_by: float = None,
+                          update: str = "no",
+                          nthreads: int = 8,
                           ) -> gpd.GeoDataFrame:
+    """Read the GeoDataFrame of CryoSat-2 tracks from disk.
+
+    If desired, you can query certain extents or periods by specifying
+    arguments.
+
+    Further, you can update the database by setting `update` to "regular" or
+    "full". Mind that this typically takes some time (regular on the order
+    of minutes, full rather hours).
+
+    Args:
+        region_of_interest (str | shapely.Polygon, optional): Can be any RGI
+            code or a polygon in lat/lon (CRS EPSG:4326). Defaults to None.  
+        start_datetime (str | pd.Timestamp, optional): Defaults to "2010".  
+        end_datetime (str | pd.Timestamp, optional): Defaults to "2030".  
+        buffer_period_by (relativedelta, optional): Extends the period to
+            both sides. Handy if you use this function to query tracks for an
+            aggregated product. Defaults to None.  
+        buffer_region_by (float, optional): Handy to also query tracks in the
+            proximity that may return elevation estimates for your region of
+            interest. Unit are meters here. CryoSat's footprint is +- 7.5 km to
+            both sides, anything above 30_000 does not make much sense. Defaults
+            to None.  
+        update (str, optional): If you are interested in the latest tracks,
+            update frequently with `update="regular"`. If you believe tracks are
+            missing for some reason, choose `update="full"` (be aware this takes
+            a while). Defaults to "no".  
+        nthreads (int, optional): Number of parallel ftp connections. If you
+            choose too many, ESA will refuse the connection. Defaults to 8.
+
+    Raises:
+        ValueError: For invalid `update` arguments.
+
+    Returns:
+        gpd.GeoDataFrame: CryoSat-2 tracks.
+    """
     start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
-    cs_tracks = gpd.read_feather(cs_ground_tracks_path).set_index("index").sort_index()
-    cs_tracks.index = pd.to_datetime(cs_tracks.index)
+    if os.path.isfile(cs_ground_tracks_path):
+        cs_tracks = gpd.read_feather(cs_ground_tracks_path)
+        if "index" in cs_tracks.columns: 
+            cs_tracks.set_index("index", inplace=True)
+        cs_tracks.index = pd.to_datetime(cs_tracks.index)
+        cs_tracks.sort_index(inplace=True)
+    else:
+        cs_tracks = gpd.GeoSeries()
+        update = "full"
+    if update == "full":
+        last_idx = pd.Timestamp("2010-06-01")
+    elif update == "regular":
+        last_idx = pd.to_datetime(cs_tracks.index[-1])
+    elif update != "no":
+        raise ValueError("Allowed values for `update` are \"full\". \"regular\". or \"no\". "
+                         +f"You set it to \"{update}\".")
+    if update != "no":
+
+        # the next two function have only a local purpose.
+        def save_current_track_list(new_track_series: gpd.GeoSeries):
+            """saves the tracklist; backing up the old if older than 5 days."""
+            if not os.path.isfile(append_filename(cs_ground_tracks_path, "__backup"))\
+                    or time.time() - os.path.getmtime(cs_ground_tracks_path)  > 5 * 24*60*60:
+                print("backing up \"old\" track file")
+                shutil.copyfile(cs_ground_tracks_path, append_filename(cs_ground_tracks_path, "__backup"))
+            print("saving current track list to file")
+            new_track_series.to_feather(cs_ground_tracks_path)
+
+        def collect_missing_tracks(remote_files: list[str],
+                                   present_tracks: gpd.GeoSeries,
+                                   result_queue: queue.Queue) -> gpd.GeoSeries:
+            """Gets track if not in list already.
+
+            Args:
+                files (list[str]): HDR file names. All of the same month.
+                present_tracks (gpd.GeoSeries): Known tracks.
+                result_queue (queue.Queue): Place to collect results from.
+
+            Returns:
+                gpd.GeoSeries: Missing tracks to be added to the collection.
+            """
+            with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
+                ftp.login(passwd=personal_email)
+                ftp.cwd("/SIR_SIN_L1/"+pd.to_datetime(remote_files[0][19:34]).strftime("%Y/%m"))
+                tracks_to_be_added = gpd.GeoDataFrame(columns=["geometry"]).rename_axis("index")
+                for rf_name in remote_files:
+                    if fnmatch.fnmatch(rf_name, "CS_????_SIR_SIN_1B_*.HDR"):
+                        if pd.to_datetime(rf_name[19:34]) in present_tracks.index:
+                            continue
+                        cache = binary_chache()
+                        ftp.retrbinary('RETR '+rf_name, cache.add)
+                        et = ET_from_str(cache.cache)
+                        root = et.find("Variable_Header/SPH/Product_Location")
+                        coordinates = {coord: int(root.find(coord).text)/1e6 for coord in ["Start_Long", "Start_Lat", "Stop_Long", "Stop_Lat"]}
+                        tracks_to_be_added.loc[pd.to_datetime(rf_name[19:34])] = shapely.LineString((
+                            [coordinates["Start_Long"], coordinates["Start_Lat"]],
+                            [coordinates["Stop_Long"], coordinates["Stop_Lat"]]))
+                        if not all([(v > -180) and (v < 360) for k, v in coordinates.items()]):
+                            warnings.warn(f"whats with {rf_name} giving {coordinates}?")
+                            print("track is:", tracks_to_be_added.loc[rf_name[19:34]])
+                    elif rf_name[-3:].lower() != ".nc":
+                        warnings.warn("Encountered unexpected file:"+rf_name
+                                      +"\n\tShould this appear more often, adapt this function.")
+            result_queue.put(tracks_to_be_added)
+
+        # set up and start worker-threads
+        task_queue = queue.SimpleQueue()
+        def worker():
+            while True:
+                try:
+                    next_batch = task_queue.get()
+                except TypeError:
+                    pass
+                if next_batch is not None:
+                    task_queue.put(collect_missing_tracks(*next_batch))
+        for i in range(nthreads):
+            worker_thread = threading.Thread(target=worker, daemon=True)
+            worker_thread.start()
+
+        # for each month after last_idx, list all HDR-files and check whether
+        # they are in the local collection.
+        while True:
+            with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
+                ftp.login(passwd=personal_email)
+                try:
+                    ftp.cwd("/SIR_SIN_L1/"+last_idx.strftime("%Y/%m"))
+                except ftplib.error_perm:
+                    print("couldn't switch to month(?)", last_idx.strftime("%Y/%m"),
+                          "This should only concern you, if you do expect tracks there.")
+                    break
+                remote_files = ftp.nlst()
+            # cut the file list into chunks and dispatch to workers
+            batch_size = len(remote_files)//(nthreads*3)+1
+            result_queue = queue.SimpleQueue()
+            while remote_files:
+                try:
+                    task_queue.put((remote_files[:batch_size], cs_tracks, result_queue))
+                    remote_files[:batch_size] = []
+                except IndexError:
+                    task_queue.put((remote_files[:], cs_tracks, result_queue))
+                    remote_files[:] = []
+            # wait for and collect new tracks
+            new_tracks_collection = []
+            while not task_queue.empty() or not result_queue.empty():
+                try:
+                    tmp = result_queue.get(block=True, timeout=10*60)
+                    new_tracks_collection.append(tmp)
+                except queue.Empty:
+                    print("waiting for task queue")
+                    time.sleep(10)
+            # append to local collection and save the result
+            cs_tracks = pd.concat([cs_tracks, pd.concat(new_tracks_collection)], sort=True)
+            duplicate = cs_tracks.index.duplicated(keep="last")
+            if duplicate.sum() > 0:
+                warnings.warn(f"{duplicate.sum()} duplicates found; dropping them.")
+                cs_tracks = cs_tracks[~duplicate]
+                cs_tracks.sort_index(inplace=True)
+            save_current_track_list(cs_tracks)
+            print(f"scanned all files in", last_idx.strftime("%Y/%m"))
+            last_idx = last_idx + pd.DateOffset(months=1)
+            print(f"switching to", last_idx.strftime("%Y/%m"))
+
+    # the local collection has been updated. now, return the tracks
     if buffer_period_by is not None:
         start_datetime = start_datetime - buffer_period_by
         end_datetime = end_datetime + buffer_period_by
@@ -319,6 +527,19 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
 
 
 def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
+    """Loads RGI v7 basin or complex outlines and meta data.
+
+    Args:
+        o1code (str): starting with "01".."20"
+        product (str, optional): Either "glaciers" or "complexes". Defaults to "complexes".
+
+    Raises:
+        ValueError: If o1code can't be recognized.
+        FileNotFoundError: If RGI data is missing.
+
+    Returns:
+        gpd.GeoDataFrame: Queried RGI data with geometry column containing the outlines.
+    """
     if product == "complexes":
         product = "C"
     elif product == "glaciers":
