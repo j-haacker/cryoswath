@@ -10,6 +10,7 @@ import rasterio as rio
 import rioxarray as rioxr
 from scipy.spatial.transform import Rotation
 import shapely
+import warnings
 import xarray as xr
 
 from . import gis
@@ -40,27 +41,36 @@ except:
 
 class l1b_data(xr.Dataset):
     # for now, only CryoSat-2 implemented
-    def __init__(self, l1b_filename,
+    def __init__(self, l1b_filename: str, *,
+                 waveform_selection: list|slice = None,
                  drop_bad_waveforms: bool = True,
                  mask_coherence_gt1: bool = True,
                  drop_non_glacier_areas: bool = True,
                  ) -> None:
+        # ! tbi customize or drop misleading attributes of xr.Dataset
         # currently only originally named CryoSat-2 SARIn files implemented
         assert(fnmatch.fnmatch(l1b_filename, "*CS_????_SIR_SIN_1B_*"))
         buffer = xr.open_dataset(l1b_filename)
         # at least until baseline E ns_20_ku needs to be made a coordinate
         buffer = buffer.assign_coords(ns_20_ku=("ns_20_ku", np.arange(len(buffer.ns_20_ku))))
-        if mask_coherence_gt1:
-            buffer["coherence_waveform_20_ku"] = buffer.coherence_waveform_20_ku.where(buffer.coherence_waveform_20_ku <= 1)
-        buffer["power_waveform_20_ku"] = buffer.pwr_waveform_20_ku \
-                                       * buffer.echo_scale_factor_20_ku \
-                                       * 2**buffer.echo_scale_pwr_20_ku
-        # get azimuth bearing from smoothed incremental azimuths
+        # first: get azimuth bearing from smoothed incremental azimuths.
+        # this needs to be done before dropping part of the recording
         poly3fit_params = np.polyfit(np.arange(len(buffer.time_20_ku)-1), 
                                      WGS84_ellpsoid.inv(lats1=buffer.lat_20_ku[:-1], lons1=buffer.lon_20_ku[:-1],
                                                   lats2=buffer.lat_20_ku[1:], lons2=buffer.lon_20_ku[1:])[0],
                                      3)
         buffer = buffer.assign(azimuth=("time_20_ku", np.poly1d(poly3fit_params)(np.arange(len(buffer.time_20_ku)-.5))%360))
+        if waveform_selection != None:
+            if not isinstance(waveform_selection, slice) and len(waveform_selection) < 2:
+                Exception("You need to select at least 2 waveforms. This is a bug, but not issue filed yet.")
+            # assuming index selection
+            buffer = buffer.isel(time_20_ku=waveform_selection)
+            # print(buffer)
+        if mask_coherence_gt1:
+            buffer["coherence_waveform_20_ku"] = buffer.coherence_waveform_20_ku.where(buffer.coherence_waveform_20_ku <= 1)
+        buffer["power_waveform_20_ku"] = buffer.pwr_waveform_20_ku \
+                                       * buffer.echo_scale_factor_20_ku \
+                                       * 2**buffer.echo_scale_pwr_20_ku
         if drop_bad_waveforms:
             # see available flags using data.flag.attrs["flag_meanings"]
             buffer = drop_waveform(buffer, build_flag_mask(buffer.flag_mcd_20_ku, [
