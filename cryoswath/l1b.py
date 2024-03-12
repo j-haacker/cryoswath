@@ -126,9 +126,11 @@ class l1b_data(xr.Dataset):
             x, y = trans_4326_to_dem_crs.transform(self.xph_lats, self.xph_lons)
             self = self.assign(xph_x=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), x), 
                                xph_y=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), y))
-            # ! huge improvement potential: instead of the below, rasterio.sample could be used
-            # [edit] use postgis
-            self["xph_ref_elevs"] = ref_dem.sel(x=self.xph_x, y=self.xph_y, method="nearest")
+            with rioxr.open_rasterio(dem_reader) as ref_dem:
+                # ! huge improvement potential: instead of the below, rasterio.sample could be used
+                # [edit] use postgis
+                ref_dem = ref_dem.rio.clip_box(np.min(x), np.min(y), np.max(x), np.max(y))
+                self["xph_ref_elevs"] = ref_dem.sel(x=self.xph_x, y=self.xph_y, method="nearest")
         # rasterio suggests sorting like `for ind in np.lexsort([y, x]): rv.append((x[ind], y[ind]))`
         # sort_key = np.lexsort([y, x])
         # planar_coords = zip(x[sort_key], y[sort_key])
