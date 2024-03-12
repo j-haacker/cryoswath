@@ -1,5 +1,6 @@
 
 import geopandas as gpd
+import numpy as np
 import os
 import pandas as pd
 import re
@@ -9,6 +10,8 @@ import xarray as xr
 from . import gis
 from . import l2
 from .misc import *
+
+__all__ = list()
 
 class l3_data(xr.Dataset):
     def __init__(self, rgi_long_code, spatial_res_meter):
@@ -78,6 +81,7 @@ def build_dataset(region_of_interest: shapely.Polygon,
                                 agg_time=agg_time, timestep=timestep, spatial_res_meter=spatial_res_meter)
     l3_data.to_netcdf(build_path(region_of_interest, timestep, spatial_res_meter, agg_time))
     return l3_data
+__all__.append("build_dataset")
 
 
 def build_path(region_of_interest, timestep, spatial_res_meter, agg_time):
@@ -96,7 +100,7 @@ def build_path(region_of_interest, timestep, spatial_res_meter, agg_time):
         spatial_res_str = f"{round(spatial_res_meter/1000, 1)}km"
     return os.path.join("..", "data", "L3", "_".join(
         [region_id, timestep_str, spatial_res_str+".nc"]))
-
+__all__.append("build_path")
     
 
 def med_mad_cnt_grid(l2_data: gpd.GeoDataFrame, *,
@@ -150,3 +154,4 @@ def med_mad_cnt_grid(l2_data: gpd.GeoDataFrame, *,
             gridded_list.append(pd.concat([result], keys=[(x_slice.start,y_slice.start)], names=["x", "y", "time"]))
         # consider saving a backup to disk after each parent_cell
     return pd.concat(gridded_list).to_xarray()
+__all__.append("med_mad_cnt_grid")
