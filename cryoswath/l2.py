@@ -1,5 +1,5 @@
-import fnmatch
 import geopandas as gpd
+import inspect
 import numpy as np
 import os
 import pandas as pd
@@ -55,6 +55,15 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                 # save results. make optional?
                 if "cs_full_file_names" not in locals():
                     cs_full_file_names = load_cs_full_file_names(update="no")
+                # filter l1b_data kwargs
+                params = inspect.signature(l1b.l1b_data).parameters
+                l1b_kwargs = {k: v for k, v in kwargs.items() if k in params}
+                # filter to_l2 kwargs
+                params = inspect.signature(l1b.l1b_data.to_l2).parameters
+                to_l2_kwargs = {k: v for k, v in kwargs.items() if k in params and k != "swath_or_poca"}
+                l2_buffer = l1b.l1b_data.from_id(cs_time_to_id(current_track_idx), **l1b_kwargs)\
+                                        .to_l2(swath_or_poca="both", **to_l2_kwargs)
+                # print("l2_buffer", l2_buffer)
                 if save_or_return != "save":
                     swath_list.append(l2_buffer[0])
                     poca_list.append(l2_buffer[1])
