@@ -278,9 +278,10 @@ class l1b_data(xr.Dataset):
 
     def to_l2(self,
               out_vars: list|dict = {"time_20_ku": "time", "xph_x": "x", "xph_y": "y",
-                                     "xph_elevs": "height", "xph_ref_elevs": "h_ref", "xph_elev_diffs": "h_diff"}, 
+                                     "xph_elevs": "height", "xph_ref_elevs": "h_ref", "xph_elev_diffs": "h_diff",
+                                     }, 
               retain_vars: list|dict = [], 
-              ):
+              tidy: bool = True):
         # implicitly test whether data was processed. if not, do so
         if not "ph_idx" in self.data_vars:
             self = self.append_best_fit_phase_index()
@@ -299,7 +300,9 @@ class l1b_data(xr.Dataset):
         # print(buffer.drop_vars(buffer.coords).drop_dims("band"))
         drop_coords = [coord for coord in buffer.coords if coord not in ["time"]]
         from . import l2 # needs to stay here to prevent circular import!
-        return l2.from_processed_l1b(buffer.squeeze().drop_vars(drop_coords))#
+        l2_data = l2.from_processed_l1b(buffer.squeeze().drop_vars(drop_coords))
+        if tidy: l2_data = l2.limit_filter(l2_data, "h_diff", 150)
+        return l2_data
 
 
 # helper functions ####################################################
