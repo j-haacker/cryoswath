@@ -91,14 +91,14 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                     # function is defined at the bottom of this module
                     collective_swath_poca_list = p.starmap(
                         process_track,
-                        [(idx, reprocess, l2_paths, save_or_return, current_subdir, kwargs) for idx
+                        [(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"], current_subdir, kwargs) for idx
                         # indices per month with work-around :/ should be easier
                         in pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index],
                         chunksize=1)
             else:
                 collective_swath_poca_list = []
                 for idx in pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index:
-                    collective_swath_poca_list.append(process_track(idx, reprocess, l2_paths, save_or_return,
+                    collective_swath_poca_list.append(process_track(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"],
                                                                     current_subdir, kwargs))
             if cache is not None:
                 for l2_type, i in zip(["swath", "poca"], [0, 1]):
