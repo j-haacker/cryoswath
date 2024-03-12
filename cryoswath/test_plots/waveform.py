@@ -44,13 +44,14 @@ def dem_transect(waveform, *,
     if not selected_phase_only:
         for ph_idx in waveform.phase_wrap_factor.values:
             temp = waveform.sel(phase_wrap_factor=ph_idx)
-            temp = temp.where(waveform.ph_idx!=ph_idx)
+            temp = temp.where(waveform.ph_idx!=ph_idx).squeeze()
             ax.plot(temp.xph_dists, temp.xph_elevs, '.', c=f"{(.2+.2*np.abs(ph_idx)):.1f}")
-    best_phase = waveform.sel(phase_wrap_factor=waveform.ph_idx)#[["xph_dists", "xph_elevs", "below_thresholds"]]
+    best_phase = waveform.sel(phase_wrap_factor=waveform.ph_idx)#[["xph_dists", "xph_elevs", "exclude_mask"]]
     try:
-        excluded = best_phase.where(best_phase.below_thresholds)
-        h_excl, = ax.plot(excluded.xph_dists, excluded.xph_elevs, ls='', **line_properties["excluded"], label="excluded")
-        swath = best_phase.where(~best_phase.below_thresholds)
+        excluded = best_phase.where(best_phase.exclude_mask).transpose("ns_20_ku", ...)
+        h_excl, = ax.plot(excluded.xph_dists, excluded.xph_elevs, ls='', **line_properties["excluded"],
+                          label="excluded")
+        swath = best_phase.where(~best_phase.exclude_mask).transpose("ns_20_ku", ...)
         h_swath, = ax.plot(swath.xph_dists, swath.xph_elevs, ls='', **line_properties["swath"], label="swath")
         h_list = [h_swath, h_excl]
     except KeyError:
