@@ -35,6 +35,8 @@ def coherence(waveform, *,
             ):
     if ax is None:
         ax = plt.subplots()[1]
+    h_smooth = gauss_filter_DataArray(waveform.coherence_waveform_20_ku, "ns_20_ku", 35, 35).plot(c=".7", label="smooth")[0]
+    h_list = [h_smooth]
     try:
         if plot_properties["threshold"]["facecolor"] is None:
             plot_properties["threshold"]["facecolor"] = ax.get_facecolor()
@@ -42,9 +44,9 @@ def coherence(waveform, *,
         h_thr = ax.add_patch(mpl.patches.Rectangle((-100, y0),
                                                      waveform.ns_20_ku[-1]+200, waveform.coherence_threshold-y0,
                                                      **plot_properties["threshold"], label="threshold"))
-        h_list = [h_thr]
+        h_list.append(h_thr)
     except KeyError:
-        h_list = []
+        pass
     try:
         if plot_properties["omitted"]["facecolor"] is None:
             plot_properties["omitted"]["facecolor"] = ax.get_facecolor()
@@ -52,7 +54,7 @@ def coherence(waveform, *,
         h_omitted = ax.add_patch(mpl.patches.Rectangle((x0, -1),
                                                      waveform.swath_start[0]-x0, 3,
                                                      **plot_properties["omitted"], label="omitted"))
-        h_list.insert(0, h_omitted)
+        h_list.insert(1, h_omitted)
     except AttributeError:
         pass
     try:
