@@ -205,8 +205,18 @@ class l1b_data(xr.Dataset):
     __all__.append("append_smoothed_complex_phase")
     
     @classmethod
-    def from_id(cls, track_id: str, **kwargs) -> "l1b_data":
-        l1b_data_dir = os.path.join(data_path, "L1b", pd.to_datetime(track_id).strftime(f"%Y{os.path.sep}%m"))
+    def from_id(cls, track_id: str|pd.Timestamp, **kwargs) -> "l1b_data":
+        track_id = pd.to_datetime(track_id)
+        # edge cases with exactly 0 nanoseconds may fail. however, since this is
+        # only relevant for detail inspection, edge cases are ignored
+        if track_id.nanosecond != 0:
+            kwargs=dict(waveform_selection=track_id)
+            # file name list as look up table
+            full_file_names = load_cs_full_file_names(update="no")
+            idx_loc = full_file_names.index.get_indexer([track_id], method="pad")[0]
+            track_id = full_file_names.index[idx_loc]
+        l1b_data_dir = os.path.join(data_path, "L1b", track_id.strftime(f"%Y{os.path.sep}%m"))
+        track_id = cs_time_to_id(track_id)
         if os.path.isdir(l1b_data_dir):
             for file_name in os.listdir(l1b_data_dir):
                 if fnmatch.fnmatch(file_name, "*CS_????_SIR_SIN_1B_*") \
