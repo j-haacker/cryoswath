@@ -1,10 +1,14 @@
 # cryoswath
 
-cryoswath is a python package containing processing pipelines, a tool library, and some pre-assemble data to retrieve and study CryoSat-2 data
+cryoswath is a python package containing processing pipelines, a tool
+library, and some pre-assemble data to retrieve and study CryoSat-2 data
 
 ## 🏗️ state
 
-Currently, it is in the pre-beta phase. main contains those parts that I believe to work if used as intended and that have been tested to some extent. devel contains parts that I used successfully - use at your own risk.
+Currently, it is in the pre-beta phase. main contains those parts that I
+believe to work if used as intended and that have been tested to some
+extent. devel contains parts that I used successfully - use at your own
+risk.
 
 ## 🚀 features
 
@@ -14,11 +18,13 @@ Currently, it is in the pre-beta phase. main contains those parts that I believe
 
 ## 🤹 how-to
 
-The most important features are show-cased in the [tutorial.ipynb](https://github.com/j-haacker/cryoswath/blob/main/cryoswath/tutorial.ipynb).
+The most important features are show-cased in the
+[tutorial.ipynb](https://github.com/j-haacker/cryoswath/blob/main/scripts/tutorial.ipynb).
 
 ## ⬆️ dependencies
 
-cryoswath builds on a number of other packages. See [requirements.txt](https://github.com/j-haacker/cryoswath/blob/main/requirements.txt).
+cryoswath builds on a number of other packages. See
+[requirements.txt](https://github.com/j-haacker/cryoswath/blob/main/requirements.txt).
 
 ## 🐛 known issues
 
@@ -33,6 +39,8 @@ cryoswath builds on a number of other packages. See [requirements.txt](https://g
 
 ### 🚩 other issues
 
+- too many small glaciers can lead the kernel to crash while gis
+  calculations (encountered for the Alps on a notebook)
 - paths (partly) only for UNIX systems
 
 ## 🎯 what's coming
@@ -61,6 +69,7 @@ Please mind that you likely used other resources on the way.
 - ESA provides the L1b data under [these Terms and Conditions](https://github.com/j-haacker/cryoswath/blob/main/data/L1b/Terms-and-Conditions-for-the-use-of-ESA-Data.pdf)
 - RGI data is distributed under [CC-BY-4.0 license](https://creativecommons.org/licenses/by/4.0/)
 - if you (likely) used DEMs of the PGC, see their [Acknowledgement Policy](https://www.pgc.umn.edu/guides/user-services/acknowledgement-policy/)
+- the many python packages and libraries this package depends on; some of which are indispensable.
 
 ## 🧾 license
 
