@@ -13,44 +13,8 @@ from .misc import *
 
 __all__ = list()
 
-class l3_data(xr.Dataset):
-    def __init__(self, rgi_long_code, spatial_res_meter):
-        # it is difficult to find gridding conventions. here, for now it
-        # is decided to use the coordinates of the bottom left cell
-        # corner because xarray uses pcolormesh for plotting which
-        # interprets the coordinates this way.
 
-        # use global dataset instead?
-        rgi_o2_gpdf = gpd.read_file(f"../data/auxiliary/RGI/RGI2000-v7.0-o2regions")
-        # ! only Arctic
-        region_bounds = rgi_o2_gpdf[rgi_o2_gpdf["long_code"]==rgi_long_code].geometry.to_crs(3413).bounds
-        super().__init__(coords=dict(x=np.arange(region_bounds["minx"]//spatial_res_meter*spatial_res_meter,
-                                                 region_bounds["maxx"], spatial_res_meter),
-                                     y=np.arange(region_bounds["miny"]//spatial_res_meter*spatial_res_meter,
-                                                 region_bounds["maxy"], spatial_res_meter)))
-
-    # @classmethod
-    # def from_l2(cls, l2_data:gpd.GeoDataFrame,
-    #             agg_time: pd.DateOffset = pd.DateOffset(months=3),
-    #             spatial_res_meter: float = 500,
-    #             timestep: pd.DateOffset = pd.DateOffset(months=1)):
-    #     # ! ensure that elevation difference to reference is present or offer options?
-    #     rgi_o2_id = find_region_id(shapely.geometry.box(l2_data.total_bounds))
-    #     l3_data = cls(rgi_o2_id, spatial_res_meter)
-    #     def mad(data):
-    #         return np.fabs(data - data.median()).median()
-    #     for left in l3_data.x:
-    #         for bottom in l3_data.y:
-    #             # ! ensure index is timestamp
-    #             l3_data.sel(x=left, y=bottom).elev_diff_median \
-    #                 = l2_data.cx[left:left+spatial_res_meter,bottom:bottom+spatial_res_meter]["elev_diff"]\
-    #                          .rolling(agg_time, center=True).median().to_numpy()
-    #             l3_data.sel(x=left, y=bottom).elev_diff_mad \
-    #                 = l2_data.cx[left:left+spatial_res_meter,bottom:bottom+spatial_res_meter]["elev_diff"]\
-    #                          .rolling(agg_time, center=True).apply(mad, raw=True) # also compute mad
-
-
-def build_dataset(region_of_interest: shapely.Polygon,
+def build_dataset(region_of_interest: str|shapely.Polygon,
                   start_datetime: str|pd.Timestamp,
                   end_datetime: str|pd.Timestamp, *,
                   aggregation_period: relativedelta = relativedelta(months=3),
