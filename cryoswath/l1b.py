@@ -1,4 +1,3 @@
-import configparser
 import fnmatch
 import ftplib
 import geopandas as gpd
@@ -17,30 +16,15 @@ from . import gis
 from .misc import *
 
 
-config = configparser.ConfigParser()
-config_path = os.path.join(os.path.dirname(__file__), "config.ini")
-if os.path.isfile(config_path):
-    config.read(config_path)
-try:
-    personal_email = config["personal"]["personal_email"]
-except:
-    print("ESA asks to use one's email as password when downloading data via ftp. Please provide it.")
-    response = None
-    while response != "y":
-        personal_email = input("Your email:")
-        response = input(f"Is your email \"{personal_email}\" spelled correctly? (y/n)",).lower()[0]
-    if "personal" in config:
-        config["personal"]["personal_email"] = personal_email
-    else:
-        config["personal"] = {"personal_email": personal_email}
-    with open(config_path, "w") as config_file:
-        config.write(config_file)
-    print(f"Thanks. You can change your email in {config_path} manually.")
+__all__ = list()
 
 # requires implicitly rasterio(?), flox(?), dask(?)
 
 class l1b_data(xr.Dataset):
     # for now, only CryoSat-2 implemented
+
+    __all__ = list()
+
     def __init__(self, l1b_filename: str, *,
                  waveform_selection: list|slice = None,
                  drop_bad_waveforms: bool = True,
@@ -138,6 +122,7 @@ class l1b_data(xr.Dataset):
         #                                   np.reshape(ref_elev_vector,
         #                                              self.xph_lats.shape)))
         return self
+    __all__.append("append_ambiguous_reference_elevation")
 
     def append_below_threshold_mask(self, coherence_threshold: float = 0.6, power_threshold: tuple = ("snr", 10)):
         # for now require tuple. could be some auto recognition in future.
@@ -148,6 +133,7 @@ class l1b_data(xr.Dataset):
         self["below_thresholds"] = np.logical_or(10*np.log10(self.power_waveform_20_ku) < power_threshold,
                                                 self.coherence_waveform_20_ku < coherence_threshold)
         return self
+    __all__.append("append_below_threshold_mask")
 
     def append_best_fit_phase_index(self):
         if not "xph_elev_diffs" in self.data_vars:
@@ -164,17 +150,20 @@ class l1b_data(xr.Dataset):
                     = self.xph_elev_diffs[wf].groupby(self.group_id[wf]).map(
                         lambda x: x.ns_20_ku*0+x.mean("ns_20_ku").idxmin("phase_wrap_factor"))
         return self
+    __all__.append("append_best_fit_phase_index")
     
     def append_elev_diff_to_ref(self):
         if not "xph_ref_elevs" in self.data_vars:
             self = self.append_ambiguous_reference_elevation()
         self["xph_elev_diffs"] = (self.xph_elevs-self.xph_ref_elevs)
         return self
+    __all__.append("append_elev_diff_to_ref")
     
     def append_smoothed_complex_phase(self):
         self["ph_diff_complex_smoothed"] = gauss_filter_DataArray(np.exp(1j*self.ph_diff_waveform_20_ku),
                                                                   dim="ns_20_ku", window_extent=21, std=5)
         return self
+    __all__.append("append_smoothed_complex_phase")
     
     @classmethod
     def from_id(cls, track_id: str, **kwargs) -> "l1b_data":
@@ -186,6 +175,7 @@ class l1b_data(xr.Dataset):
                 and file_name.endswith(".nc"):
                     return cls(os.path.join(l1b_data_dir, file_name), **kwargs)
         return cls(download_single_file(track_id), **kwargs)
+    __all__.append("from_id")
 
     def get_rgi_o2(self) -> str:
         """Finds RGIv7 o2 region that contains the track's central lat,
@@ -198,6 +188,7 @@ class l1b_data(xr.Dataset):
         return rgi_o2_gpdf[rgi_o2_gpdf.contains(
                 gpd.points_from_xy(self.lon_20_ku, self.lat_20_ku, crs=4326).unary_union().centroid
             )].long_code.values[0]
+    __all__.append("get_rgi_o2")
 
     def phase_jump(self):
         if not "ph_diff_complex_smoothed" in self.data_vars:
@@ -211,6 +202,7 @@ class l1b_data(xr.Dataset):
             print("Note: Default thresholds applied.")
             self = self.append_below_threshold_mask()
         return xr.where(self.below_thresholds.sel(ns_20_ku=jump_mask.ns_20_ku), False, jump_mask)
+    __all__.append("phase_jump")
 
     def phase_outlier(self, tol: float|None = None):
         # inputs have to be complex unit vectors
@@ -229,6 +221,7 @@ class l1b_data(xr.Dataset):
         # ph_diff_tol is small, so approx equal to secant length
         return xr.where(self.below_thresholds, False, np.abs(np.exp(1j*self.ph_diff_waveform_20_ku)
                                                              - self.ph_diff_complex_smoothed) > tol)
+    __all__.append("phase_outlier")
 
     # ! rename to something like retrieve_ambiguous_origins
     def locate_ambiguous_origin(self):
@@ -261,6 +254,7 @@ class l1b_data(xr.Dataset):
                            xph_elevs=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), (r_x - r_N).values),
                            xph_thetas=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), theta.values),
                            xph_dists=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), dist_off_groundtrack.values))
+    __all__.append("locate_ambiguous_origin")
     
     def ref_range(self):
         corrections = self.mod_dry_tropo_cor_01 \
@@ -271,6 +265,7 @@ class l1b_data(xr.Dataset):
                       + self.load_tide_01
         return self.window_del_20_ku/np.timedelta64(1, 's') / 2 * speed_of_light \
                + np.interp(self.time_20_ku, self.time_cor_01, corrections)
+    __all__.append("ref_range")
     
     def tag_groups(self):
         non_group_samples = self.phase_outlier()
@@ -279,6 +274,7 @@ class l1b_data(xr.Dataset):
                      + xr.DataArray(data=np.arange(len(self.time_20_ku))*len(self.ns_20_ku), dims="time_20_ku")
         self["group_id"] = group_tags.where(~self.below_thresholds).where(~non_group_samples)
         return self
+    __all__.append("tag_groups")
 
     def to_l2(self,
               out_vars: list|dict = {"time_20_ku": "time", "xph_x": "x", "xph_y": "y",
@@ -307,6 +303,11 @@ class l1b_data(xr.Dataset):
         l2_data = l2.from_processed_l1b(buffer.squeeze().drop_vars(drop_coords))
         if tidy: l2_data = l2.limit_filter(l2_data, "h_diff", 150)
         return l2_data
+    __all__.append("to_l2")
+
+    __all__ = sorted(__all__)
+
+__all__.append("l1b_data")
 
 
 # helper functions ####################################################
@@ -335,6 +336,7 @@ def build_flag_mask(cs_l1b_flag: xr.DataArray, black_list: list = [], white_list
     else:
         raise(NotImplementedError)
     return xr.apply_ufunc(np.vectorize(flag_func), cs_l1b_flag.astype(int), dask="allowed")
+__all__.append("build_flag_mask")
 
 def download_files(region_of_interest: shapely.Polygon, # buffered region in 4326
                     start_datetime: str = "2010-10-10",
@@ -381,6 +383,7 @@ def download_files(region_of_interest: shapely.Polygon, # buffered region in 432
                         if os.path.isfile(local_path):
                             os.remove(local_path)
                         raise
+__all__.append("download_files")
 
 def download_single_file(track_id: str) -> str:
     # currently only CryoSat-2
@@ -406,6 +409,7 @@ def download_single_file(track_id: str) -> str:
                     raise
         print(f"File for id {track_id} couldn't be found in remote dir {ftp.pwd()}.")
         raise FileNotFoundError()
+__all__.append("download_single_file")
 
 def drop_waveform(cs_l1b_ds, time_20_ku_mask):
     """Use mask along time dim to drop waveforms.
@@ -417,12 +421,7 @@ def drop_waveform(cs_l1b_ds, time_20_ku_mask):
         xr.Dataset or DataArray: Input dataset without marked waveforms.
     """
     return cs_l1b_ds.sel(time_20_ku=cs_l1b_ds.time_20_ku[~time_20_ku_mask])
-
-def choose_group_phase_wrap(waveform):
-    # this should be possible for all waveforms in parallel (see below). However, this takes much longer for some
-    # reason. Check again, when using dask (looks like a sparse memory accessing issue).
-    # ds["ph_idx"][~ds.group_id.isnull()] = ds.xph_swath_h_diff.groupby(ds.group_id).map(lambda x: x.ns_20_ku*0+x.mean("stacked_time_20_ku_ns_20_ku").idxmin("phase_wrap_factor"))
-    return waveform.xph_elev_diffs.groupby(waveform.group_id).map(lambda x: x.ns_20_ku*0+x.mean("ns_20_ku").idxmin("phase_wrap_factor"))
+__all__.append("drop_waveform")
 
 def get_buffered_glacier_outlines(l1b_ds):
     # Implement finding polygon based on track lat/lon
@@ -453,6 +452,4 @@ def get_rot_mat_dem_to_waveform(dem_central_lon, wf_lon, wf_az):
     return Rotation.from_euler('z', dem_central_lon-wf_lon+wf_az, degrees=True)
 
 
-
-
-    
+__all__ = sorted(__all__)

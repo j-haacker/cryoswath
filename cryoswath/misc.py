@@ -1,3 +1,5 @@
+import configparser
+from dateutil.relativedelta import relativedelta
 import ftplib
 import geopandas as gpd
 import numpy as np
@@ -12,6 +14,28 @@ import scipy.stats
 import shapely
 import warnings
 import xarray as xr
+
+from . import gis
+
+config = configparser.ConfigParser()
+config_path = os.path.join(os.path.dirname(__file__), "config.ini")
+if os.path.isfile(config_path):
+    config.read(config_path)
+try:
+    personal_email = config["personal"]["personal_email"]
+except:
+    print("ESA asks to use one's email as password when downloading data via ftp. Please provide it.")
+    response = None
+    while response != "y":
+        personal_email = input("Your email:")
+        response = input(f"Is your email \"{personal_email}\" spelled correctly? (y/n)",).lower()[0]
+    if "personal" in config:
+        config["personal"]["personal_email"] = personal_email
+    else:
+        config["personal"] = {"personal_email": personal_email}
+    with open(config_path, "w") as config_file:
+        config.write(config_file)
+    print(f"Thanks. You can change your email in {config_path} manually.")
 
 ## Paths ##############################################################
 data_path = os.path.join(os.path.dirname(__file__), "..", "data")
