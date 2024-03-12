@@ -118,6 +118,20 @@ def gauss_filter_DataArray(da, dim, window_extent, std):
         return da.rolling({dim: window_extent}, center=True).construct("window_dim").dot(gauss_weights)
 
 
+def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
+    # # data can be either l1b.l1b_data (xarray.Dataset containing
+    # # "lat_20_ku"), l2 data (geopandas.GeoDataFrame containing "lat"),
+    # # or  a (lon, lat) tuple/list/dict.
+    # if isinstance(data, float):
+    #     lat = data
+    # elif len(data.lat_20_ku) > 1:
+    #     lat = np.abs(data.lat_20_ku).min()
+    # else:
+    #     lat = data.lat_20_ku
+    # if lat
+    return rasterio.open(os.path.join(dem_path, "09-02_novaya_zemlya.tif"))
+
+
 def load_cs_full_file_names(update: bool = False) -> pd.Series:
     file_names_path = os.path.join(aux_path, "CryoSat-2_SARIn_file_names.pkl")
     if update:
@@ -212,6 +226,6 @@ __all__ = ["aux_path", "data_path", "dem_path", "cs_ground_tracks_path", "rgi_pa
            "WGS84_ellpsoid", "antenna_baseline", "Ku_band_freq", "sample_width",     # vars ...........................
            "speed_of_light",
            "cs_id_to_time", "cs_time_to_id", "find_region_id", "flag_translator",    # funcs ..........................
-           "gauss_filter_DataArray", "load_cs_full_file_names", "load_cs_ground_tracks", "load_o1region",
-           "load_o2region",
+           "gauss_filter_DataArray", "get_dem_reader", "load_cs_full_file_names", 
+           "load_cs_ground_tracks", "load_o1region", "load_o2region",
            ]
