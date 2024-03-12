@@ -48,13 +48,14 @@ def coherence(waveform, *,
     except KeyError:
         pass
     try:
-        if plot_properties["omitted"]["facecolor"] is None:
-            plot_properties["omitted"]["facecolor"] = ax.get_facecolor()
-        x0 = -100
-        h_omitted = ax.add_patch(mpl.patches.Rectangle((x0, -1),
-                                                     waveform.swath_start[0]-x0, 3,
-                                                     **plot_properties["omitted"], label="omitted"))
-        h_list.insert(1, h_omitted)
+        if waveform.swath_start[0] > 0:
+            if plot_properties["omitted"]["facecolor"] is None:
+                plot_properties["omitted"]["facecolor"] = ax.get_facecolor()
+            x0 = -100
+            h_omitted = ax.add_patch(mpl.patches.Rectangle((x0, -1),
+                                                        waveform.swath_start[0]-x0, 3,
+                                                        **plot_properties["omitted"], label="omitted"))
+            h_list.insert(1, h_omitted)
     except AttributeError:
         pass
     try:
