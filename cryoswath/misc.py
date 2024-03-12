@@ -57,13 +57,28 @@ def download_file(url: str, out_path: str = ".") -> str:
     return local_filename
 
 
-def find_region_id(region_outlines: shapely.Polygon|shapely.MultiPolygon|gpd.GeoSeries|gpd.GeoDataFrame):
-    if isinstance(region_outlines, gpd.GeoDataFrame):
-        region_outlines = region_outlines.geometry
-    if isinstance(region_outlines, gpd.GeoSeries):
-        region_outlines = region_outlines.to_crs(4326).unary_union
+def find_region_id(location: any, scope: str = "o2") -> str:
+    if isinstance(location, gpd.GeoDataFrame):
+        location = location.geometry
+    if isinstance(location, gpd.GeoSeries):
+        location = location.to_crs(4326).unary_union
+    if not isinstance(location, shapely.Geometry):
+        if isinstance(location, tuple) or (isinstance(location, list) and len(location)<3):
+            location = shapely.Point(location[1], location[0])
+        else:
+            location = shapely.Polygon([(coord[1], coord[0]) for coord in location])
     rgi_o2_gpdf = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
-    return rgi_o2_gpdf[rgi_o2_gpdf.contains(region_outlines.centroid)]["long_code"].values[0]
+    rgi_region = rgi_o2_gpdf[rgi_o2_gpdf.contains(location.centroid)]
+    if scope == "o1":
+        return rgi_region["o1region"].values[0]
+    elif scope == "o2":
+        return rgi_region["o2region"].values[0]
+    elif scope == "basin":
+        rgi_glacier_gpdf = load_o2region(rgi_region["o2region"].values[0])
+        return rgi_glacier_gpdf[rgi_glacier_gpdf.contains(location.centroid)]["rgi_id"].values[0]
+    else:
+        raise Exception("`scope` can be one of \"o1\", \"o2\", or \"basin\".")
+
     # ! tbi: if only small region/one glacier, make get its
     # to_planar = Transformer.from_crs(CRS.from_epsg(4326), CRS.from_epsg(3413))
     # if shapely.ops.transform(to_planar.transform, region_outlines).area > 
