@@ -4,6 +4,7 @@ import ftplib
 import geopandas as gpd
 import numpy as np
 import os
+import pandas as pd
 from pyproj import Transformer
 import rasterio as rio
 import rioxarray as rioxr
@@ -94,7 +95,7 @@ class l1b_data(xr.Dataset):
         if not "xph_lats" in self.data_vars:
             self = self.locate_ambiguous_origin()
         # ! tbi: auto download ref dem if not present
-        dem_reader = rio.open(f"../data/auxiliary/DEM/{self.get_rgi_o2()}.tif", "r")
+        dem_reader = rio.open(os.path.join(dem_path, self.get_rgi_o2()+".tif"), "r")
         trans_4326_to_dem_crs = Transformer.from_crs('EPSG:4326', dem_reader.crs)
         with rioxr.open_rasterio(dem_reader) as ref_dem:
             x, y = trans_4326_to_dem_crs.transform(self.xph_lats, self.xph_lons)
@@ -151,7 +152,7 @@ class l1b_data(xr.Dataset):
     
     @classmethod
     def from_id(cls, track_id: str, **kwargs) -> "l1b_data":
-        l1b_data_dir = pd.to_datetime(track_id).strftime("../data/L1b/%Y/%m")
+        l1b_data_dir = os.path.join(data_path, "L1b", pd.to_datetime(track_id).strftime(f"%Y{os.path.sep}%m"))
         if os.path.isdir(l1b_data_dir):
             for file_name in os.listdir(l1b_data_dir):
                 if fnmatch.fnmatch(file_name, "*CS_????_SIR_SIN_1B_*") \
@@ -275,7 +276,7 @@ class l1b_data(xr.Dataset):
                                            .dropna("time_20_ku", how="all")
         # print(buffer.drop_vars(buffer.coords).drop_dims("band"))
         drop_coords = [coord for coord in buffer.coords if coord not in ["time"]]
-        import l2
+        from . import l2 # needs to stay here to prevent circular import!
         return l2.from_processed_l1b(buffer.squeeze().drop_vars(drop_coords))#
 
 
