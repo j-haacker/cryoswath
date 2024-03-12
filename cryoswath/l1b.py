@@ -97,9 +97,12 @@ class l1b_data(xr.Dataset):
             # (also: simplify needed?)
             buffered_points = gpd.GeoSeries(gpd.points_from_xy(buffer.lon_20_ku, buffer.lat_20_ku), crs=4326).to_crs(3413).buffer(30_000).simplify(5_000).to_crs(4326)
             o2regions = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
-            o2code = o2regions[o2regions.geometry.contains(shapely.box(*buffered_points.total_bounds))]["o2region"].values[0]
-            retain_indeces = buffered_points.within(load_o2region(o2code).clip_by_rect(*buffered_points.total_bounds).unary_union)
-            if retain_indeces.sum() < 2:
+            try:
+                o2code = o2regions[o2regions.geometry.contains(shapely.box(*buffered_points.total_bounds))]["o2region"].values[0]
+                retain_indeces = buffered_points.within(load_o2region(o2code).clip_by_rect(*buffered_points.total_bounds).unary_union)
+                if retain_indeces.sum() < 2: raise IndexError()
+                buffer = buffer.isel(time_20_ku=retain_indeces[retain_indeces].index)
+            except IndexError:
                 warnings.warn("Not enough waveforms left on glacier. Proceeding with 2 dummy waveforms to ensure no errors raised.")
                 buffer = buffer.isel(time_20_ku=[0,1])
             else:
