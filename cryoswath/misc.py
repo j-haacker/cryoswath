@@ -122,7 +122,7 @@ def load_cs_full_file_names(update: bool = False) -> pd.Series:
     if update:
         file_names = pd.read_pickle(file_names_path).sort_index()
         last_lta_idx = file_names[(fn[3:7]=="LTA_" for fn in file_names)].index[-1]
-        print(last_lta_idx)
+        print(last_lta_idx+pd.offsets.MonthBegin(-1, normalize=True))
         with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
             ftp.login(passwd="your@email.address")
             ftp.cwd("/SIR_SIN_L1")
@@ -134,7 +134,7 @@ def load_cs_full_file_names(update: bool = False) -> pd.Series:
                     ftp.cwd(f"/SIR_SIN_L1/{year}")
                     print(f"entered /SIR_SIN_L1/{year}")
                     for month in ftp.nlst():
-                        if pd.to_datetime(f"{year}-{month}") < last_lta_idx-pd.offsets.MonthBegin(0):
+                        if pd.to_datetime(f"{year}-{month}") < last_lta_idx+pd.offsets.MonthBegin(-1, normalize=True):
                             print("skip", month)
                             continue
                         ftp.cwd(f"/SIR_SIN_L1/{year}/{month}")
@@ -173,7 +173,8 @@ def load_cs_full_file_names(update: bool = False) -> pd.Series:
                         file_names.to_pickle(file_names_path)
                         raise
                     warnings.warn(f"Error occurred in remote directory /SIR_SIN_L1/{year}/{month}.")
-        file_names.to_pickle(file_names_path)
+    file_names.to_pickle(file_names_path)
+    return file_names
 
 
 def load_cs_ground_tracks() -> gpd.GeoDataFrame:
