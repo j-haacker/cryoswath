@@ -113,7 +113,7 @@ class l1b_data(xr.Dataset):
             with rioxr.open_rasterio(dem_reader) as ref_dem:
                 # ! huge improvement potential: instead of the below, rasterio.sample could be used
                 # [edit] use postgis
-                ref_dem = ref_dem.rio.clip_box(np.min(x), np.min(y), np.max(x), np.max(y))
+                ref_dem = ref_dem.rio.clip_box(np.nanmin(x), np.nanmin(y), np.nanmax(x), np.nanmax(y))
                 self["xph_ref_elevs"] = ref_dem.sel(x=self.xph_x, y=self.xph_y, method="nearest")
         # rasterio suggests sorting like `for ind in np.lexsort([y, x]): rv.append((x[ind], y[ind]))`
         # sort_key = np.lexsort([y, x])
@@ -137,20 +137,21 @@ class l1b_data(xr.Dataset):
     __all__.append("append_below_threshold_mask")
 
     def append_best_fit_phase_index(self):
-        if not "xph_elev_diffs" in self.data_vars:
-            self = self.append_elev_diff_to_ref()
         # ! Implement opt-out or/and grouping alternatives
         if not "group_id" in self.data_vars:
             self = self.tag_groups()
+        # before locating echos, find groups because also phase is unwrapped
+        if not "xph_elev_diffs" in self.data_vars:
+            self = self.append_elev_diff_to_ref()
         self = self.assign(ph_idx=(("time_20_ku", "ns_20_ku"),
                                    np.empty((len(self.time_20_ku), len(self.ns_20_ku)), dtype="int")))
-        self["ph_idx"] = self.xph_elev_diffs.where(self.group_id.isnull()).idxmin("phase_wrap_factor")
+        self["ph_idx"] = np.abs(self.xph_elev_diffs.where(self.group_id.isnull())).idxmin("phase_wrap_factor")
+        # ! should be possible with numba and apply_ufunc
         for wf in range(len(self.time_20_ku)):
             if not self.group_id[wf].isnull().all():
                 self["ph_idx"][wf][~self.group_id[wf].isnull()] \
                     = self.xph_elev_diffs[wf].groupby(self.group_id[wf]).map(
-                        lambda x: x.ns_20_ku*0+x.mean("ns_20_ku").idxmin("phase_wrap_factor"))
-        return self
+                        lambda x: x.ns_20_ku*0+np.abs(x.mean("ns_20_ku")).idxmin("phase_wrap_factor"))
     __all__.append("append_best_fit_phase_index")
     
     def append_elev_diff_to_ref(self):
@@ -274,6 +275,13 @@ class l1b_data(xr.Dataset):
                                     self.below_thresholds).astype('uint8').diff("ns_20_ku")==-1).cumsum("ns_20_ku") \
                      + xr.DataArray(data=np.arange(len(self.time_20_ku))*len(self.ns_20_ku), dims="time_20_ku")
         self["group_id"] = group_tags.where(~self.below_thresholds).where(~non_group_samples)
+        def unwrap(group):
+            smooth_phase_diff = np.angle(group.ph_diff_complex_smoothed)
+            diff = np.unwrap(smooth_phase_diff) - smooth_phase_diff
+            return group.ph_diff_waveform_20_ku + diff
+        unwrapped = self[["ph_diff_waveform_20_ku", "ph_diff_complex_smoothed"]].groupby(self.group_id).map(unwrap)
+        self["ph_diff_waveform_20_ku"] = \
+            xr.where(self.group_id.isnull(), *xr.align(self.ph_diff_waveform_20_ku, unwrapped, join="left"))
         return self
     __all__.append("tag_groups")
 
