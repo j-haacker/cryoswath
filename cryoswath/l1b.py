@@ -95,12 +95,23 @@ class l1b_data(xr.Dataset):
             buffered_points = gpd.GeoSeries(gpd.points_from_xy(buffer.lon_20_ku, buffer.lat_20_ku), crs=4326).to_crs(3413).buffer(30_000).simplify(5_000).to_crs(4326)
             o2regions = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
             try:
-                o2code = o2regions[o2regions.geometry.contains(shapely.box(*buffered_points.total_bounds))]["o2region"].values[0]
-                retain_indeces = buffered_points.intersects(load_o2region(o2code).clip_by_rect(*buffered_points.total_bounds).unary_union)
+                intersected_o2 = o2regions.geometry.intersects(shapely.box(*buffered_points.total_bounds))
+                if sum(intersected_o2) == 0:
+                    raise IndexError
+                # not sure that it even occurs, but should a track intersect 2 o2 regions, load the bigger intersection
+                elif sum(intersected_o2) > 1:
+                    intersections = o2regions.intersect(shapely.oriented_envelope(buffered_points.geometry))
+                    o2code = intersections.sortby("area")[-1].o2region.values[0]
+                else:
+                    o2code = o2regions[intersected_o2]["o2region"].values[0]
+                o2_extent = load_o2region(o2code).clip_by_rect(*buffered_points.total_bounds)
+                if all(o2_extent.is_empty):
+                    raise IndexError
+                retain_indeces = buffered_points.intersects(o2_extent.unary_union)
                 buffer = buffer.isel(time_20_ku=retain_indeces[retain_indeces].index)
             except IndexError:
-                warnings.warn("Not enough waveforms left on glacier. Proceeding with 2 dummy waveforms to ensure no errors raised.")
-                buffer = buffer.isel(time_20_ku=[0,1])
+                warnings.warn("No waveforms left on glacier. Proceeding with empty dataset.")
+                buffer = buffer.isel(time_20_ku=[])
         buffer = buffer.assign_attrs(coherence_threshold=coherence_threshold,
                                      power_threshold=power_threshold)
         buffer = append_exclude_mask(buffer)
@@ -310,12 +321,22 @@ class l1b_data(xr.Dataset):
         return self
     __all__.append("tag_groups")
 
-    def to_l2(self, out_vars: list|dict = {"time_20_ku": "time", "xph_x": "x", "xph_y": "y",
-                                           "xph_elevs": "height", "xph_ref_elevs": "h_ref", "xph_elev_diffs": "h_diff",
-                                           },
-                    retain_vars: list|dict = [], *,
+    def to_l2(self, out_vars: list|dict = None, *,
+                    retain_vars: list|dict = None,
                     swath_or_poca: str = "swath",
-                    tidy: bool = True):
+                    **kwargs):
+        if len(self.time_20_ku) == 0:
+            if swath_or_poca == "both":
+                return gpd.GeoDataFrame(), gpd.GeoDataFrame()
+            else:
+                return gpd.GeoDataFrame()
+        if out_vars is None:
+            out_vars = dict(time_20_ku="time",
+                            xph_x="x",
+                            xph_y="y",
+                            xph_elevs="height",
+                            xph_ref_elevs="h_ref",
+                            xph_elev_diffs="h_diff")
         # implicitly test whether data was processed. if not, do so
         if not "ph_idx" in self.data_vars:
             self = self.append_best_fit_phase_index()
@@ -327,15 +348,29 @@ class l1b_data(xr.Dataset):
             self = self.drop_vars(list(retain_vars.values()), errors="ignore")
             self = self.rename_vars(retain_vars)
             retain_vars = list(retain_vars.values())
-        # print(self[out_vars+retain_vars].to_dataframe())
-        buffer = self[out_vars+retain_vars].where(~self.below_thresholds)\
-                                           .sel(phase_wrap_factor=self.ph_idx)\
-                                           .dropna("time_20_ku", how="all")
-        # print(buffer.drop_vars(buffer.coords).drop_dims("band"))
+        elif retain_vars is None:
+            retain_vars = []
+        if swath_or_poca == "swath":
+            buffer = self[out_vars+retain_vars].where(~self.exclude_mask)\
+                                               .sel(phase_wrap_factor=self.ph_idx)\
+                                               .dropna("time_20_ku", how="all")
+        elif swath_or_poca == "poca":
+            waveforms_with_poca = self.time_20_ku[~self.poca_idx.isnull()]
+            buffer = self[out_vars+retain_vars+["ph_idx"]].sel(time_20_ku=waveforms_with_poca)\
+                                                          .sel(ns_20_ku=self.poca_idx[~self.poca_idx.isnull()])
+            # waveforms_with_poca = self.time20_ku
+            # buffer = self[out_vars+retain_vars+["ph_idx"]][~self.poca_idx.isnull().values].sel(ns_20_ku=self.poca_idx[~self.poca_idx.isnull().values])
+            buffer = buffer[out_vars+retain_vars].sel(phase_wrap_factor=buffer.ph_idx).dropna("time_20_ku", how="all")
+        elif swath_or_poca == "both":
+            swath = self.to_l2(out_vars, retain_vars, tidy=tidy)
+            poca = self.to_l2(out_vars, retain_vars, tidy=tidy, swath_or_poca="poca")
+            return swath, poca
+        else:
+            raise ValueError(f"You provided \"swath_or_poca={swath_or_poca}\". Choose \"swath\", \"poca\",",
+                             "or \"both\".")
         drop_coords = [coord for coord in buffer.coords if coord not in ["time", "sample"]]
         from . import l2 # can't be in preamble as this would lead to circularity
-        l2_data = l2.from_processed_l1b(buffer.squeeze().drop_vars(drop_coords))
-        if tidy: l2_data = l2.limit_filter(l2_data, "h_diff", 150)
+        l2_data = l2.from_processed_l1b(buffer.squeeze().drop_vars(drop_coords), **kwargs)
         return l2_data
     __all__.append("to_l2")
 
@@ -381,6 +416,11 @@ __all__.append("append_exclude_mask")
     
 
 def append_poca_and_swath_idxs(cs_l1b_ds):
+    if len(cs_l1b_ds.time_20_ku) == 0:
+        return cs_l1b_ds.assign(swath_start=(("time_20_ku"), []),
+                                poca_idx=(("time_20_ku"), []),
+                                exclude_mask=(("time_20_ku", "ns_20_ku"),
+                                              np.empty_like(cs_l1b_ds.power_waveform_20_ku)))
     # ! performance improvement potential
     # should be possible to accelerate with numba
     def find_poca_idx_and_swath_start_idx(smooth_coh, coh_thr):

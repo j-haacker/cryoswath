@@ -1,4 +1,4 @@
-
+import fnmatch
 import geopandas as gpd
 import numpy as np
 import os
@@ -6,6 +6,7 @@ import pandas as pd
 from pyproj import CRS
 import re
 import shapely
+import warnings
 
 from .misc import *
 from . import gis, l1b
@@ -14,8 +15,8 @@ __all__ = list()
 
 
 def from_id(track_idx: pd.DatetimeIndex|str, *,
-            max_elev_diff: float = np.nan,
-            reprocess: bool = True):
+            reprocess: bool = True,
+            **kwargs) -> tuple[gpd.GeoDataFrame]:
     # this function collects processed data and processes the remaining.
     # combining new and old data can show unexpected behavior if
     # settings changed.
@@ -23,46 +24,73 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
         track_idx = pd.DatetimeIndex(track_idx if isinstance(track_idx, list) else [track_idx])
     if track_idx.tz == None: track_idx.tz_localize("UTC")
     start_datetime, end_datetime = track_idx.sort_values()[[0,-1]]
-    l2_list = []
+    swath_list = []
+    poca_list = []
     for current_month in pd.date_range(start_datetime.normalize()-pd.offsets.MonthBegin(), end_datetime,freq="MS"):
-        current_L2_base_path = os.path.join("..", "data", "L2", current_month.strftime(f"%Y{os.path.sep}%m"))
-        if os.path.isdir(current_L2_base_path):
-            l2_paths = os.listdir(current_L2_base_path)
-            l2_paths = pd.Series(l2_paths, name="l2_paths")
-            l2_paths.index = pd.DatetimeIndex([pd.to_datetime(l2_file[19:34]) for l2_file in l2_paths])
-        else:
-            l2_paths = pd.Series()
-            os.makedirs(current_L2_base_path)
+        current_subdir = current_month.strftime(f"%Y{os.path.sep}%m")
+        l2_paths = pd.DataFrame(columns=["swath", "poca"])
+        for l2_type in ["swath", "poca"]:
+            if os.path.isdir(os.path.join(data_path, f"L2_{l2_type}", current_subdir)):
+                for filename in os.listdir(os.path.join(data_path, f"L2_{l2_type}", current_subdir)):
+                    match = re.search(cryosat_id_pattern, filename)
+                    if match is not None:
+                        l2_paths.loc[cs_id_to_time(match.group()), l2_type] = filename
+            else:
+                os.makedirs(os.path.join(data_path, f"L2_{l2_type}", current_subdir))
         # below could be parallelized in different ways:
         # a) downloading missing L1b; b) processing L1b; c) collecting
         for current_track_idx in pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index: # super work-around :/
             print("appending", current_track_idx)
-            if not reprocess and current_track_idx in l2_paths.index:
-                l2_list.append(gpd.read_feather(os.path.join(current_L2_base_path, l2_paths.loc[current_track_idx])))
-            else:
+            try:
+                if reprocess:
+                    raise FileNotFoundError()
+                swath_list.append(gpd.read_feather(os.path.join(data_path, "L2_swath", current_subdir, l2_paths.loc[current_track_idx, "swath"])))
+                poca_list.append(gpd.read_feather(os.path.join(data_path, "L2_poca", current_subdir, l2_paths.loc[current_track_idx, "poca"])))
+            except (KeyError, FileNotFoundError):
                 # print("processing", track_idx)
-                l2_buffer = limit_filter(l1b.l1b_data.from_id(cs_time_to_id(current_track_idx)).to_l2(tidy=False),
-                                         "h_diff", max_elev_diff)
-                l2_list.append(l2_buffer)
                 # save results. make optional?
                 if "cs_full_file_names" not in locals():
                     cs_full_file_names = load_cs_full_file_names(update="no")
-                l2_buffer.to_feather(os.path.join(current_L2_base_path, cs_full_file_names.loc[current_track_idx]+".feather"))
+                l2_buffer = l1b.l1b_data.from_id(cs_time_to_id(current_track_idx)).to_l2(swath_or_poca="both")
+                swath_list.append(l2_buffer[0])
+                poca_list.append(l2_buffer[1])
+                # ! consider writing empty files
+                # the below skips if there are no data. this means, that processing is
+                # attempted the next time again. I consider this safer and the
+                # performance loss is on the order of seconds. however, there might be
+                # better options
+                try:
+                    l2_buffer[0].to_feather(os.path.join(data_path, "L2_swath", current_subdir,
+                                                        cs_full_file_names.loc[current_track_idx]+".feather"))
+                    l2_buffer[1].to_feather(os.path.join(data_path, "L2_poca", current_subdir,
+                                                        cs_full_file_names.loc[current_track_idx]+".feather"))
+                except ValueError:
+                    if l2_buffer[0].empty:
+                        which = "Neither POCA nor swath"
+                    else:
+                        which = "No POCA"
+                    warnings.warn(f"{which} points for {cs_time_to_id(current_track_idx)}.")
                 # print("done processing")
-    return pd.concat(l2_list)
+    return pd.concat(swath_list), pd.concat(poca_list)
 __all__.append("from_id")
 
 
-def from_processed_l1b(l1b_data: l1b.l1b_data|None = None, crs: CRS = CRS.from_epsg(3413), **kwargs) -> gpd.GeoDataFrame:
-    # print(data)
+def from_processed_l1b(l1b_data: l1b.l1b_data = None,
+                       **kwargs) -> gpd.GeoDataFrame:
+    # kwargs: crs, max_elev_diff, input to GeoDataFrame
     if l1b_data is None:
         print("No data passed.")
         # ! empty GeoDataFrames can't have a CRS
         # super().__init__(crs=crs, **kwargs)
         pass
     else:
-        if isinstance(crs, int): crs = CRS.from_epsg(crs)
+        if "crs" in kwargs:
+            crs = gis.ensure_pyproj_crs(kwargs.pop("crs"))
+        else:
+            crs = CRS.from_epsg(3413)
         l1b_data = l1b_data.to_dataframe().dropna(axis=0, how="any")
+        if "max_elev_diff" in kwargs and "h_diff" in l1b_data:
+            l1b_data = limit_filter(l1b_data, "h_diff", kwargs.pop("max_elev_diff"))
         if isinstance(l1b_data.index, pd.MultiIndex): #
             l1b_data.rename_axis(("time", "sample"), inplace=True)
             l1b_data.index = l1b_data.index.set_levels(pd.DatetimeIndex(l1b_data["time"].groupby(level=0).first(), tz="UTC"), level=0)
