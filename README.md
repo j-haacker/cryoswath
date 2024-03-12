@@ -5,10 +5,9 @@ library, and some pre-assemble data to retrieve and study CryoSat-2 data
 
 ## state
 
-Currently, it is in the pre-beta phase. main contains those parts that I
-believe to work if used as intended and that have been tested to some
-extent. devel contains parts that I used successfully - use at your own
-risk.
+Currently, it is in the alpha phase. `main` contains those parts that I
+believe to work if used as intended and that tested to some
+extent. Other branches are for development.
 
 Check the [preliminary tutorial](https://github.com/j-haacker/cryoswath/blob/main/scripts/tutorial.ipynb)
 for some inspiration how to start off.
