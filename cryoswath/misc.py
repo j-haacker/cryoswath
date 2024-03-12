@@ -4,6 +4,7 @@ import numpy as np
 import os
 import pandas as pd
 from pyproj import Geod
+import re
 import requests
 from scipy.constants import speed_of_light
 import scipy.stats
@@ -179,6 +180,30 @@ def load_cs_ground_tracks() -> gpd.GeoDataFrame:
     cs_tracks = gpd.read_feather(cs_ground_tracks_path).set_index("index").sort_index()
     cs_tracks.index = pd.to_datetime(cs_tracks.index)
     return cs_tracks.set_crs(4326)
+
+
+def load_o1region(o1code: str) -> gpd.GeoDataFrame:
+    rgi_files = os.listdir(rgi_path)
+    for file in rgi_files:
+        if re.match(f"RGI2000-v7\.0-G-{o1code}_.*", file):
+            file_path = os.path.join(rgi_path, file)
+            if file[-8:] == ".feather":
+                o1region = gpd.read_feather(file_path)
+            elif file[-4:] == ".shp" or os.path.isdir(file_path):
+                o1region = gpd.read_file(file_path)
+            else:
+                continue
+            break
+    if "o1region" not in locals():
+        print("Make sure RGI files are available in data/auxiliary/RGI. If you did not download them already, you can find them at https://daacdata.apps.nsidc.org/pub/DATASETS/nsidc0770_rgi_v7/regional_files/RGI2000-v7.0-G/. Mind that you need to unzip them. If you decide to put them into a directory, name it as the file is named (e.g. RGI2000-v7.0-G-01_alaska).")
+        raise FileNotFoundError
+    return o1region
+
+
+def load_o2region(o2code: str) -> gpd.GeoDataFrame:
+    o1region = load_o1region(o2code[:2])
+    return o1region[o1region["o2region"]==o2code]
+
 
 # make contents accessible
 __all__ = ["aux_path", "cs_ground_tracks_path", "rgi_path", "dem_path", # paths
