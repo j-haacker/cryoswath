@@ -493,46 +493,47 @@ def build_flag_mask(cs_l1b_flag: xr.DataArray, black_list: list = [], white_list
 __all__.append("build_flag_mask")
 
 
+# ! name is not intuitive
 def download_wrapper(region_of_interest: str|shapely.Polygon = None,
                    start_datetime: str|pd.Timestamp = "2010",
                    end_datetime: str|pd.Timestamp = "2035", *,
                    buffer_region_by: float = None,
                    track_idx: pd.DatetimeIndex|str = None,
                    stop_event: Event = None,
-                   num_processes: int = 2,
+                   n_threads: int = 8,
                    #baseline: str = "latest",
-                   ):
+                   ) -> int:
     if track_idx is None:
         start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
         track_idx = load_cs_ground_tracks(region_of_interest, start_datetime, end_datetime, buffer_region_by=buffer_region_by).index
     else:
         track_idx = track_idx.sort_values()
         start_datetime, end_datetime = track_idx[[0,-1]]
+    if stop_event is None:
+        stop_event = Event()
+    task_queue = request_workers(download_files, n_threads)
     months = pd.date_range(start_datetime.normalize(), end_datetime+pd.offsets.MonthBegin(), freq="M")
-    if len(track_idx) > 100:
-        if stop_event is None:
-            stop_event = Event()
-        download_threads = []
-        for i in range(min(num_processes, len(months))):
-            idx_selection = track_idx[track_idx.snap("M").normalize().isin(months[i::num_processes])]
-            download_threads.append(Thread(target=download_files,
-                                           kwargs=dict(track_idx=idx_selection, stop_event=stop_event),
-                                           name=f"dl_l1b_child_thread_{i}",
-                                           daemon=False))
-            download_threads[-1].start()
-        print(f"Started {num_processes} download threads;",
-              f"each ensuring {len(months)/num_processes:.1f} months' availability.")
-        while ~stop_event.is_set() and any([thread.is_alive() for thread in download_threads]):
-            stop_event.wait(60)
-        if any([thread.is_alive() for thread in download_threads]):
-            for thread in download_threads:
-                thread.join(30)
-            print("Closed all download threads. Likely not all files were downloaded.")
-            return 1
-        else:
-            print("All downloads finished.")
+    for month in months:
+        idx_selection = track_idx[track_idx.snap("M").normalize()==month]
+        task_queue.put((idx_selection, stop_event))
+    # wait for threads to finish
+    try:
+        task_queue.join()
+    except:
+        stop_event.set()
+        with task_queue.mutex:
+            task_queue.queue.clear()
+        print("Aborting download because error occured. This may have been an interrupt.")
+        for i in range(3):
+            time.sleep(10)
+            if task_queue.empty():
+                print("Closed all download threads. Likely not all files were downloaded.")
+                return 1
+        print("Forcibly shutting down all download threads. In worst case, leads to fractured nc-files.")
+        return 2
     else:
-        download_files(track_idx, stop_event=stop_event)
+        print("All downloads finished.")
+        return 0
 __all__.append("download_wrapper")
 
 
@@ -541,12 +542,10 @@ def download_files(track_idx: pd.DatetimeIndex|str,
                    #baseline: str = "latest",
                    ):
     year_month_str_list = [month.strftime(f"%Y{os.path.sep}%m") for month in track_idx.snap("M").normalize().unique()]
-    print(f"Start downloading {len(track_idx)} L1b .nc files if not present for months:", year_month_str_list)
     for year_month_str in year_month_str_list:
         if stop_event is not None and stop_event.is_set():
             return
         try:
-            print(dir())
             currently_present_files = os.listdir(os.path.join(l1b_path, year_month_str))
         except FileNotFoundError:
             os.makedirs(os.path.join(l1b_path, year_month_str))
@@ -554,7 +553,6 @@ def download_files(track_idx: pd.DatetimeIndex|str,
         with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
             ftp.login(passwd=personal_email)
             try:
-                # ! this will fail on windows/non-UNIX
                 ftp.cwd("/SIR_SIN_L1/"+year_month_str)
             except ftplib.error_perm:
                 warnings.warn("Directory /SIR_SIN_L1/"+year_month_str+" couldn't be accessed.")
