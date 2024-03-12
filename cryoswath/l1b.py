@@ -325,20 +325,9 @@ class l1b_data(xr.Dataset):
             self = self.rename_vars(retain_vars)
             retain_vars = list(retain_vars.values())
         # print(self[out_vars+retain_vars].to_dataframe())
-        if swath_or_poca == "swath":
-            buffer = self[out_vars+retain_vars].where(~self.exclude_mask)\
-                                               .sel(phase_wrap_factor=self.ph_idx)\
-                                               .dropna("time_20_ku", how="all")
-        elif swath_or_poca == "poca":
-            buffer = self[out_vars+retain_vars+["ph_idx"]].sel(ns_20_ku=self.poca_idx)
-            buffer = buffer[out_vars+retain_vars].sel(phase_wrap_factor=buffer.ph_idx).dropna("time_20_ku", how="all")
-        elif swath_or_poca == "both":
-            swath = self.to_l2(out_vars, retain_vars, tidy=tidy)
-            poca = self.to_l2(out_vars, retain_vars, tidy=tidy, swath_or_poca="poca")
-            return swath, poca
-        else:
-            raise ValueError(f"You provided \"swath_or_poca={swath_or_poca}\". Choose \"swath\", \"poca\",",
-                             "or \"both\".")
+        buffer = self[out_vars+retain_vars].where(~self.below_thresholds)\
+                                           .sel(phase_wrap_factor=self.ph_idx)\
+                                           .dropna("time_20_ku", how="all")
         # print(buffer.drop_vars(buffer.coords).drop_dims("band"))
         drop_coords = [coord for coord in buffer.coords if coord not in ["time"]]
         from . import l2 # needs to stay here to prevent circular import!
