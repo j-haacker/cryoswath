@@ -14,6 +14,7 @@ __all__ = list()
 # ! tbi:
 rgi_o1_epsg_dict = dict()
 
+
 def buffer_4326_shp(shp, radius: float, simplify: bool = True):
     # ! currently only works for the Arctic
     to_planar = Transformer.from_crs(CRS.from_epsg(4326), CRS.from_epsg(3413))
@@ -68,8 +69,23 @@ def points_on_glacier(points: gpd.GeoSeries) -> pd.Index:
                                                      # ! the buffering below works only for the arctic
                                                      crs=buffered_glaciered_area_polygon.crs)
     print(time.time(), "buffering")
-    buffered_glaciered_area_polygon = buffered_glaciered_area_polygon.to_crs(3413).buffer(30000)
+    buffered_glaciered_area_polygon = buffered_glaciered_area_polygon.to_crs(3413).buffer(30_000)
     print(time.time(), "simplifying")
     buffered_glaciered_area_polygon = buffered_glaciered_area_polygon.simplify(1000).to_crs(4326)
     return points[points.within(buffered_glaciered_area_polygon[0])].index
 __all__.append("points_on_glacier")
+
+
+def simplify_4326_shp(shp: shapely.Polygon, tolerance: float = None) -> shapely.Polygon:
+    # ! currently only works for the Arctic
+    to_planar = Transformer.from_crs(CRS.from_epsg(4326), CRS.from_epsg(3413))
+    to_4326 = Transformer.from_crs(CRS.from_epsg(3413), CRS.from_epsg(4326))
+    shp = shapely.ops.transform(to_planar.transform, shp)
+    if tolerance is None:
+        if shp.length >= 20_000: # 5 x 5 km
+            tolerance = 1000
+        else:
+            tolerance = 300
+    return shapely.ops.transform(to_4326.transform, shp.simplify(tolerance))
+__all__.append("simplify_4326_shp")
+    
