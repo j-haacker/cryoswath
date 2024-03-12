@@ -3,11 +3,8 @@ import geopandas as gpd
 import numpy as np
 import os
 import pandas as pd
-import re
 import shapely
-import xarray as xr
 
-from . import gis
 from . import l2
 from .misc import *
 
@@ -60,14 +57,14 @@ def build_path(region_of_interest, timestep, spatial_res_meter, aggregation_peri
     else:
         timestep_str = ""
     timestep_str += list(timestep.kwds.keys())[0][:-1]+"ly"
-    if spatial_res_meter == 1000 == 1000:
+    if spatial_res_meter == 1000:
         spatial_res_str = "1km"
     elif np.floor(spatial_res_meter/1000) < 2:
         spatial_res_str = f"{spatial_res_meter}m"
     else:
         # if the trailing ".0" should be omitted, that needs to be implemented here
         spatial_res_str = f"{round(spatial_res_meter/1000, 1)}km"
-    return os.path.join("..", "data", "L3", "_".join(
+    return os.path.join(data_path, "L3", "_".join(
         [region_id, timestep_str, spatial_res_str+".nc"]))
 __all__.append("build_path")
     
