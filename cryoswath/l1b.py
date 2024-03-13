@@ -543,7 +543,8 @@ def download_files(track_idx: pd.DatetimeIndex|str,
                    stop_event: Event = None,
                    #baseline: str = "latest",
                    ):
-    year_month_str_list = [month.strftime(f"%Y{os.path.sep}%m") for month in track_idx.snap("M").normalize().unique()]
+    year_month_str_list = [month.strftime(f"%Y{os.path.sep}%m")
+                           for month in (track_idx.normalize()+pd.DateOffset(day=1)).unique()]
     for year_month_str in year_month_str_list:
         if stop_event is not None and stop_event.is_set():
             return
