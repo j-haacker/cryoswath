@@ -29,8 +29,8 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
     # the number of cores. 8 cores worked for me, 16 was too many
     if not isinstance(track_idx, pd.DatetimeIndex):
         track_idx = pd.DatetimeIndex(track_idx if isinstance(track_idx, list) else [track_idx])
-    if track_idx.tz == None:
-        track_idx = track_idx.tz_localize("UTC")
+    if track_idx.tz != None:
+        track_idx = track_idx.tz_localize(None)
     # somehow the download thread prevents the processing of tracks. it may
     # be due to GIL lock. for now, it is just disabled, so one has to
     # download in advance. on the fly is always possible, however, with
@@ -106,7 +106,10 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                     if l2_type == "swath":
                         l2_data.index = l2_data.index.get_level_values(0).astype(np.int64) \
                                         + l2_data.index.get_level_values(1)
+                    else:
+                        l2_data.index = l2_data.index.astype(np.int64)
                     l2_data.rename_axis("time", inplace=True)
+                    l2_data.sort_index(inplace=True)
                     l2_data = pd.DataFrame(index=l2_data.index, 
                                            data=pd.concat([l2_data.h_diff, l2_data.geometry.get_coordinates()],
                                                           axis=1, copy=False))
