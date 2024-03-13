@@ -299,7 +299,6 @@ def load_cs_full_file_names(update: str = "no") -> pd.Series:
     Returns:
         pd.Series: Full L1b file names without path or extension.
     """
-    # update one of: "no", "quick", "regular", "full"
     file_names_path = os.path.join(aux_path, "CryoSat-2_SARIn_file_names.pkl")
     if os.path.isfile(file_names_path):
         file_names = pd.read_pickle(file_names_path).sort_index()
@@ -399,6 +398,7 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
         update = "full"
     if update == "full":
         last_idx = pd.Timestamp("2010-07-01")
+    # ! should be consistent with load names -> rather call it "quick"?
     elif update == "regular":
         last_idx = pd.to_datetime(cs_tracks.index[-1])
     elif update != "no":
