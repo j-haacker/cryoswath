@@ -512,9 +512,11 @@ def download_wrapper(region_of_interest: str|shapely.Polygon = None,
     if stop_event is None:
         stop_event = Event()
     task_queue = request_workers(download_files, n_threads)
-    months = pd.date_range(start_datetime.normalize(), end_datetime+pd.offsets.MonthBegin(), freq="M")
+    months = pd.date_range(pd.offsets.MonthBegin().rollback(start_datetime.normalize()), end_datetime, freq="MS")
     for month in months:
-        idx_selection = track_idx[track_idx.snap("M").normalize()==month]
+        # print(month)
+        # print(track_idx.normalize()+pd.DateOffset(day=1))
+        idx_selection = track_idx[track_idx.normalize()+pd.DateOffset(day=1)==month]
         task_queue.put((idx_selection, stop_event))
     # wait for threads to finish
     try:
@@ -567,6 +569,7 @@ def download_files(track_idx: pd.DatetimeIndex|str,
                     try:
                         with open(local_path, "wb") as local_file:
                             print("downloading", remote_file)
+                            # [enhancement] use `binary_cache` as buffer instead of removing on fail
                             ftp.retrbinary("RETR "+remote_file, local_file.write)
                     except:
                         print("download failed for", remote_file)
