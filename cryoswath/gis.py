@@ -74,16 +74,13 @@ def points_on_glacier(points: gpd.GeoSeries) -> pd.Index:
 __all__.append("points_on_glacier")
 
 
-def simplify_4326_shp(shp: shapely.Polygon, tolerance: float = None) -> shapely.Polygon:
+def simplify_4326_shp(shp: shapely.Geometry, tolerance: float = None) -> shapely.Geometry:
     # ! currently only works for the Arctic
-    to_planar = Transformer.from_crs(CRS.from_epsg(4326), CRS.from_epsg(3413))
-    to_4326 = Transformer.from_crs(CRS.from_epsg(3413), CRS.from_epsg(4326))
-    shp = shapely.ops.transform(to_planar.transform, shp)
     if tolerance is None:
         if shp.length >= 20_000: # 5 x 5 km
             tolerance = 1000
         else:
             tolerance = 300
-    return shapely.ops.transform(to_4326.transform, shp.simplify(tolerance))
+    return gpd.GeoSeries(shp, crs=4326).to_crs(3413).simplify(tolerance).to_crs(4326).iloc[0]
 __all__.append("simplify_4326_shp")
     
