@@ -15,13 +15,11 @@ __all__ = list()
 rgi_o1_epsg_dict = dict()
 
 
-def buffer_4326_shp(shp, radius: float, simplify: bool = True):
+def buffer_4326_shp(shp: shapely.Geometry, radius: float, simplify: bool = True) -> shapely.MultiPolygon:
     # ! currently only works for the Arctic
-    to_planar = Transformer.from_crs(CRS.from_epsg(4326), CRS.from_epsg(3413))
-    to_4326 = Transformer.from_crs(CRS.from_epsg(3413), CRS.from_epsg(4326))
-    buffered = shapely.ops.transform(to_planar.transform, shp).buffer(radius)
-    if simplify: buffered = buffered.simplify(radius/2)
-    return shapely.ops.transform(to_4326.transform, buffered)
+    buffered_planar = gpd.GeoSeries(shp, crs=4326).to_crs(3413).buffer(radius)
+    if simplify: return buffered_planar.simplify(radius/2).to_crs(4326).iloc[0]
+    return buffered_planar.to_crs(4326).iloc[0]
 __all__.append("buffer_4326_shp")
 
 
