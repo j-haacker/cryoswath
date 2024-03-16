@@ -77,7 +77,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     l2_ddf = l2_ddf.loc[ext_t_axis[0]:ext_t_axis[-1]]
     l2_ddf = l2_ddf.repartition(npartitions=3*len(os.sched_getaffinity(0)))
 
-    l2_ddf[["x", "y"]] = l2_ddf[["x", "y"]]//spatial_res_meter*spatial_res_meter
+    l2_ddf[["x", "y"]] = (l2_ddf[["x", "y"]]//spatial_res_meter+.5)*spatial_res_meter
     l2_ddf["roll_0"] = l2_ddf.index.map_partitions(pd.cut, bins=ext_t_axis, right=False, labels=False, include_lowest=True)
     for i in range(1, window_ntimesteps):
         l2_ddf[f"roll_{i}"] = l2_ddf.map_partitions(lambda df: df.roll_0-i).persist()
@@ -98,7 +98,12 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     l3_data.index = l3_data.index.set_levels(
             ext_t_axis[l3_data.index.levels[0]].astype("datetime64[ns]"), level=0)
     l3_data = l3_data.query(f"time >= '{start_datetime}' and time <= '{end_datetime}'")
-    l3_data.to_xarray().to_netcdf(build_path(region_id, timestep_months, spatial_res_meter))
+    # fill x and y such that they are continuous
+    # otherwise, issues arise when working with the data. occurs because
+    # data is not reduced to glacierized region (but could in theory always
+    # occur anyway)
+    l3_data = fill_missing_coords(l3_data.to_xarray()).rio.write_crs(3413)
+    l3_data.to_netcdf(build_path(region_id, timestep_months, spatial_res_meter))
     return l3_data
 __all__.append("build_dataset")
 
@@ -123,6 +128,15 @@ def build_path(region_of_interest, timestep_months, spatial_res_meter, aggregati
     return os.path.join(data_path, "L3", "_".join(
         [region_id, timestep_str, spatial_res_str+".nc"]))
 __all__.append("build_path")
+
+
+def fill_missing_coords(l3_data):
+    # inspired by user9413641
+    # https://stackoverflow.com/questions/68207994/fill-in-missing-index-positions-in-xarray-dataarray
+    coords = {k: range(l3_data[k].min().values, l3_data[k].max().values+1, l3_data[k].diff(k).min().values)
+              for k in ["x", "y"]}
+    return l3_data.reindex(coords, fill_value=np.nan)
+__all__.append("fill_missing_coords")
 
 
 __all__ = sorted(__all__)
