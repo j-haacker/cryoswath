@@ -135,7 +135,7 @@ class l1b_data(xr.Dataset):
     def append_ambiguous_reference_elevation(self):
         # !! This function causes much of the computation time. I suspect that
         # sparse memory accessing can be minimized with some tricks. However,
-        # first tries ordering the spatial data, took even (much) longer.
+        # first tries sorting the spatial data, took even (much) longer.
         if not "xph_lats" in self.data_vars:
             self = self.locate_ambiguous_origin()
         # ! tbi: auto download ref dem if not present

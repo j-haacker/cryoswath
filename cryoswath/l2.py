@@ -101,6 +101,10 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                     collective_swath_poca_list.append(process_track(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"],
                                                                     current_subdir, kwargs))
             if cache is not None:
+                # when postprocessing, loading the data cached here takes a substatial
+                # amount of time. not sure, but maybe the format can be improved. there
+                # is parquet or the data could be saved per month using
+                # to_hdf(format="fixed")
                 for l2_type, i in zip(["swath", "poca"], [0, 1]):
                     l2_data = pd.concat([item[i] for item in collective_swath_poca_list])
                     if l2_type == "swath":

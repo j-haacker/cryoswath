@@ -37,7 +37,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
     print("Building a gridded dataset of elevation estimates for",
           "the region "+region_of_interest if isinstance(region_of_interest, str) else "a custom area",
-          f"from {start_datetime} to {end_datetime} every {timestep_months} for",
+          f"from {start_datetime} to {end_datetime} every {timestep_months} months for",
           f"a rolling window of {window_ntimesteps} time steps.")
     if "buffer_region_by" not in locals():
         # buffer_by defaults to 30 km to not miss any tracks. Usually,
@@ -58,6 +58,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
           "`incremental=True`, if you local ground tracks store is not up to",
           "date. Consider pulling the latest version from the repository.")
 
+    # ! exclude data out of regions total_bounds in l2.from_id (?possible/logically consistent?)
     print("Storing the essential L2 data in hdf5, downloading and",
           "processing L1b files if not available...")
     if isinstance(region_of_interest, str):
