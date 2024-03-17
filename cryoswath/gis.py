@@ -6,6 +6,7 @@ from pyproj import Transformer
 from pyproj.crs import CRS
 import rasterio
 import shapely
+import warnings
 
 from .misc import *
 
@@ -17,9 +18,26 @@ rgi_o1_epsg_dict = dict()
 
 def buffer_4326_shp(shp: shapely.Geometry, radius: float, simplify: bool = True) -> shapely.MultiPolygon:
     # ! currently only works for the Arctic
-    buffered_planar = gpd.GeoSeries(shp, crs=4326).to_crs(3413).buffer(radius)
+    # the algorithm splits a multi-geomerty like MultiPolygon into its
+    # parts, simplifies them if requested, buffers them, and joins them
+    # finally.
+    # the splitting is necessary to work around issue #13
+    if shp is None: # this will occasionally fail, as it will be 'GEOMETRYCOLLECTION EMPTY'
+        warnings.warn("shp=None passed to buffer_4326_shp, returning empty MultiPolygon.")
+        return shapely.MultiPolygon()
+    try:
+        buffered_planar = [] #gpd.GeoSeries([]*len(shp.geoms))
+        # counter = 0
+        for poly in list(shp.geoms):
+            buffered_planar.append(
+                gpd.GeoSeries(poly, crs=4326).to_crs(3413).buffer(0).simplify(100).buffer(radius))
+            # counter += 1
+        buffered_planar = pd.concat(buffered_planar)
+    except AttributeError:
+        buffered_planar = \
+                gpd.GeoSeries(shp, crs=4326).to_crs(3413).buffer(0).simplify(100).buffer(radius)
     if simplify: return buffered_planar.simplify(radius/2).to_crs(4326).iloc[0]
-    return buffered_planar.to_crs(4326).iloc[0]
+    return buffered_planar.to_crs(4326).unary_union #.iloc[0]
 __all__.append("buffer_4326_shp")
 
 
