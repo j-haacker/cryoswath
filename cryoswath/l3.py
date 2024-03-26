@@ -5,6 +5,9 @@ import numpy as np
 import os
 import pandas as pd
 import shapely
+import rasterio.warp
+import rioxarray as rioxr
+import xarray as xr
 
 from . import l2
 from .misc import *
@@ -139,5 +142,84 @@ def fill_missing_coords(l3_data):
     return l3_data.reindex(coords, fill_value=np.nan)
 __all__.append("fill_missing_coords")
 
+
+def fill_voids(l3_data):
+    # figure out region. limited to o2 meanwhile
+    left, lower, right, upper = l3_data.rio.transform_bounds(4326)
+    o2code = find_region_id(shapely.Point(left+(right-left)/2, lower+(upper-lower)/2), scope="o2")
+    basin_shapes = load_o2region(o2code, product="glaciers").to_crs(l3_data.rio.crs)
+    # print(basin_shapes)
+    basin_shapes["voids_filled"] = np.zeros_like(basin_shapes.area_km2).astype(bool)
+    with get_dem_reader() as dem_reader:
+        with rioxr.open_rasterio(dem_reader) as ref_dem:
+            ref_dem = ref_dem.rio.clip_box(*l3_data.rio.bounds()).squeeze()
+    l3_data["ref_elev"] = ref_dem.rio.reproject_match(l3_data, resampling=rasterio.warp.Resampling.average)
+    l3_crs = l3_data.rio.crs
+    for basin in basin_shapes.iterrows(): # [basin_shapes.area_km2>30]
+        try:
+            basin_subset = l3_data.rio.clip([basin[1].geometry])
+        except rioxr.exceptions.NoDataInBounds:
+            continue
+        with xr.align(l3_data, interpolate_hypsometrically_poly3(basin_subset), join="left")[1] as tmp:
+            # crs needs to be reassigned
+            l3_data = xr.where(tmp.isnull(), l3_data, tmp).rio.write_crs(l3_crs)
+        basin_shapes.loc[basin[0],"voids_filled"] = True
+    for basin_tt_group in basin_shapes[~basin_shapes.voids_filled].groupby("term_type"):
+        # print(basin_tt_group)
+        for basin_lat_group in basin_tt_group[1].groupby(pd.cut(basin_tt_group[1].cenlat, bins=max(1, round(basin_tt_group[1].cenlat.max()-basin_tt_group[1].cenlat.min())))):
+            # print(basin_lat_group)
+            for basin_lon_group in basin_lat_group[1].groupby(pd.cut(basin_lat_group[1].cenlon, bins=max(1, round((basin_lat_group[1].cenlon.max()-basin_lat_group[1].cenlon.min())*np.cos(np.deg2rad(basin_lat_group[0].mid)))))):
+                # print(basin_lon_group)
+                frame = basin_lon_group[1].unary_union.bounds
+                # print(frame)
+                # basin_shapes.clip_by_rect(*frame).plot()
+                # plt.show()
+                subset = l3_data.rio.clip(basin_shapes.clip_by_rect(*frame))
+                # print(subset)
+                with xr.align(l3_data, interpolate_hypsometrically_poly3(subset), join="left")[1] as tmp:
+                    l3_data = xr.where(tmp.isnull(), l3_data, tmp).rio.write_crs(3413)
+                basin_shapes.loc[basin_lon_group[1].index,"voids_filled"] = True
+                # print("filled", basin_lon_group[1].index)
+    return l3_data
+__all__.append("fill_voids")
+
+
+# ! maybe put this function into module misc
+def interpolate_hypsometrically_poly3(data):
+    # ensure sufficient data considering spatial correlation
+    if any((data.data_count>3).sum(["x","y"])*np.prod(data.rio.resolution())/2_000**2 < 5):
+        return data
+    for t in data.time:
+        subset = data.sel(time=t).to_dataframe()[["median_h_diff", "IQR_h_diff", "data_count", "ref_elev"]]
+        # select the subset that is meant for processing. this is subtle: if
+        # previously the "data" was selected by xarray.where or rioxarray.clip
+        # we can distinguish the voids that should be filled from masked data
+        # based on the reference eleveation that is filled by the _FillValue.
+        subset = subset[subset.ref_elev>-9000]
+        # use only grid cells based on a minimum number of elevation estimates
+        # and that are not too far of
+        subset2 = subset[subset.data_count>3]
+        subset2 = subset2[np.abs(subset2.median_h_diff)<150]
+        weights = subset2.data_count**.5/subset2.IQR_h_diff
+        weights = weights/weights.mean()
+        # first fit
+        coeffs = np.polyfit(subset2.ref_elev, subset2.median_h_diff, 3, w=weights)
+        residuals = np.polyval(coeffs, subset2.ref_elev) - subset2.median_h_diff.fillna(0)
+        # find and remove outlier
+        outlier_mask = flag_outliers(residuals[weights>0], deviation_factor=5)
+        weights[outlier_mask.values] = 0
+        # fit again
+        coeffs = np.polyfit(subset2.ref_elev, subset2.median_h_diff, 3, w=weights)
+        lowest = subset2.ref_elev[weights>0].min()
+        highest = subset2.ref_elev[weights>0].max()
+        weights = weights.reindex(subset.index, fill_value=0)
+        subset.loc[weights==0,"median_h_diff"] = np.polyval(coeffs, subset.ref_elev[weights==0])
+        subset.loc[subset.ref_elev<lowest,"median_h_diff"] = np.polyval(coeffs, lowest)
+        subset.loc[subset.ref_elev>highest,"median_h_diff"] = np.polyval(coeffs, highest)
+        subset.loc[weights==0,"IQR_h_diff"] = np.inf
+        subset.loc[weights==0,"data_count"] = 0
+        data = xr.where(data.time==t, xr.align(subset.to_xarray(), data, join="right")[0], data)
+    return data
+__all__.append("interpolate_hypsometrically_poly3")
 
 __all__ = sorted(__all__)
