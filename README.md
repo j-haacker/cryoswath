@@ -26,14 +26,12 @@ cryoswath builds on a number of other packages. See
 
 ## 🐛 known issues
 
+- it has only been tested for the Arctic
+
 ### missing dependencies
 
 - the reference elevation model is not provided
 - the RGI data are not automatically downloaded
-
-### limitations
-
-- only working for the Arctic at the moment (hard coded CRS)
 
 ### other issues
 

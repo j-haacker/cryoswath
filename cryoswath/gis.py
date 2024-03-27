@@ -25,17 +25,18 @@ def buffer_4326_shp(shp: shapely.Geometry, radius: float, simplify: bool = True)
     if shp is None: # this will occasionally fail, as it will be 'GEOMETRYCOLLECTION EMPTY'
         warnings.warn("shp=None passed to buffer_4326_shp, returning empty MultiPolygon.")
         return shapely.MultiPolygon()
+    planar_crs = find_planar_crs(shp=shp)
     try:
         buffered_planar = [] #gpd.GeoSeries([]*len(shp.geoms))
         # counter = 0
         for poly in list(shp.geoms):
             buffered_planar.append(
-                gpd.GeoSeries(poly, crs=4326).to_crs(3413).buffer(0).simplify(100).buffer(radius))
+                gpd.GeoSeries(poly, crs=4326).to_crs(planar_crs).buffer(0).simplify(100).buffer(radius))
             # counter += 1
         buffered_planar = pd.concat(buffered_planar)
     except AttributeError:
         buffered_planar = \
-                gpd.GeoSeries(shp, crs=4326).to_crs(3413).buffer(0).simplify(100).buffer(radius)
+                gpd.GeoSeries(shp, crs=4326).to_crs(planar_crs).buffer(0).simplify(100).buffer(radius)
     if simplify: return buffered_planar.simplify(radius/2).to_crs(4326).iloc[0]
     return buffered_planar.to_crs(4326).unary_union #.iloc[0]
 __all__.append("buffer_4326_shp")
@@ -60,6 +61,20 @@ def esri_to_feather(file_path: str = None) -> None:
     gpd.read_file(file_path).to_feather(basename+os.path.extsep+"feather")
 __all__.append("esri_to_feather")
 
+
+def find_planar_crs(*, shp: shapely.Geometry = None, lat: float = None, lon: float = None, region_id: str = None):
+    if region_id is not None:
+        shp = load_glacier_outlines(region_id)
+    elif shp is None:
+        shp = shapely.MultiPoint([(lon, lat) for lon, lat in zip(lon, lat)])
+    shp = shp.centroid
+    if shp.y > 75:
+        return CRS.from_epsg(3413)
+    elif shp.y < -75:
+        return CRS.from_epsg(3976)
+    else:
+        return gpd.GeoSeries(shp, crs=4326).to_frame().estimate_utm_crs()
+__all__.append("find_planar_crs")
 
 def get_lon_origin(crs):
     # Extract Longitude of origin
@@ -99,6 +114,7 @@ def simplify_4326_shp(shp: shapely.Geometry, tolerance: float = None) -> shapely
             tolerance = 1000
         else:
             tolerance = 300
-    return gpd.GeoSeries(shp, crs=4326).to_crs(3413).simplify(tolerance).to_crs(4326).iloc[0]
+    planar_crs = find_planar_crs(shp=shp)
+    return gpd.GeoSeries(shp, crs=4326).to_crs(planar_crs).simplify(tolerance).to_crs(4326).iloc[0]
 __all__.append("simplify_4326_shp")
     

@@ -11,6 +11,7 @@ import xarray as xr
 
 from . import l2
 from .misc import *
+from .gis import find_planar_crs
 
 __all__ = list()
     
@@ -102,11 +103,12 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     l3_data.index = l3_data.index.set_levels(
             ext_t_axis[l3_data.index.levels[0]].astype("datetime64[ns]"), level=0)
     l3_data = l3_data.query(f"time >= '{start_datetime}' and time <= '{end_datetime}'")
+    crs = find_planar_crs(region_id=region_id)
     # fill x and y such that they are continuous
     # otherwise, issues arise when working with the data. occurs because
     # data is not reduced to glacierized region (but could in theory always
     # occur anyway)
-    l3_data = fill_missing_coords(l3_data.to_xarray()).rio.write_crs(3413)
+    l3_data = fill_missing_coords(l3_data.to_xarray()).rio.write_crs(crs)
     l3_data.to_netcdf(build_path(region_id, timestep_months, spatial_res_meter))
     return l3_data
 __all__.append("build_dataset")

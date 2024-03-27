@@ -14,6 +14,7 @@ import warnings
 import xarray as xr
 
 from .misc import *
+from .gis import find_planar_crs
 
 __all__ = list()
 
@@ -99,8 +100,9 @@ class l1b_data(xr.Dataset):
         if drop_non_glacier_areas:
             # ! needs to be tidied up:
             # (also: simplify needed?)
+            planar_crs = find_planar_crs(lon=tmp.lon_20_ku, lat=tmp.lat_20_ku)
             buffered_points = gpd.GeoSeries(gpd.points_from_xy(tmp.lon_20_ku, tmp.lat_20_ku), crs=4326)\
-                .to_crs(3413).buffer(30_000).simplify(5_000).to_crs(4326)
+                .to_crs(planar_crs).buffer(30_000).simplify(5_000).to_crs(4326)
             o2regions = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
             try:
                 intersected_o2 = o2regions.geometry.intersects(shapely.box(*buffered_points.total_bounds))
@@ -110,7 +112,7 @@ class l1b_data(xr.Dataset):
                 elif sum(intersected_o2) > 1:
                     intersections = o2regions.intersection(
                         shapely.oriented_envelope(buffered_points.geometry.unary_union)
-                        ).set_crs(4326).to_crs(3413)
+                        ).set_crs(4326).to_crs(planar_crs)
                     o2code = o2regions.loc[intersections.geometry.area.idxmax(), "o2region"]
                 else:
                     o2code = o2regions[intersected_o2]["o2region"].values[0]
@@ -341,6 +343,10 @@ class l1b_data(xr.Dataset):
                 return gpd.GeoDataFrame(), gpd.GeoDataFrame()
             else:
                 return gpd.GeoDataFrame()
+        if "crs" in kwargs:
+            crs = kwargs.pop("crs")
+        else:
+            crs = find_planar_crs(lat=self.lat_20_ku, lon=self.lon_20_ku)
         if out_vars is None:
             out_vars = dict(time_20_ku="time",
                             xph_x="x",
@@ -379,7 +385,7 @@ class l1b_data(xr.Dataset):
                              "or \"both\".")
         drop_coords = [coord for coord in tmp.coords if coord not in ["time", "sample"]]
         from . import l2 # can't be in preamble as this would lead to circularity
-        l2_data = l2.from_processed_l1b(tmp.squeeze().drop_vars(drop_coords), **kwargs)
+        l2_data = l2.from_processed_l1b(tmp.squeeze().drop_vars(drop_coords), crs=crs, **kwargs)
         return l2_data
     __all__.append("to_l2")
 

@@ -142,6 +142,7 @@ __all__.append("from_id")
 
 
 def from_processed_l1b(l1b_data: l1b.l1b_data = None,
+                       crs: CRS = None,
                        **kwargs) -> gpd.GeoDataFrame:
     # kwargs: crs, max_elev_diff, input to GeoDataFrame
     if l1b_data is None:
@@ -150,10 +151,7 @@ def from_processed_l1b(l1b_data: l1b.l1b_data = None,
         # super().__init__(crs=crs, **kwargs)
         pass
     else:
-        if "crs" in kwargs:
-            crs = gis.ensure_pyproj_crs(kwargs.pop("crs"))
-        else:
-            crs = CRS.from_epsg(3413)
+        crs = gis.ensure_pyproj_crs(crs)
         l1b_data = l1b_data.to_dataframe().dropna(axis=0, how="any")
         if "max_elev_diff" in kwargs and "h_diff" in l1b_data:
             l1b_data = limit_filter(l1b_data, "h_diff", kwargs.pop("max_elev_diff"))
