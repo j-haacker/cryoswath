@@ -620,7 +620,7 @@ def load_glacier_outlines(identifier: str|list[str]) -> shapely.MultiPolygon:
     elif len(identifier) == (7+4+1+2+5+4) and identifier.split("-")[:3] == ["RGI2000", "v4.1", "G"]:
         out = load_basins([identifier])
     # the pattern is rather allowing, set it to "^(-?[012][0-9]){2}(_[a-z]+){1,5}(_[0-9][a-z][0-9]?)?$" to make it tight
-    elif len(identifier) >= 5 and re.match("^(-?[012][0-9]){2}$", identifier[:5]):
+    elif len(identifier) >= 5 and re.match("^(-?[0-3][0-9]){2}$", identifier[:5]):
         out = load_o2region(identifier[:5])
     elif re.match("[012][0-9](_[a-z]+)+", identifier):
         out = load_o1region(identifier[:2])
