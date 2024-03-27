@@ -216,6 +216,40 @@ def find_region_id(location: any, scope: str = "o2") -> str:
     # if shapely.ops.transform(to_planar.transform, region_outlines).area > 
 
 
+def flag_outliers(data,
+                  stat: callable = np.median,
+                  deviation_factor: float = 3,
+                  scaling_factor: float = .5**.5/scipy.special.erf(.5)):
+    """Flags data that is considered outlier given a set of assumptions.
+
+    Data too far from a reference point is marked. Works analogous comparing
+    data to its mean in terms of standard deviations.
+
+    Function was meant to be versatile. However, I'm not sure it makes
+    sense using it with other than the "usual" statistics: mean and median.
+
+    It defaults to marking data further from the median than 3 scaled MADs.
+
+    Args:
+        data (ArrayLike): If data is an array, outliers will be flagged
+            along first dimension (given `stat` works like most numpy
+            functions).
+        stat (callable, optional): Function to return first and second
+            reference points. Defaults to np.median.
+        deviation_factor (float, optional): Allowed number of reference
+            point distances between data and first reference point.
+            Defaults to 3.
+        scaling_factor (float, optional): Reference distance scaling.
+            Defaults to .5**.5/scipy.special.erf(.5).
+
+    Returns:
+        bool, shaped like input: Mask that is positive for outliers.
+    """
+    deviation = np.abs(data - stat(data))
+    return deviation > stat(deviation) * deviation_factor * scaling_factor
+__all__.append("flag_outliers")
+
+
 def flag_translator(cs_l1b_flag):
     """Retrieves the meaning of a flag from the attributes.
     
@@ -362,7 +396,8 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
 
     Args:
         region_of_interest (str | shapely.Polygon, optional): Can be any RGI
-            code or a polygon in lat/lon (CRS EPSG:4326). Defaults to None.  
+            code or a polygon in lat/lon (CRS EPSG:4326). If requesting o1
+            regions, provide the long code, e.g., "01_alaska". Defaults to None.  
         start_datetime (str | pd.Timestamp, optional): Defaults to "2010".  
         end_datetime (str | pd.Timestamp, optional): Defaults to "2030".  
         buffer_period_by (relativedelta, optional): Extends the period to
@@ -530,7 +565,7 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
     """
     if product == "complexes":
         product = "C"
-    elif product == "glaciers":
+    elif product in ["glaciers", "basins"]:
         product = "G"
     else:
         raise ValueError(f"Argument product should be either glaciers or complexes not \"{product}\".")
@@ -561,7 +596,7 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
         # already. observed for the Alps.
         small_glacier_mask = o1region.area_km2 < 1
         if sum(small_glacier_mask) != 0:
-            warnings.warn(f"Dropping {sum(small_glacier_mask)} glaciers < 1 km².")
+            warnings.warn(f"Dropping {sum(small_glacier_mask)} glaciers < 1 km² from RGI o1 region.")
         o1region = o1region[~small_glacier_mask]
     return o1region
 
