@@ -60,7 +60,7 @@ class l1b_data(xr.Dataset):
         tmp = tmp.assign(azimuth=("time_20_ku", np.poly1d(poly3fit_params)(np.arange(len(tmp.time_20_ku)-.5))%360))
         # waveform selection is meant to be versatile. however the handling seems fragile
         if waveform_selection is not None:
-            if not isinstance(waveform_selection, slice) and len(waveform_selection) == 1:
+            if not isinstance(waveform_selection, slice) and not isinstance(waveform_selection, list):
                 waveform_selection = [waveform_selection]
             if (isinstance(waveform_selection, slice) and isinstance(waveform_selection.start, numbers.Integral)) \
                     or isinstance(waveform_selection[0], numbers.Integral):
