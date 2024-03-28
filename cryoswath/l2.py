@@ -256,7 +256,7 @@ def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwar
             else:
                 cs_full_file_names = load_cs_full_file_names(update="no")
         l1b_kwargs = filter_kwargs(l1b.l1b_data, kwargs)
-        to_l2_kwargs = filter_kwargs(l1b.l1b_data.to_l2, kwargs, blacklist=["swath_or_poca"])
+        to_l2_kwargs = filter_kwargs(l1b.l1b_data.to_l2, kwargs, blacklist=["swath_or_poca"], whitelist=["crs"])
         swath_poca_tuple = l1b.l1b_data.from_id(cs_time_to_id(idx), **l1b_kwargs)\
                                        .to_l2(swath_or_poca="both", **to_l2_kwargs)
         if save_or_return != "return":

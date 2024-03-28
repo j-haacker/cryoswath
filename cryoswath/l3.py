@@ -70,8 +70,10 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     else:
         region_id = "_".join([region_of_interest.centroid.x, region_of_interest.centroid.y])
     cache_path = os.path.join(data_path, "tmp", region_id)
+    if "crs" not in l2_from_id_kwargs:
+        l2_from_id_kwargs["crs"] = find_planar_crs(region_id=region_id)
     l2.from_id(cs_tracks.index, save_or_return="save", cache=cache_path,
-               **filter_kwargs(l2.from_id, l2_from_id_kwargs, blacklist=["save_or_return", "cache"]))
+               **filter_kwargs(l2.from_id, l2_from_id_kwargs, blacklist=["save_or_return", "cache"], whitelist=["crs"]))
 
     print("Gridding the data...")
     # one could drop some of the data before gridding. however, excluding
