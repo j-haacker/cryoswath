@@ -37,8 +37,9 @@ def buffer_4326_shp(shp: shapely.Geometry, radius: float, simplify: bool = True)
     except AttributeError:
         buffered_planar = \
                 gpd.GeoSeries(shp, crs=4326).to_crs(planar_crs).buffer(0).simplify(100).buffer(radius)
-    if simplify: return buffered_planar.simplify(radius/2).to_crs(4326).iloc[0]
-    return buffered_planar.to_crs(4326).unary_union #.iloc[0]
+    if simplify:
+        return buffered_planar.simplify(radius/3).to_crs(4326).unary_union
+    return buffered_planar.to_crs(4326).unary_union
 __all__.append("buffer_4326_shp")
 
 
@@ -115,6 +116,6 @@ def simplify_4326_shp(shp: shapely.Geometry, tolerance: float = None) -> shapely
         else:
             tolerance = 300
     planar_crs = find_planar_crs(shp=shp)
-    return gpd.GeoSeries(shp, crs=4326).to_crs(planar_crs).simplify(tolerance).to_crs(4326).iloc[0]
+    return gpd.GeoSeries(shp, crs=4326).to_crs(planar_crs).simplify(tolerance).to_crs(4326).unary_union
 __all__.append("simplify_4326_shp")
     
