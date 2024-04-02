@@ -86,18 +86,19 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                 else:
                     os.makedirs(os.path.join(data_path, f"L2_{l2_type}", current_subdir))
             print("start processing", current_month)
-            if cores > 1:
+            # indices per month with work-around :/ should be easier
+            current_track_indices = pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index
+            if cores > 1 and len(current_track_indices) > 1:
                 with Pool(processes=cores) as p:
                     # function is defined at the bottom of this module
                     collective_swath_poca_list = p.starmap(
                         process_track,
                         [(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"], current_subdir, kwargs) for idx
-                        # indices per month with work-around :/ should be easier
-                        in pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index],
+                        in current_track_indices],
                         chunksize=1)
             else:
                 collective_swath_poca_list = []
-                for idx in pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index:
+                for idx in current_track_indices:
                     collective_swath_poca_list.append(process_track(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"],
                                                                     current_subdir, kwargs))
             if cache is not None:
