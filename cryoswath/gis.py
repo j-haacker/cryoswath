@@ -116,6 +116,7 @@ def simplify_4326_shp(shp: shapely.Geometry, tolerance: float = None) -> shapely
         else:
             tolerance = 300
     planar_crs = find_planar_crs(shp=shp)
-    return gpd.GeoSeries(shp, crs=4326).to_crs(planar_crs).simplify(tolerance).to_crs(4326).unary_union
+    # simplify can create holes outside of the polygon. this is fixed by buffer(0)
+    return gpd.GeoSeries(shp, crs=4326).to_crs(planar_crs).simplify(tolerance).buffer(0).to_crs(4326).unary_union
 __all__.append("simplify_4326_shp")
     

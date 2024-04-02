@@ -14,7 +14,7 @@ import warnings
 import xarray as xr
 
 from .misc import *
-from .gis import find_planar_crs
+from .gis import buffer_4326_shp, find_planar_crs
 
 __all__ = list()
 
@@ -101,25 +101,21 @@ class l1b_data(xr.Dataset):
             # ! needs to be tidied up:
             # (also: simplify needed?)
             planar_crs = find_planar_crs(lon=tmp.lon_20_ku, lat=tmp.lat_20_ku)
-            buffered_points = gpd.GeoSeries(gpd.points_from_xy(tmp.lon_20_ku, tmp.lat_20_ku), crs=4326)\
-                .to_crs(planar_crs).buffer(30_000).simplify(5_000).to_crs(4326)
+            ground_track_points_4326 = gpd.GeoSeries(gpd.points_from_xy(tmp.lon_20_ku, tmp.lat_20_ku), crs=4326)
             o2regions = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
             try:
-                intersected_o2 = o2regions.geometry.intersects(shapely.box(*buffered_points.total_bounds))
+                intersected_o2 = o2regions.geometry.intersects(ground_track_points_4326.unary_union)
                 if sum(intersected_o2) == 0:
                     raise IndexError
-                # should a track intersect 2 o2 regions, load the bigger intersection
-                elif sum(intersected_o2) > 1:
-                    intersections = o2regions.intersection(
-                        shapely.oriented_envelope(buffered_points.geometry.unary_union)
-                        ).set_crs(4326).to_crs(planar_crs)
-                    o2code = o2regions.loc[intersections.geometry.area.idxmax(), "o2region"]
                 else:
-                    o2code = o2regions[intersected_o2]["o2region"].values[0]
-                o2_extent = load_o2region(o2code).clip_by_rect(*buffered_points.total_bounds)
-                if all(o2_extent.is_empty):
+                    o2codes = o2regions.loc[intersected_o2,"o2region"].values
+                o2region_complexes = [load_o2region(o2code) for o2code in np.unique(o2codes)]
+                buffered_complexes = gpd.GeoSeries(buffer_4326_shp(pd.concat(o2region_complexes).unary_union, 30_000),
+                                                   crs=4326).to_crs(planar_crs).clip_by_rect(
+                                                       *ground_track_points_4326.to_crs(planar_crs).total_bounds)
+                if all(buffered_complexes.is_empty):
                     raise IndexError
-                retain_indeces = buffered_points.intersects(o2_extent.unary_union)
+                retain_indeces = ground_track_points_4326.intersects(buffered_complexes.unary_union)
                 tmp = tmp.isel(time_20_ku=retain_indeces[retain_indeces].index)
             except IndexError:
                 warnings.warn("No waveforms left on glacier. Proceeding with empty dataset.")
