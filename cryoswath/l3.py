@@ -153,7 +153,8 @@ def fill_voids(l3_data):
     # o2 region, and that it contains the stats: median_h_diff, IQR_h_diff,
     # and data_count.
     print("... reading reference DEM")
-    with get_dem_reader() as dem_reader:
+    # finding a latitude to determine the reference DEM like below may be prone to bugs
+    with get_dem_reader(l3_data.median_h_diff[0].transpose("y", "x").rio.reproject(4326).y.values[0]) as dem_reader:
         with rioxr.open_rasterio(dem_reader) as ref_dem:
             ref_dem = ref_dem.rio.clip_box(*l3_data.rio.bounds()).squeeze()
     l3_data["ref_elev"] = ref_dem.rio.reproject_match(l3_data, resampling=rasterio.warp.Resampling.average).transpose("x", "y")
