@@ -1,5 +1,6 @@
 from dask import dataframe as dd
 import geopandas as gpd
+import h5py
 from multiprocessing import Pool
 import numpy as np
 import os
@@ -7,6 +8,7 @@ import pandas as pd
 from pyproj import CRS
 import re
 import shapely
+import shutil
 from threading import Event, Thread
 import warnings
 
@@ -49,19 +51,28 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
         # this is a flaw in the current logic. rework.
         if cache is not None and save_or_return != "return":
             try:
-                with pd.HDFStore(cache, "r") as hdf:
-                    cached = hdf.select("poca", columns=[])
+                poca_collection = []
+                def collect_pocas(name, node):
+                    if isinstance(node, h5py.Dataset):
+                        pass
+                    elif "_i_table" in node:
+                        nonlocal poca_collection
+                        poca_collection.append(pd.read_hdf(node.file.filename, node.name))
+                with h5py.File("../data/tmp/09-02", "r") as h5:
+                    h5["poca"].visititems(collect_pocas)
+                cached_pocas = pd.concat(poca_collection).sort_index()
                 # for better performance: reduce indices to two per month
                 sample_rate_ns = int(15*(24*60*60)*1e9)
-                tmp = cached.index.astype("int64")//sample_rate_ns
+                tmp = cached_pocas.index.astype("int64")//sample_rate_ns
                 tmp = pd.arrays.DatetimeArray(np.append(np.unique(tmp)*sample_rate_ns,
                                                         # adding first and last element
                                                         # included for debugging. on default, at least adding the last
                                                         # index should not be added to prevent missing data
-                                                        cached.index[[0,-1]].astype("int64")))
+                                                        cached_pocas.index[[0,-1]].astype("int64")))
+                # print(tmp)
                 skip_months = np.unique(tmp.normalize()+pd.DateOffset(day=1))
                 # print(skip_months)
-                del cached
+                del cached_pocas
             except (OSError, KeyError) as err:
                 if isinstance(err, KeyError):
                     warnings.warn(f"Removed cache because of KeyError (\"{str(err)}\").")
@@ -115,10 +126,37 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                         l2_data.index = l2_data.index.astype(np.int64)
                     l2_data.rename_axis("time", inplace=True)
                     l2_data.sort_index(inplace=True)
-                    l2_data = pd.DataFrame(index=l2_data.index, 
-                                           data=pd.concat([l2_data.h_diff, l2_data.geometry.get_coordinates()],
-                                                          axis=1, copy=False))
-                    l2_data.astype(dict(h_diff=np.float32, x=np.int32, y=np.int32)).to_hdf(cache, key=l2_type, mode="a", append=True, format="table")
+                    chunks = xycut(l2_data)
+                    if os.path.isfile(cache):
+                        shutil.copyfile(cache, cache+"__backup")
+                    try:
+                        for chunk in chunks:
+                            tmp = pd.DataFrame(index=chunk["data"].index, 
+                                            data=pd.concat([chunk["data"].h_diff,
+                                                            chunk["data"].geometry.get_coordinates()],
+                                                            axis=1, copy=False))
+                            tmp.astype(dict(h_diff=np.float32, x=np.int32, y=np.int32))\
+                            .to_hdf(cache, key="/".join(
+                                [l2_type, f'x_{chunk["x_interval_start"]:.0f}_{chunk["x_interval_stop"]:.0f}',
+                                    f'y_{chunk["y_interval_start"]:.0f}_{chunk["y_interval_stop"]:.0f}']
+                                    ), mode="a", append=True, format="table")
+                    except:
+                        if not os.path.isfile(cache):
+                            raise
+                        os.remove(cache)
+                        warnings.warn(
+                            "There was an error while caching l2 data. Since this can lead to "
+                            + "missing data, the cache has been removed and it was attempted to "
+                            + "restore a backup. If this was successful, there should NOT be a "
+                            + "__backup file in data/tmp. If there still is, please decide how to "
+                            + "proceed yourself (you could remove all temporary files and have "
+                            + "them produced freshly).")
+                        shutil.copyfile(cache+"__backup", cache)
+                        os.remove(cache+"__backup")
+                        raise
+                    else:
+                        if os.path.isfile(cache+"__backup"):
+                            os.remove(cache+"__backup")
             if save_or_return != "save":
                     swath_list.append(pd.concat([item[0] for item in collective_swath_poca_list]))
                     poca_list.append(pd.concat([item[1] for item in collective_swath_poca_list]))

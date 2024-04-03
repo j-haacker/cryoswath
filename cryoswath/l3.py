@@ -1,5 +1,7 @@
 import dask.dataframe
+import dask.distributed
 from dateutil.relativedelta import relativedelta
+import h5py
 # import numba
 import numpy as np
 import os
@@ -75,48 +77,82 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     l2.from_id(cs_tracks.index, save_or_return="save", cache=cache_path,
                **filter_kwargs(l2.from_id, l2_from_id_kwargs, blacklist=["save_or_return", "cache"], whitelist=["crs"]))
 
-    print("Gridding the data...")
+    print("Gridding the data. Each chunk at a time...")
     # one could drop some of the data before gridding. however, excluding
     # off-glacier data is expensive and filtering large differences to the
     # DEM can hide issues while statistics like the median and the IQR
     # should be fairly robust.
-    l2_ddf = dask.dataframe.read_hdf(cache_path, l2_type, sorted_index=True)
-    l2_ddf = l2_ddf.loc[ext_t_axis[0]:ext_t_axis[-1]]
-    l2_ddf = l2_ddf.repartition(npartitions=3*len(os.sched_getaffinity(0)))
+    l3_collection = []
+    def aggregate_l2(name, node):
+        if isinstance(node, h5py.Dataset):
+            pass
+        elif "_i_table" in node:
+            l2_ddf = dask.dataframe.read_hdf(node.file.filename, node.name, sorted_index=True)
+            l2_ddf = l2_ddf.loc[ext_t_axis[0]:ext_t_axis[-1]]
+            if len(l2_ddf.index) != 0:
+                # dask.distributed.print(l2_ddf.compute())
+                l2_ddf = l2_ddf.repartition(npartitions=3*len(os.sched_getaffinity(0)))
+                # l2_df = pd.read_hdf(node.file.filename, node.name)
+                # print("index is monotonic", l2_df.index.is_monotonic_increasing)
+                # print(l2_df)
+                # l2_df = l2_df.loc[ext_t_axis[0]:ext_t_axis[-1]]
 
-    l2_ddf[["x", "y"]] = (l2_ddf[["x", "y"]]//spatial_res_meter+.5)*spatial_res_meter
-    l2_ddf["roll_0"] = l2_ddf.index.map_partitions(pd.cut, bins=ext_t_axis, right=False, labels=False, include_lowest=True)
-    for i in range(1, window_ntimesteps):
-        l2_ddf[f"roll_{i}"] = l2_ddf.map_partitions(lambda df: df.roll_0-i).persist()
-    for i in range(window_ntimesteps):
-        l2_ddf[f"roll_{i}"] = l2_ddf[f"roll_{i}"].map_partitions(lambda series: series.astype("i4")//window_ntimesteps)
+                l2_ddf[["x", "y"]] = ((l2_ddf[["x", "y"]]//spatial_res_meter+.5)*spatial_res_meter).astype("i4")
+                l2_ddf["roll_0"] = l2_ddf.index.map_partitions(pd.cut, bins=ext_t_axis, right=False, labels=False, include_lowest=True)
+                for i in range(1, window_ntimesteps):
+                    l2_ddf[f"roll_{i}"] = l2_ddf.map_partitions(lambda df: df.roll_0-i).persist()
+                for i in range(window_ntimesteps):
+                    l2_ddf[f"roll_{i}"] = l2_ddf[f"roll_{i}"].map_partitions(lambda series: series.astype("i4")//window_ntimesteps)
+                # l2_df[["x", "y"]] = (l2_df[["x", "y"]]//spatial_res_meter+.5)*spatial_res_meter
+                # l2_df["roll_0"] = pd.cut(l2_df.index, bins=ext_t_axis, right=False, labels=False, include_lowest=True)
+                # for i in range(1, window_ntimesteps):
+                #     l2_df[f"roll_{i}"] = l2_df.map_partitions(lambda df: df.roll_0-i).persist()
+                # for i in range(window_ntimesteps):
+                #     l2_df[f"roll_{i}"] = l2_df[f"roll_{i}"].map_partitions(lambda series: series.astype("i4")//window_ntimesteps)
 
-    roll_res = [None]*window_ntimesteps
-    for i in range(window_ntimesteps):
-        roll_res[i] = l2_ddf.rename(columns={f"roll_{i}": "time_idx"}).groupby(["time_idx", "x", "y"], sort=False).h_diff.apply(agg_func_and_meta[0], meta=agg_func_and_meta[1]).persist()
-    for i in range(window_ntimesteps):
-        roll_res[i] = roll_res[i].compute().droplevel(3, axis=0)
-        roll_res[i].index = roll_res[i].index.set_levels(
-            (roll_res[i].index.levels[0]*window_ntimesteps+i+1), level=0).rename("time", level=0)
-        
-    l3_data = pd.concat(roll_res).sort_index()\
-                                 .loc[(slice(0,len(ext_t_axis)-1),slice(None),slice(None)),:]
-    l3_data.index = l3_data.index.remove_unused_levels()
-    l3_data.index = l3_data.index.set_levels(
-            ext_t_axis[l3_data.index.levels[0]].astype("datetime64[ns]"), level=0)
+                roll_res = [None]*window_ntimesteps
+                for i in range(window_ntimesteps):
+                    roll_res[i] = l2_ddf.rename(columns={f"roll_{i}": "time_idx"}).groupby(["time_idx", "x", "y"], sort=False).h_diff.apply(agg_func_and_meta[0], meta=agg_func_and_meta[1]).persist()
+                for i in range(window_ntimesteps):
+                    roll_res[i] = roll_res[i].compute().droplevel(3, axis=0)
+                    # roll_res[i] = roll_res[i].compute()
+                    # print(roll_res[i])
+                    # roll_res[i] = roll_res[i].droplevel(3, axis=0)
+                    roll_res[i].index = roll_res[i].index.set_levels(
+                        (roll_res[i].index.levels[0]*window_ntimesteps+i+1), level=0).rename("time", level=0)
+                    
+                l3_data = pd.concat(roll_res).sort_index().loc[(slice(0,len(ext_t_axis)-1),slice(None),slice(None)),:]
+                l3_data.index = l3_data.index.remove_unused_levels()
+                l3_data.index = l3_data.index.set_levels(
+                        ext_t_axis[l3_data.index.levels[0]].astype("datetime64[ns]"), level=0)
+                nonlocal l3_collection
+                l3_collection.append(l3_data)
+    with h5py.File(cache_path, "r") as h5:
+        h5["swath"].visititems(aggregate_l2)
+    l3_data = pd.concat(l3_collection)
+    # duplicates = l3_data.index.duplicated(keep=False)
+    # print(l3_data.index[duplicates])
+    # dup_idx = l3_data.index[duplicates]
+    # for chunk in l3_collection:
+    #     tmp = chunk.index.get_indexer(dup_idx)
+    #     tmp = tmp[tmp>-1]
+    #     print(chunk.iloc[tmp])
+    del l3_collection
     l3_data = l3_data.query(f"time >= '{start_datetime}' and time <= '{end_datetime}'")
     crs = find_planar_crs(region_id=region_id)
     # fill x and y such that they are continuous
     # otherwise, issues arise when working with the data. occurs because
     # data is not reduced to glacierized region (but could in theory always
     # occur anyway)
+    print(l3_data.tail(30))
     l3_data = fill_missing_coords(l3_data.to_xarray()).rio.write_crs(crs)
     l3_data.to_netcdf(build_path(region_id, timestep_months, spatial_res_meter))
     return l3_data
 __all__.append("build_dataset")
 
 
-def build_path(region_of_interest, timestep_months, spatial_res_meter, aggregation_period):
+def build_path(region_of_interest, timestep_months, spatial_res_meter, aggregation_period = None):
+    # ! implement parsing aggregation period
     if not isinstance(region_of_interest, str):
         region_id = find_region_id(region_of_interest)
     else:
