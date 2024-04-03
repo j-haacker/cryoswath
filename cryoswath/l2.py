@@ -58,7 +58,7 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                     elif "_i_table" in node:
                         nonlocal poca_collection
                         poca_collection.append(pd.read_hdf(node.file.filename, node.name))
-                with h5py.File("../data/tmp/09-02", "r") as h5:
+                with h5py.File(cache, "r") as h5:
                     h5["poca"].visititems(collect_pocas)
                 cached_pocas = pd.concat(poca_collection).sort_index()
                 # for better performance: reduce indices to two per month
