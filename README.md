@@ -26,6 +26,8 @@ cryoswath builds on a number of other packages. See
 
 ## 🐛 known issues
 
+- ! compatibility issues with xarray v2024.3.0  
+    -> downgrade to 2024.1.1
 - it has only been tested for the Arctic
 
 ### missing dependencies
