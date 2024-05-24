@@ -6,6 +6,7 @@ netCDF4
 # numbagg # for numpy: for exponential rolling window operations
 rioxarray # implies among others: rasterio
 scipy
+xarray<=2024.1.1
 
 ## cryoswath optional #################################################
 # bottleneck # for numpy:speeds up NaN-skipping and rolling window aggregations by a large factor
