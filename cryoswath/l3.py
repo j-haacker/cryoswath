@@ -3,7 +3,6 @@ import dask.distributed
 from dateutil.relativedelta import relativedelta
 import h5py
 # import numba
-import h5py
 import numpy as np
 import os
 import pandas as pd
@@ -90,7 +89,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
         h5["swath"].visititems(guide_hdf_node)
     l3_collection = []
     print("Gridding the data. Each chunk at a time...")
-    for node_name in ["/swath/x_960000_1020000/y_240000_300000"]: # node_list:
+    for node_name in node_list: # ["/swath/x_960000_1020000/y_240000_300000"]: #
         print("entered aggregate_l2 for node", node_name)
         # import time
         # time.sleep(20)
@@ -127,11 +126,23 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
             l2_ddf[["x", "y"]] = ((l2_ddf[["x", "y"]]//spatial_res_meter+.5)*spatial_res_meter).astype("i4")
             l2_ddf["roll_0"] = l2_ddf.index.map_partitions(pd.cut, bins=ext_t_axis, right=False, labels=False, include_lowest=True)
             print("\n\n\nassigned roll_0 \n\n\n")
+            # note on the for-loops:
+            #     because of the late-binding python behavior, one or the other way the
+            #     counting index must be defined at place (as opposed to when dask tries
+            #     to calculate the values because then all the indeces have the same
+            #     value). the chosen way is defining a function which creates a new
+            #     namespace (in which the index is copied and will not be changed from
+            #     outside).
             for i in range(1, window_ntimesteps):
-                l2_ddf[f"roll_{i}"] = l2_ddf.map_partitions(lambda df: df.roll_0-i).persist()
+                def local_closure(roll_iteration):
+                    return l2_ddf.map_partitions(lambda df: df.roll_0-roll_iteration)
+                l2_ddf[f"roll_{i}"] = local_closure(i)
+            # print(l2_ddf.head(30)) <- looking like closure works
             print("\n\n\nassigned roll_1 and 2 \n\n\n")
             for i in range(window_ntimesteps):
-                l2_ddf[f"roll_{i}"] = l2_ddf[f"roll_{i}"].map_partitions(lambda series: series.astype("i4")//window_ntimesteps).persist()
+                def local_closure(roll_iteration):
+                    return l2_ddf[f"roll_{i}"].map_partitions(lambda series: series.astype("i4")//window_ntimesteps)
+                l2_ddf[f"roll_{i}"] = local_closure(i)
             print("\n\n\napplied mod roll_x \n\n\n")
             # l2_df[["x", "y"]] = (l2_df[["x", "y"]]//spatial_res_meter+.5)*spatial_res_meter
             # l2_df["roll_0"] = pd.cut(l2_df.index, bins=ext_t_axis, right=False, labels=False, include_lowest=True)
@@ -142,7 +153,9 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
 
             roll_res = [None]*window_ntimesteps
             for i in range(window_ntimesteps):
-                roll_res[i] = l2_ddf.rename(columns={f"roll_{i}": "time_idx"}).groupby(["time_idx", "x", "y"], sort=False).h_diff.apply(agg_func_and_meta[0], meta=agg_func_and_meta[1]).persist()
+                def local_closure(roll_iteration):
+                    return l2_ddf.rename(columns={f"roll_{i}": "time_idx"}).groupby(["time_idx", "x", "y"], sort=False).h_diff.apply(agg_func_and_meta[0], meta=agg_func_and_meta[1])
+                roll_res[i] = local_closure(i)
             print("\n\n\naggregated roll_x")
             # roll_res[0].visualize(filename="roll_0.svg", optimize_graph=True)
             print(roll_res, roll_res[0])
@@ -172,10 +185,11 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     duplicates = l3_data.index.duplicated(keep=False)
     print(l3_data.index[duplicates])
     dup_idx = l3_data.index[duplicates]
-    for chunk in l3_data:
-        tmp = chunk.index.get_indexer(dup_idx)
-        tmp = tmp[tmp>-1]
-        print(chunk.iloc[tmp])
+    if not dup_idx.empty:
+        for chunk in l3_data:
+            tmp = chunk.index.get_indexer(dup_idx)
+            tmp = tmp[tmp>-1]
+            print(chunk.iloc[tmp])
     l3_data = l3_data.query(f"time >= '{start_datetime}' and time <= '{end_datetime}'")
     crs = find_planar_crs(region_id=region_id)
     # fill x and y such that they are continuous
