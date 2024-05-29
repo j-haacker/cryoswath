@@ -3,10 +3,12 @@ import dask.distributed
 from dateutil.relativedelta import relativedelta
 import h5py
 # import numba
+import h5py
 import numpy as np
 import os
 import pandas as pd
 import shapely
+import sys
 import rasterio.warp
 import rioxarray as rioxr
 import xarray as xr
@@ -77,67 +79,103 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     l2.from_id(cs_tracks.index, save_or_return="save", cache=cache_path,
                **filter_kwargs(l2.from_id, l2_from_id_kwargs, blacklist=["save_or_return", "cache"], whitelist=["crs"]))
 
-    print("Gridding the data. Each chunk at a time...")
-    # one could drop some of the data before gridding. however, excluding
-    # off-glacier data is expensive and filtering large differences to the
-    # DEM can hide issues while statistics like the median and the IQR
-    # should be fairly robust.
-    l3_collection = []
-    def aggregate_l2(name, node):
-        if isinstance(node, h5py.Dataset):
-            pass
-        elif "_i_table" in node:
-            l2_ddf = dask.dataframe.read_hdf(node.file.filename, node.name, sorted_index=True)
-            l2_ddf = l2_ddf.loc[ext_t_axis[0]:ext_t_axis[-1]]
-            if len(l2_ddf.index) != 0:
-                # dask.distributed.print(l2_ddf.compute())
-                l2_ddf = l2_ddf.repartition(npartitions=3*len(os.sched_getaffinity(0)))
-                # l2_df = pd.read_hdf(node.file.filename, node.name)
-                # print("index is monotonic", l2_df.index.is_monotonic_increasing)
-                # print(l2_df)
-                # l2_df = l2_df.loc[ext_t_axis[0]:ext_t_axis[-1]]
-
-                l2_ddf[["x", "y"]] = ((l2_ddf[["x", "y"]]//spatial_res_meter+.5)*spatial_res_meter).astype("i4")
-                l2_ddf["roll_0"] = l2_ddf.index.map_partitions(pd.cut, bins=ext_t_axis, right=False, labels=False, include_lowest=True)
-                for i in range(1, window_ntimesteps):
-                    l2_ddf[f"roll_{i}"] = l2_ddf.map_partitions(lambda df: df.roll_0-i).persist()
-                for i in range(window_ntimesteps):
-                    l2_ddf[f"roll_{i}"] = l2_ddf[f"roll_{i}"].map_partitions(lambda series: series.astype("i4")//window_ntimesteps)
-                # l2_df[["x", "y"]] = (l2_df[["x", "y"]]//spatial_res_meter+.5)*spatial_res_meter
-                # l2_df["roll_0"] = pd.cut(l2_df.index, bins=ext_t_axis, right=False, labels=False, include_lowest=True)
-                # for i in range(1, window_ntimesteps):
-                #     l2_df[f"roll_{i}"] = l2_df.map_partitions(lambda df: df.roll_0-i).persist()
-                # for i in range(window_ntimesteps):
-                #     l2_df[f"roll_{i}"] = l2_df[f"roll_{i}"].map_partitions(lambda series: series.astype("i4")//window_ntimesteps)
-
-                roll_res = [None]*window_ntimesteps
-                for i in range(window_ntimesteps):
-                    roll_res[i] = l2_ddf.rename(columns={f"roll_{i}": "time_idx"}).groupby(["time_idx", "x", "y"], sort=False).h_diff.apply(agg_func_and_meta[0], meta=agg_func_and_meta[1]).persist()
-                for i in range(window_ntimesteps):
-                    roll_res[i] = roll_res[i].compute().droplevel(3, axis=0)
-                    # roll_res[i] = roll_res[i].compute()
-                    # print(roll_res[i])
-                    # roll_res[i] = roll_res[i].droplevel(3, axis=0)
-                    roll_res[i].index = roll_res[i].index.set_levels(
-                        (roll_res[i].index.levels[0]*window_ntimesteps+i+1), level=0).rename("time", level=0)
-                    
-                l3_data = pd.concat(roll_res).sort_index().loc[(slice(0,len(ext_t_axis)-1),slice(None),slice(None)),:]
-                l3_data.index = l3_data.index.remove_unused_levels()
-                l3_data.index = l3_data.index.set_levels(
-                        ext_t_axis[l3_data.index.levels[0]].astype("datetime64[ns]"), level=0)
-                nonlocal l3_collection
-                l3_collection.append(l3_data)
+    node_list = []
+    def guide_hdf_node(name, node):
+        nonlocal node_list
+        if not isinstance(node, h5py.Dataset) and "_i_table" in node:
+            print(node, node.name)
+            node_list.append(node.name)
+        # print(node_list)
     with h5py.File(cache_path, "r") as h5:
-        h5["swath"].visititems(aggregate_l2)
+        h5["swath"].visititems(guide_hdf_node)
+    l3_collection = []
+    print("Gridding the data. Each chunk at a time...")
+    for node_name in ["/swath/x_960000_1020000/y_240000_300000"]: # node_list:
+        print("entered aggregate_l2 for node", node_name)
+        # import time
+        # time.sleep(20)
+        # print(pd.read_hdf(node.file.filename, node.name))
+        # print("reading data")
+        # reading from hdf has issues acquiring the lock. Since no writing takes
+        # place, it should be safe to turn this off. This can potentially be
+        # resumed in future.
+        l2_ddf = dask.dataframe.read_hdf(cache_path, node_name, sorted_index=True, lock=False, mode="r", )
+        # l2_df = pd.read_hdf(cache_path, node_name)
+        # print(sys.getsizeof(l2_df))
+        # raise
+        # print(l2_ddf)
+        # print(l2_ddf.head())
+        # print(len(l2_ddf.index))
+        # continue
+        # print(ext_t_axis)
+        print("cutting data")
+        l2_ddf = l2_ddf.loc[ext_t_axis[0]:ext_t_axis[-1]]
+        # one could drop some of the data before gridding. however, excluding
+        # off-glacier data is expensive and filtering large differences to the
+        # DEM can hide issues while statistics like the median and the IQR
+        # should be fairly robust.
+        if len(l2_ddf.index) != 0:
+            # dask.distributed.print(l2_ddf.compute())
+            print("starting dask workflow")
+            l2_ddf = l2_ddf.repartition(npartitions=3*len(os.sched_getaffinity(0)))
+            print("repartitioned")
+            # l2_df = pd.read_hdf(node.file.filename, node.name)
+            # print("index is monotonic", l2_df.index.is_monotonic_increasing)
+            # print(l2_df)
+            # l2_df = l2_df.loc[ext_t_axis[0]:ext_t_axis[-1]]
+
+            l2_ddf[["x", "y"]] = ((l2_ddf[["x", "y"]]//spatial_res_meter+.5)*spatial_res_meter).astype("i4")
+            l2_ddf["roll_0"] = l2_ddf.index.map_partitions(pd.cut, bins=ext_t_axis, right=False, labels=False, include_lowest=True)
+            print("\n\n\nassigned roll_0 \n\n\n")
+            for i in range(1, window_ntimesteps):
+                l2_ddf[f"roll_{i}"] = l2_ddf.map_partitions(lambda df: df.roll_0-i).persist()
+            print("\n\n\nassigned roll_1 and 2 \n\n\n")
+            for i in range(window_ntimesteps):
+                l2_ddf[f"roll_{i}"] = l2_ddf[f"roll_{i}"].map_partitions(lambda series: series.astype("i4")//window_ntimesteps).persist()
+            print("\n\n\napplied mod roll_x \n\n\n")
+            # l2_df[["x", "y"]] = (l2_df[["x", "y"]]//spatial_res_meter+.5)*spatial_res_meter
+            # l2_df["roll_0"] = pd.cut(l2_df.index, bins=ext_t_axis, right=False, labels=False, include_lowest=True)
+            # for i in range(1, window_ntimesteps):
+            #     l2_df[f"roll_{i}"] = l2_df.map_partitions(lambda df: df.roll_0-i).persist()
+            # for i in range(window_ntimesteps):
+            #     l2_df[f"roll_{i}"] = l2_df[f"roll_{i}"].map_partitions(lambda series: series.astype("i4")//window_ntimesteps)
+
+            roll_res = [None]*window_ntimesteps
+            for i in range(window_ntimesteps):
+                roll_res[i] = l2_ddf.rename(columns={f"roll_{i}": "time_idx"}).groupby(["time_idx", "x", "y"], sort=False).h_diff.apply(agg_func_and_meta[0], meta=agg_func_and_meta[1]).persist()
+            print("\n\n\naggregated roll_x")
+            # roll_res[0].visualize(filename="roll_0.svg", optimize_graph=True)
+            print(roll_res, roll_res[0])
+            print(" \n\n\n")
+            from dask.diagnostics import ProgressBar
+            for i in range(window_ntimesteps):
+                with ProgressBar():
+                    roll_res[i] = roll_res[i].compute()
+                roll_res[i].droplevel(3, axis=0)
+                # roll_res[i] = roll_res[i].compute()
+                # print(roll_res[i])
+                # roll_res[i] = roll_res[i].droplevel(3, axis=0)
+                roll_res[i].index = roll_res[i].index.set_levels(
+                    (roll_res[i].index.levels[0]*window_ntimesteps+i+1), level=0).rename("time", level=0)
+            print("\n\n\nrefactored roll_x \n\n\n")
+
+            print("wrapping up dask part")  
+            l3_data = pd.concat(roll_res).sort_index().loc[(slice(0,len(ext_t_axis)-1),slice(None),slice(None)),:]
+            l3_data.index = l3_data.index.remove_unused_levels()
+            l3_data.index = l3_data.index.set_levels(
+                    ext_t_axis[l3_data.index.levels[0]].astype("datetime64[ns]"), level=0)
+            l3_collection.append(l3_data)
+            print("returning to main routine")
     l3_data = pd.concat(l3_collection)
-    # duplicates = l3_data.index.duplicated(keep=False)
-    # print(l3_data.index[duplicates])
-    # dup_idx = l3_data.index[duplicates]
-    # for chunk in l3_collection:
-    #     tmp = chunk.index.get_indexer(dup_idx)
-    #     tmp = tmp[tmp>-1]
-    #     print(chunk.iloc[tmp])
+    l3_data.to_pickle("l3_data_debug_backup_dump.pkl")
     del l3_collection
+    duplicates = l3_data.index.duplicated(keep=False)
+    print(l3_data.index[duplicates])
+    dup_idx = l3_data.index[duplicates]
+    for chunk in l3_data:
+        tmp = chunk.index.get_indexer(dup_idx)
+        tmp = tmp[tmp>-1]
+        print(chunk.iloc[tmp])
     l3_data = l3_data.query(f"time >= '{start_datetime}' and time <= '{end_datetime}'")
     crs = find_planar_crs(region_id=region_id)
     # fill x and y such that they are continuous
