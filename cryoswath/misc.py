@@ -6,6 +6,9 @@ import ftplib
 import geopandas as gpd
 import glob
 import inspect
+import multiprocessing
+from multiprocessing import set_start_method
+set_start_method("spawn")
 import numpy as np
 import os
 import pandas as pd
@@ -636,7 +639,7 @@ def nan_unique(data: np.typing.ArrayLike) -> list:
 __all__.append("nan_unique")
 
 
-def request_workers(task_func: callable, n_workers: int, result_queue: queue.Queue = None) -> queue.Queue:
+def request_workers(task_func: callable, n_workers: int, result_queue: queue.Queue = None, spawn: bool = False) -> queue.Queue:
     task_queue = queue.Queue()
     def worker():
         while True:
@@ -645,9 +648,18 @@ def request_workers(task_func: callable, n_workers: int, result_queue: queue.Que
             except TypeError:
                 continue
             if next_task is not None:
-                result = task_func(*next_task)
-                if result_queue is not None:
-                    result_queue.put(result)
+                if spawn:
+                    if result_queue is not None:
+                        print(*next_task, result_queue)
+                        proc = multiprocessing.Process(target=task_func, args=(*next_task, result_queue), daemon=True)
+                    else:
+                        proc = multiprocessing.Process(target=task_func, args=next_task, daemon=True)
+                    proc.start()
+                    proc.join()
+                else:
+                    result = task_func(*next_task)
+                    if result_queue is not None:
+                        result_queue.put(result)
     for i in range(n_workers):
         worker_thread = threading.Thread(target=worker, daemon=True)
         worker_thread.start()
