@@ -112,7 +112,8 @@ class l1b_data(xr.Dataset):
                 o2region_complexes = [load_o2region(o2code) for o2code in np.unique(o2codes)]
                 buffered_complexes = gpd.GeoSeries(buffer_4326_shp(pd.concat(o2region_complexes).unary_union, 30_000),
                                                    crs=4326).to_crs(planar_crs).clip_by_rect(
-                                                       *ground_track_points_4326.to_crs(planar_crs).total_bounds)
+                                                       *ground_track_points_4326.to_crs(planar_crs).total_bounds)\
+                                                   .to_crs(4326)
                 if all(buffered_complexes.is_empty):
                     raise IndexError
                 retain_indeces = ground_track_points_4326.intersects(buffered_complexes.unary_union)
