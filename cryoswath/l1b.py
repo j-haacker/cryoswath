@@ -382,7 +382,9 @@ class l1b_data(xr.Dataset):
                              "or \"both\".")
         drop_coords = [coord for coord in tmp.coords if coord not in ["time", "sample"]]
         from . import l2 # can't be in preamble as this would lead to circularity
-        l2_data = l2.from_processed_l1b(tmp.squeeze().drop_vars(drop_coords), crs=crs, **kwargs)
+        # ! dropped .squeeze() below to handle issue #19. not sure about 2nd degree consequences.
+        # l2_data = l2.from_processed_l1b(tmp.squeeze().drop_vars(drop_coords), crs=crs, **kwargs)
+        l2_data = l2.from_processed_l1b(tmp.drop_vars(drop_coords), crs=crs, **kwargs)
         return l2_data
     __all__.append("to_l2")
 
