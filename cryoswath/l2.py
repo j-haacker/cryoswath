@@ -250,6 +250,12 @@ def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwar
                                                 l2_paths.loc[idx, "swath"])),
                 gpd.read_feather(os.path.join(l2_poca_path, current_subdir,
                                                 l2_paths.loc[idx, "poca"])))
+            # if a certain CRS is required, reproject the previously processed data
+            if "crs" in kwargs:
+                tmp = list(swath_poca_tuple)
+                for i in range(len(tmp)):
+                    tmp[i] = tmp[i].to_crs(kwargs["crs"])
+                swath_poca_tuple = tuple(tmp)
     except (KeyError, FileNotFoundError):
         if "cs_full_file_names" not in locals():
             if "cs_full_file_names" in kwargs:

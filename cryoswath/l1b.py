@@ -374,8 +374,8 @@ class l1b_data(xr.Dataset):
                                                           .sel(ns_20_ku=self.poca_idx[~self.poca_idx.isnull()])
             tmp = tmp[out_vars+retain_vars].sel(phase_wrap_factor=tmp.ph_idx).dropna("time_20_ku", how="all")
         elif swath_or_poca == "both":
-            swath = self.to_l2(out_vars, retain_vars=retain_vars, swath_or_poca="swath", **kwargs)
-            poca = self.to_l2(out_vars, retain_vars=retain_vars, swath_or_poca="poca", **kwargs)
+            swath = self.to_l2(out_vars, retain_vars=retain_vars, swath_or_poca="swath", crs=crs, **kwargs)
+            poca = self.to_l2(out_vars, retain_vars=retain_vars, swath_or_poca="poca", crs=crs, **kwargs)
             return swath, poca
         else:
             raise ValueError(f"You provided \"swath_or_poca={swath_or_poca}\". Choose \"swath\", \"poca\",",
