@@ -144,8 +144,9 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                         if os.path.isfile(cache+"__backup"):
                             # if backup older than 1 hour, renew
                             if (pd.Timestamp.now()-pd.to_datetime(os.stat(cache+"__backup").st_mtime, unit="s"))\
-                                    < pd.to_timedelta(1, unit="h"):
-                                os.replace(cache, cache+"__backup")
+                                    > pd.to_timedelta(1, unit="h"):
+                                os.remove(cache+"__backup")
+                                shutil.copyfile(cache, cache+"__backup")
                         # if no backup, make one
                         else:
                             shutil.copyfile(cache, cache+"__backup")
