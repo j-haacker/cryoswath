@@ -1,10 +1,14 @@
 import dask.dataframe
+import dask.distributed
 from dateutil.relativedelta import relativedelta
+import h5py
 # import numba
 import numpy as np
 import os
 import pandas as pd
 import shapely
+import shutil
+import sys
 import rasterio.warp
 import rioxarray as rioxr
 import xarray as xr
@@ -72,39 +76,90 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     cache_path = os.path.join(data_path, "tmp", region_id)
     if "crs" not in l2_from_id_kwargs:
         l2_from_id_kwargs["crs"] = find_planar_crs(region_id=region_id)
-    l2.from_id(cs_tracks.index, save_or_return="save", cache=cache_path,
-               **filter_kwargs(l2.from_id, l2_from_id_kwargs, blacklist=["save_or_return", "cache"], whitelist=["crs"]))
+    # l2 backs up the cache when writing to it. however, there should not be a backup, yet. if there is, throw an error
+    if os.path.isfile(cache_path+"__backup"):
+        raise Exception(f"Backup exists unexpectedly at {cache_path+"__backup"}. This may point to a running process. If this is a relict, remove it manually.")
+    try:
+        l2.from_id(cs_tracks.index, save_or_return="save", cache=cache_path,
+                   **filter_kwargs(l2.from_id, l2_from_id_kwargs, blacklist=["save_or_return", "cache"],
+                                   whitelist=["crs"]))
+    finally:
+        # remove l2's cache backup. it is not needed as no more writing takes
+        # place but it occupies some 10 Gb disk space.
+        if os.path.isfile(cache_path+"__backup"):
+            os.remove(cache_path+"__backup")
 
-    print("Gridding the data...")
-    # one could drop some of the data before gridding. however, excluding
-    # off-glacier data is expensive and filtering large differences to the
-    # DEM can hide issues while statistics like the median and the IQR
-    # should be fairly robust.
-    l2_ddf = dask.dataframe.read_hdf(cache_path, l2_type, sorted_index=True)
-    l2_ddf = l2_ddf.loc[ext_t_axis[0]:ext_t_axis[-1]]
-    l2_ddf = l2_ddf.repartition(npartitions=3*len(os.sched_getaffinity(0)))
-
-    l2_ddf[["x", "y"]] = (l2_ddf[["x", "y"]]//spatial_res_meter+.5)*spatial_res_meter
-    l2_ddf["roll_0"] = l2_ddf.index.map_partitions(pd.cut, bins=ext_t_axis, right=False, labels=False, include_lowest=True)
-    for i in range(1, window_ntimesteps):
-        l2_ddf[f"roll_{i}"] = l2_ddf.map_partitions(lambda df: df.roll_0-i).persist()
-    for i in range(window_ntimesteps):
-        l2_ddf[f"roll_{i}"] = l2_ddf[f"roll_{i}"].map_partitions(lambda series: series.astype("i4")//window_ntimesteps)
-
-    roll_res = [None]*window_ntimesteps
-    for i in range(window_ntimesteps):
-        roll_res[i] = l2_ddf.rename(columns={f"roll_{i}": "time_idx"}).groupby(["time_idx", "x", "y"], sort=False).h_diff.apply(agg_func_and_meta[0], meta=agg_func_and_meta[1]).persist()
-    for i in range(window_ntimesteps):
-        roll_res[i] = roll_res[i].compute().droplevel(3, axis=0)
-        roll_res[i].index = roll_res[i].index.set_levels(
-            (roll_res[i].index.levels[0]*window_ntimesteps+i+1), level=0).rename("time", level=0)
-        
-    l3_data = pd.concat(roll_res).sort_index()\
-                                 .loc[(slice(0,len(ext_t_axis)-1),slice(None),slice(None)),:]
-    l3_data.index = l3_data.index.remove_unused_levels()
-    l3_data.index = l3_data.index.set_levels(
-            ext_t_axis[l3_data.index.levels[0]].astype("datetime64[ns]"), level=0)
+    node_list = []
+    def guide_hdf_node(name, node):
+        nonlocal node_list
+        if not isinstance(node, h5py.Dataset) and "_i_table" in node:
+            print(node, node.name)
+            node_list.append(node.name)
+    with h5py.File(cache_path, "r") as h5:
+        h5["swath"].visititems(guide_hdf_node)
+    l3_collection = []
+    print("Gridding the data. Each chunk at a time...")
+    for node_name in node_list:
+        print("entered aggregate_l2 for node", node_name)
+        # reading from hdf has issues acquiring the lock. Since no writing takes
+        # place, it should be safe to turn this off. This can potentially be
+        # resumed in future.
+        l2_ddf = dask.dataframe.read_hdf(cache_path, node_name, sorted_index=True, lock=False, mode="r", )
+        l2_ddf = l2_ddf.loc[ext_t_axis[0]:ext_t_axis[-1]]
+        # one could drop some of the data before gridding. however, excluding
+        # off-glacier data is expensive and filtering large differences to the
+        # DEM can hide issues while statistics like the median and the IQR
+        # should be fairly robust.
+        if len(l2_ddf.index) != 0:
+            l2_ddf = l2_ddf.repartition(npartitions=3*len(os.sched_getaffinity(0)))
+            l2_ddf[["x", "y"]] = ((l2_ddf[["x", "y"]]//spatial_res_meter+.5)*spatial_res_meter).astype("i4")
+            l2_ddf["roll_0"] = l2_ddf.index.map_partitions(pd.cut, bins=ext_t_axis, right=False, labels=False, include_lowest=True)
+            # note on the for-loops:
+            #     because of the late-binding python behavior, one or the other way the
+            #     counting index must be defined at place (as opposed to when dask tries
+            #     to calculate the values because then all the indeces have the same
+            #     value). the chosen way is defining a function which creates a new
+            #     namespace (in which the index is copied and will not be changed from
+            #     outside).
+            for i in range(1, window_ntimesteps):
+                def local_closure(roll_iteration):
+                    return l2_ddf.map_partitions(lambda df: df.roll_0-roll_iteration)
+                l2_ddf[f"roll_{i}"] = local_closure(i)
+            for i in range(window_ntimesteps):
+                def local_closure(roll_iteration):
+                    return l2_ddf[f"roll_{i}"].map_partitions(lambda series: series.astype("i4")//window_ntimesteps)
+                l2_ddf[f"roll_{i}"] = local_closure(i)
+            # results_list actually is a graph_list until .compute()
+            results_list = [None]*window_ntimesteps
+            for i in range(window_ntimesteps):
+                def local_closure(roll_iteration):
+                    return l2_ddf.rename(columns={f"roll_{i}": "time_idx"}).groupby(["time_idx", "x", "y"], sort=False).h_diff.apply(agg_func_and_meta[0], meta=agg_func_and_meta[1])
+                results_list[i] = local_closure(i)
+            for i in range(window_ntimesteps):
+                results_list[i] = results_list[i].compute()
+                results_list[i] = results_list[i].droplevel(3, axis=0)
+                results_list[i].index = results_list[i].index.set_levels(
+                    (results_list[i].index.levels[0]*window_ntimesteps+i+1), level=0).rename("time", level=0)
+            l3_data = pd.concat(results_list).sort_index().loc[(slice(0,len(ext_t_axis)-1),slice(None),slice(None)),:]
+            l3_data.index = l3_data.index.remove_unused_levels()
+            l3_data.index = l3_data.index.set_levels(
+                    ext_t_axis[l3_data.index.levels[0]].astype("datetime64[ns]"), level=0)
+            l3_collection.append(l3_data)
+            # ! tbi: write to netcdf when already taking the effort cutting the data
+            # into chunks, processing them separately, and using netCDF as final
+            # data format, one should take the opportunity to save the results of
+            # each chunk in case the process terminates for some reason. make sure
+            # that this does not corrupt the resulting file.
+    l3_data = pd.concat(l3_collection)
+    del l3_collection
+    l3_data = l3_data.sort_index()
     l3_data = l3_data.query(f"time >= '{start_datetime}' and time <= '{end_datetime}'")
+    # # to_xarray threw errors in the past because of duplicate indices. there
+    # # should never(?) be any. activate the below to debug should this
+    # # problem occur again.
+    # duplicates = l3_data.index.duplicated(keep=False)
+    # print(l3_data.index[duplicates])
+    # print(l3_data.tail(30))
     crs = find_planar_crs(region_id=region_id)
     # fill x and y such that they are continuous
     # otherwise, issues arise when working with the data. occurs because
@@ -116,7 +171,8 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
 __all__.append("build_dataset")
 
 
-def build_path(region_of_interest, timestep_months, spatial_res_meter, aggregation_period):
+def build_path(region_of_interest, timestep_months, spatial_res_meter, aggregation_period = None):
+    # ! implement parsing aggregation period
     if not isinstance(region_of_interest, str):
         region_id = find_region_id(region_of_interest)
     else:

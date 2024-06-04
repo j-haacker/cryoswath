@@ -14,7 +14,7 @@ import warnings
 import xarray as xr
 
 from .misc import *
-from .gis import buffer_4326_shp, find_planar_crs
+from .gis import buffer_4326_shp, find_planar_crs, ensure_pyproj_crs
 
 __all__ = list()
 
@@ -97,6 +97,7 @@ class l1b_data(xr.Dataset):
                 'npm_error',
                 'power_scale_error',
             ]))
+        # tbi: maybe add option to pass area of interest instead of the boolean
         if drop_non_glacier_areas:
             # ! needs to be tidied up:
             # (also: simplify needed?)
@@ -113,7 +114,7 @@ class l1b_data(xr.Dataset):
                 buffered_complexes = gpd.GeoSeries(buffer_4326_shp(pd.concat(o2region_complexes).unary_union, 30_000),
                                                    crs=4326).to_crs(planar_crs).clip_by_rect(
                                                        *ground_track_points_4326.to_crs(planar_crs).total_bounds)\
-                                                   .to_crs(4326)
+                                                   .to_crs(4326).make_valid()
                 if all(buffered_complexes.is_empty):
                     raise IndexError
                 retain_indeces = ground_track_points_4326.intersects(buffered_complexes.unary_union)
@@ -143,6 +144,7 @@ class l1b_data(xr.Dataset):
             x, y = trans_4326_to_dem_crs.transform(self.xph_lats, self.xph_lons)
             self = self.assign(xph_x=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), x), 
                                xph_y=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), y))
+            self.attrs.update({"CRS": ensure_pyproj_crs(dem_reader.crs)})
             with rioxr.open_rasterio(dem_reader) as ref_dem:
                 # ! huge improvement potential: instead of the below, rasterio.sample could be used
                 # [edit] use postgis
@@ -340,10 +342,6 @@ class l1b_data(xr.Dataset):
                 return gpd.GeoDataFrame(), gpd.GeoDataFrame()
             else:
                 return gpd.GeoDataFrame()
-        if "crs" in kwargs:
-            crs = kwargs.pop("crs")
-        else:
-            crs = find_planar_crs(lat=self.lat_20_ku, lon=self.lon_20_ku)
         if out_vars is None:
             out_vars = dict(time_20_ku="time",
                             xph_x="x",
@@ -374,8 +372,8 @@ class l1b_data(xr.Dataset):
                                                           .sel(ns_20_ku=self.poca_idx[~self.poca_idx.isnull()])
             tmp = tmp[out_vars+retain_vars].sel(phase_wrap_factor=tmp.ph_idx).dropna("time_20_ku", how="all")
         elif swath_or_poca == "both":
-            swath = self.to_l2(out_vars, retain_vars=retain_vars, swath_or_poca="swath", crs=crs, **kwargs)
-            poca = self.to_l2(out_vars, retain_vars=retain_vars, swath_or_poca="poca", crs=crs, **kwargs)
+            swath = self.to_l2(out_vars, retain_vars=retain_vars, swath_or_poca="swath", **kwargs)
+            poca = self.to_l2(out_vars, retain_vars=retain_vars, swath_or_poca="poca", **kwargs)
             return swath, poca
         else:
             raise ValueError(f"You provided \"swath_or_poca={swath_or_poca}\". Choose \"swath\", \"poca\",",
@@ -383,8 +381,8 @@ class l1b_data(xr.Dataset):
         drop_coords = [coord for coord in tmp.coords if coord not in ["time", "sample"]]
         from . import l2 # can't be in preamble as this would lead to circularity
         # ! dropped .squeeze() below to handle issue #19. not sure about 2nd degree consequences.
-        # l2_data = l2.from_processed_l1b(tmp.squeeze().drop_vars(drop_coords), crs=crs, **kwargs)
-        l2_data = l2.from_processed_l1b(tmp.drop_vars(drop_coords), crs=crs, **kwargs)
+        # l2_data = l2.from_processed_l1b(tmp.squeeze().drop_vars(drop_coords), **kwargs)
+        l2_data = l2.from_processed_l1b(tmp.drop_vars(drop_coords), **kwargs)
         return l2_data
     __all__.append("to_l2")
 

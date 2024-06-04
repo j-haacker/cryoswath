@@ -19,6 +19,7 @@ import shapely
 import shutil
 import time
 import threading
+from typing import Union
 import warnings
 import xarray as xr
 
@@ -652,6 +653,30 @@ def request_workers(task_func: callable, n_workers: int, result_queue: queue.Que
         worker_thread.start()
     return task_queue
 __all__.append("request_workers")
+
+
+def xycut(data: gpd.GeoDataFrame, x_chunk_meter = 3*4*5*1_000, y_chunk_meter = 3*4*5*1_000)\
+    -> list[dict[str, Union[float, gpd.GeoDataFrame]]]:
+    # 3*4*5=60 [km] fits many grid cell sizes and makes reasonable chunks
+    # ! only implemented for l2 data. however, easily convertible for l1b and l3 data
+
+    def lower_x(x):
+        return (x//x_chunk_meter)*x_chunk_meter
+    def lower_y(y):
+        return (y//y_chunk_meter)*y_chunk_meter
+    minx, miny, maxx, maxy = data.total_bounds
+    chunks = []
+    for x in np.arange(lower_x(minx), lower_x(maxx)+1, x_chunk_meter):
+        for y in np.arange(lower_y(miny), lower_y(maxy)+1, y_chunk_meter):
+            tmp = data.cx[x:x+x_chunk_meter,y:y+y_chunk_meter]
+            if tmp.empty: continue
+            chunks.append(dict(x_interval_start = x,
+                               x_interval_stop = x + x_chunk_meter,
+                               y_interval_start = y,
+                               y_interval_stop = y + y_chunk_meter,
+                               data = tmp))
+    return chunks
+__all__.append("xycut")
 
 
 __all__ = sorted(__all__)

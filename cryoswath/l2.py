@@ -1,5 +1,6 @@
 from dask import dataframe as dd
 import geopandas as gpd
+import h5py
 from multiprocessing import Pool
 import numpy as np
 import os
@@ -7,6 +8,7 @@ import pandas as pd
 from pyproj import CRS
 import re
 import shapely
+import shutil
 from threading import Event, Thread
 import warnings
 
@@ -49,19 +51,28 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
         # this is a flaw in the current logic. rework.
         if cache is not None and save_or_return != "return":
             try:
-                with pd.HDFStore(cache, "r") as hdf:
-                    cached = hdf.select("poca", columns=[])
+                poca_collection = []
+                def collect_pocas(name, node):
+                    if isinstance(node, h5py.Dataset):
+                        pass
+                    elif "_i_table" in node:
+                        nonlocal poca_collection
+                        poca_collection.append(pd.read_hdf(node.file.filename, node.name))
+                with h5py.File(cache, "r") as h5:
+                    h5["poca"].visititems(collect_pocas)
+                cached_pocas = pd.concat(poca_collection).sort_index()
                 # for better performance: reduce indices to two per month
                 sample_rate_ns = int(15*(24*60*60)*1e9)
-                tmp = cached.index.astype("int64")//sample_rate_ns
+                tmp = cached_pocas.index.astype("int64")//sample_rate_ns
                 tmp = pd.arrays.DatetimeArray(np.append(np.unique(tmp)*sample_rate_ns,
                                                         # adding first and last element
                                                         # included for debugging. on default, at least adding the last
                                                         # index should not be added to prevent missing data
-                                                        cached.index[[0,-1]].astype("int64")))
+                                                        cached_pocas.index[[0,-1]].astype("int64")))
+                # print(tmp)
                 skip_months = np.unique(tmp.normalize()+pd.DateOffset(day=1))
                 # print(skip_months)
-                del cached
+                del cached_pocas
             except (OSError, KeyError) as err:
                 if isinstance(err, KeyError):
                     warnings.warn(f"Removed cache because of KeyError (\"{str(err)}\").")
@@ -101,6 +112,13 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                 for idx in current_track_indices:
                     collective_swath_poca_list.append(process_track(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"],
                                                                     current_subdir, kwargs))
+            # ensure all data in same CRS
+            for i in range(len(collective_swath_poca_list)):
+                tmp = list(collective_swath_poca_list[i])
+                for j in range(len(tmp)):
+                    if not tmp[j].empty:
+                        tmp[j] = tmp[j].to_crs(kwargs["crs"])
+                collective_swath_poca_list[i] = tuple(tmp)
             if cache is not None:
                 # when postprocessing, loading the data cached here takes a substatial
                 # amount of time. not sure, but maybe the format can be improved. there
@@ -115,10 +133,58 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                         l2_data.index = l2_data.index.astype(np.int64)
                     l2_data.rename_axis("time", inplace=True)
                     l2_data.sort_index(inplace=True)
-                    l2_data = pd.DataFrame(index=l2_data.index, 
-                                           data=pd.concat([l2_data.h_diff, l2_data.geometry.get_coordinates()],
-                                                          axis=1, copy=False))
-                    l2_data.astype(dict(h_diff=np.float32, x=np.int32, y=np.int32)).to_hdf(cache, key=l2_type, mode="a", append=True, format="table")
+                    chunks = xycut(l2_data)
+                    # in the next step, the data cached on disk for later use. this bears
+                    # the risk of introducing data gaps that are very difficult to detect.
+                    # the main rationale is: be sure not to damage the data and be careful
+                    # not to loose the cache.
+                    # this implementation balances the chance loosing the current data with
+                    # the cost of copying by backing up once per hour
+                    if os.path.isfile(cache):
+                        if os.path.isfile(cache+"__backup"):
+                            # if backup older than 1 hour, renew
+                            if (pd.Timestamp.now()-pd.to_datetime(os.stat(cache+"__backup").st_mtime, unit="s"))\
+                                    < pd.to_timedelta(1, unit="h"):
+                                os.replace(cache, cache+"__backup")
+                        # if no backup, make one
+                        else:
+                            shutil.copyfile(cache, cache+"__backup")
+                    # now, try to add current data to cache. if anything happens, restore
+                    # backup to ensure integrity
+                    try:
+                        for chunk in chunks:
+                            tmp = pd.DataFrame(index=chunk["data"].index, 
+                                            data=pd.concat([chunk["data"].h_diff,
+                                                            chunk["data"].geometry.get_coordinates()],
+                                                            axis=1, copy=False))
+                            # below, x and y will be stored as integers which rounds them
+                            # implicitly. this introduces a logic-flaw in the chunking, where
+                            # floor-division is used. this makes an extra step necessary. note that
+                            # pandas does not offer `.floor()`. w/out testing, I assume
+                            # `round(x-.5)` to perform better than x//1.
+                            tmp[["x", "y"]] = (tmp[["x", "y"]]-.5).round()
+                            tmp.astype(dict(h_diff=np.float32, x=np.int32, y=np.int32))\
+                            .to_hdf(cache, key="/".join(
+                                [l2_type, f'x_{chunk["x_interval_start"]:.0f}_{chunk["x_interval_stop"]:.0f}',
+                                    f'y_{chunk["y_interval_start"]:.0f}_{chunk["y_interval_stop"]:.0f}']
+                                    ), mode="a", append=True, format="table")
+                    except:
+                        if not os.path.isfile(cache):
+                            raise
+                        os.remove(cache)
+                        warnings.warn(
+                            "There was an error while caching l2 data. Since this can lead to "
+                            + "missing data, the cache has been removed and it was attempted to "
+                            + "restore a backup. If this was successful, there should NOT be a "
+                            + "__backup file in data/tmp. If there still is, please decide how to "
+                            + "proceed yourself (you could remove all temporary files and have "
+                            + "them produced freshly).")
+                        shutil.move(cache+"__backup", cache)
+                        raise
+                    # tidying up the backup was moved to parent process
+                    # else:
+                    #     if os.path.isfile(cache+"__backup"):
+                    #         os.remove(cache+"__backup")
             if save_or_return != "save":
                     swath_list.append(pd.concat([item[0] for item in collective_swath_poca_list]))
                     poca_list.append(pd.concat([item[1] for item in collective_swath_poca_list]))
@@ -143,7 +209,6 @@ __all__.append("from_id")
 
 
 def from_processed_l1b(l1b_data: l1b.l1b_data = None,
-                       crs: CRS = None,
                        **kwargs) -> gpd.GeoDataFrame:
     # kwargs: crs, max_elev_diff, input to GeoDataFrame
     if l1b_data is None:
@@ -152,29 +217,28 @@ def from_processed_l1b(l1b_data: l1b.l1b_data = None,
         # super().__init__(crs=crs, **kwargs)
         pass
     else:
-        crs = gis.ensure_pyproj_crs(crs)
-        l1b_data = l1b_data.to_dataframe().dropna(axis=0, how="any")
-        if "max_elev_diff" in kwargs and "h_diff" in l1b_data:
-            l1b_data = limit_filter(l1b_data, "h_diff", kwargs.pop("max_elev_diff"))
-        if isinstance(l1b_data.index, pd.MultiIndex): #
-            l1b_data.rename_axis(("time", "sample"), inplace=True)
-            l1b_data.index = l1b_data.index.set_levels(pd.DatetimeIndex(l1b_data["time"].groupby(level=0).first(), tz="UTC"), level=0)
-        elif l1b_data.index.name[:4].lower()=="time":
-            l1b_data.rename_axis(("time"), inplace=True)
-            l1b_data.index = pd.DatetimeIndex(l1b_data["time"], tz="UTC")
-        elif l1b_data.index.name[:2].lower()=="ns":
-            l1b_data.rename_axis(("sample"), inplace=True)
+        tmp = l1b_data.to_dataframe().dropna(axis=0, how="any")
+        if "max_elev_diff" in kwargs and "h_diff" in tmp:
+            tmp = limit_filter(tmp, "h_diff", kwargs.pop("max_elev_diff"))
+        if isinstance(tmp.index, pd.MultiIndex): #
+            tmp.rename_axis(("time", "sample"), inplace=True)
+            tmp.index = tmp.index.set_levels(pd.DatetimeIndex(tmp["time"].groupby(level=0).first(), tz="UTC"), level=0)
+        elif tmp.index.name[:4].lower()=="time":
+            tmp.rename_axis(("time"), inplace=True)
+            tmp.index = pd.DatetimeIndex(tmp["time"], tz="UTC")
+        elif tmp.index.name[:2].lower()=="ns":
+            tmp.rename_axis(("sample"), inplace=True)
         else:
             warnings.warn("Unexpected index name. May lead to issues.")
-        l1b_data.drop(columns=[col for col in ["time", "sample"] if col in l1b_data.columns], inplace=True)
+        tmp.drop(columns=[col for col in ["time", "sample"] if col in tmp.columns], inplace=True)
         # convert either lat, lon or x, y data to points assuming that any crs but 4326 uses x, y coordinates
-        if crs == CRS.from_epsg(4326):
-            geometry = gpd.points_from_xy(l1b_data.lon, l1b_data.lat)
-            l1b_data.drop(columns=["lat", "lon"], inplace=True)
+        if l1b_data.CRS == CRS.from_epsg(4326):
+            geometry = gpd.points_from_xy(tmp.lon, tmp.lat)
+            tmp.drop(columns=["lat", "lon"], inplace=True)
         else:
-            geometry = gpd.points_from_xy(l1b_data.x, l1b_data.y)
-            l1b_data.drop(columns=["x", "y"], inplace=True)
-        return gpd.GeoDataFrame(l1b_data, geometry=geometry, crs=crs, **kwargs)
+            geometry = gpd.points_from_xy(tmp.x, tmp.y)
+            tmp.drop(columns=["x", "y"], inplace=True)
+        return gpd.GeoDataFrame(tmp, geometry=geometry, crs=l1b_data.CRS, **filter_kwargs(gpd.GeoDataFrame, kwargs, blacklist=["crs"]))
 __all__.append("from_processed_l1b")
 
 
@@ -250,12 +314,6 @@ def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwar
                                                 l2_paths.loc[idx, "swath"])),
                 gpd.read_feather(os.path.join(l2_poca_path, current_subdir,
                                                 l2_paths.loc[idx, "poca"])))
-            # if a certain CRS is required, reproject the previously processed data
-            if "crs" in kwargs:
-                tmp = list(swath_poca_tuple)
-                for i in range(len(tmp)):
-                    tmp[i] = tmp[i].to_crs(kwargs["crs"])
-                swath_poca_tuple = tuple(tmp)
     except (KeyError, FileNotFoundError):
         if "cs_full_file_names" not in locals():
             if "cs_full_file_names" in kwargs:
