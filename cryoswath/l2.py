@@ -113,13 +113,19 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                 for idx in current_track_indices:
                     collective_swath_poca_list.append(process_track(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"],
                                                                     current_subdir, kwargs))
-            # ensure all data in same CRS
-            for i in range(len(collective_swath_poca_list)):
-                tmp = list(collective_swath_poca_list[i])
-                for j in range(len(tmp)):
-                    if not tmp[j].empty:
-                        tmp[j] = tmp[j].to_crs(kwargs["crs"])
-                collective_swath_poca_list[i] = tuple(tmp)
+            # ensure all data in same CRS and clip to bbox
+            # note: if no crs is provided, check will not be done. if CRS mismatch,
+            #       error occurs later
+            if "crs" in kwargs:
+                for i in range(len(collective_swath_poca_list)):
+                    tmp = list(collective_swath_poca_list[i])
+                    for j in range(len(tmp)):
+                        if not tmp[j].empty:
+                            tmp[j] = tmp[j].to_crs(kwargs["crs"])
+                            # bbox must be `shapely.(Multi)Polygon` in same crs
+                            if "bbox" in kwargs:
+                                tmp[j] = tmp[j].clip(kwargs["bbox"])
+                    collective_swath_poca_list[i] = tuple(tmp)
             if cache is not None:
                 # when postprocessing, loading the data cached here takes a substatial
                 # amount of time. not sure, but maybe the format can be improved. there
