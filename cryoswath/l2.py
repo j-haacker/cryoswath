@@ -9,6 +9,7 @@ from pyproj import CRS
 import re
 import shapely
 import shutil
+from tables import NaturalNameWarning
 from threading import Event, Thread
 import warnings
 
@@ -164,11 +165,14 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                             # pandas does not offer `.floor()`. w/out testing, I assume
                             # `round(x-.5)` to perform better than x//1.
                             tmp[["x", "y"]] = (tmp[["x", "y"]]-.5).round()
+                            # below hides warnings about a minus sign in node names. this can safely be ignored.
+                            warnings.filterwarnings('ignore', category=NaturalNameWarning)
                             tmp.astype(dict(h_diff=np.float32, x=np.int32, y=np.int32))\
                             .to_hdf(cache, key="/".join(
                                 [l2_type, f'x_{chunk["x_interval_start"]:.0f}_{chunk["x_interval_stop"]:.0f}',
                                     f'y_{chunk["y_interval_start"]:.0f}_{chunk["y_interval_stop"]:.0f}']
                                     ), mode="a", append=True, format="table")
+                            warnings.filterwarnings('default', category=NaturalNameWarning)
                     except:
                         if not os.path.isfile(cache):
                             raise
