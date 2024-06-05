@@ -657,7 +657,7 @@ def request_workers(task_func: callable, n_workers: int, result_queue: queue.Que
 __all__.append("request_workers")
 
 
-def repair_l2_cache(filepath: str) -> None:
+def repair_l2_cache(filepath: str, *, region_of_interest: shapely.MultiPolygon = None, force: bool = False) -> None:
     """Attempts to repair corrupted l2 cache files.
 
     The caching logic is not 100% safe. To repair a cache, this function
@@ -666,13 +666,22 @@ def repair_l2_cache(filepath: str) -> None:
 
     Args:
         filepath (str): Path to l2 cache file.
+        region_of_interest (shapely.Geometry, optional): EPSG:4326
+            outline of considered region. If provided, removes chunks
+            with no points inside projected bounding box of outline.
+        force (bool): Disregard file size safety, e.g., if you
+            expect less than 2/3 of the data to remain.
     """
+    if region_of_interest is not None:
+        crs = gis.find_planar_crs(shp=region_of_interest)
+        bbox = shapely.box(*gpd.GeoSeries(region_of_interest, crs=4326).to_crs(crs).bounds.values[0])
     def move_node(name, node):
         if isinstance(node, h5py.Dataset):
             pass
         elif "_i_table" in node:
             tmp = pd.read_hdf(tmp_h5, key=node.name)
-            tmp.drop_duplicates(keep="first").sort_index().to_hdf(filepath, key=node.name, format="table")
+            if "bbox" not in locals() or any(shapely.within(shapely.points(tmp.x, tmp.y), bbox)):
+                tmp.drop_duplicates(keep="first").sort_index().to_hdf(filepath, key=node.name, format="table")
     tmp_h5 = os.path.join(data_path, "tmp", "tmp")
     if os.path.exists(tmp_h5):
         if os.path.isfile(tmp_h5):
@@ -693,6 +702,14 @@ def repair_l2_cache(filepath: str) -> None:
         with h5py.File(tmp_h5, "r") as h5:
             h5.visititems(move_node)
         warnings.filterwarnings('default', category=NaturalNameWarning)
+        try:
+            clean_data_fraction = os.path.getsize(filepath)/os.path.getsize(tmp_h5)
+        except FileNotFoundError:
+            print("No data remain - this will show as FileNotFoundError. The initial",
+                  "file will be restored. Delete it, if you're sure about it.")
+            raise
+        if not force and clean_data_fraction < .67:
+            raise Exception(f"Only {clean_data_fraction:%} of the original file size remain. If this seems plausible to you, rerun setting `force=True`.")
     except:
         print("Restoring original (potentially corrupt) file because error occurred.")
         if os.path.isfile(filepath):
