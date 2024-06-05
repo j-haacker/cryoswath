@@ -5,6 +5,7 @@ import fnmatch
 import ftplib
 import geopandas as gpd
 import glob
+import h5py
 import inspect
 import numpy as np
 import os
@@ -17,6 +18,7 @@ from scipy.constants import speed_of_light
 import scipy.stats
 import shapely
 import shutil
+from tables import NaturalNameWarning
 import time
 import threading
 from typing import Union
@@ -653,6 +655,57 @@ def request_workers(task_func: callable, n_workers: int, result_queue: queue.Que
         worker_thread.start()
     return task_queue
 __all__.append("request_workers")
+
+
+def repair_l2_cache(filepath: str) -> None:
+    """Attempts to repair corrupted l2 cache files.
+
+    The caching logic is not 100% safe. To repair a cache, this function
+    removes duplicates and sorts the data index.
+    If the note names for some reason 
+
+    Args:
+        filepath (str): Path to l2 cache file.
+    """
+    def move_node(name, node):
+        if isinstance(node, h5py.Dataset):
+            pass
+        elif "_i_table" in node:
+            tmp = pd.read_hdf(tmp_h5, key=node.name)
+            tmp.drop_duplicates(keep="first").sort_index().to_hdf(filepath, key=node.name, format="table")
+    tmp_h5 = os.path.join(data_path, "tmp", "tmp")
+    if os.path.exists(tmp_h5):
+        if os.path.isfile(tmp_h5):
+            os.remove(tmp_h5)
+        elif os.path.isdir(tmp_h5):
+            shutil.rmtree(tmp_h5)
+        else:
+            raise Exception(f"Can't remove {tmp_h5}; neither file nor directory!?")
+    # I expect `shutil.move` to be safe and believe: either it succeeds or nothing happens
+    shutil.move(filepath, tmp_h5)
+    try:
+        print("Starting to repair file. This may take several minutes. You can",
+             f"monitor the progress by viewing the file sizes of {filepath} and",
+             f"{tmp_h5}. They will be similar at the end of the process. It should",
+              "be reasonably safe to abort.")
+        # below hides warnings about a minus sign in node names. this can safely be ignored.
+        warnings.filterwarnings('ignore', category=NaturalNameWarning)
+        with h5py.File(tmp_h5, "r") as h5:
+            h5.visititems(move_node)
+        warnings.filterwarnings('default', category=NaturalNameWarning)
+    except:
+        print("Restoring original (potentially corrupt) file because error occurred.")
+        if os.path.isfile(filepath):
+            os.remove(filepath)
+        shutil.move(tmp_h5, filepath)
+        print("Successfully restored initial state. Reraising error:")
+        raise
+    else:
+        print("Reperation was successful: removed duplicates and sorted index.")
+    finally:
+        if os.path.isfile(tmp_h5):
+            os.remove(tmp_h5)
+__all__.append("repair_l2_cache")
 
 
 def xycut(data: gpd.GeoDataFrame, x_chunk_meter = 3*4*5*1_000, y_chunk_meter = 3*4*5*1_000)\
