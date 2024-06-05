@@ -63,7 +63,7 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                     h5["poca"].visititems(collect_pocas)
                 cached_pocas = pd.concat(poca_collection).sort_index()
                 # for better performance: reduce indices to two per month
-                sample_rate_ns = int(15*(24*60*60)*1e9)
+                sample_rate_ns = int(5*(24*60*60)*1e9)
                 tmp = cached_pocas.index.astype("int64")//sample_rate_ns
                 tmp = pd.arrays.DatetimeArray(np.append(np.unique(tmp)*sample_rate_ns,
                                                         # adding first and last element
