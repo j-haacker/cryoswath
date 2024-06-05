@@ -1,11 +1,13 @@
 import dask.dataframe
 import dask.distributed
 from dateutil.relativedelta import relativedelta
+import geopandas as gpd
 import h5py
 # import numba
 import numpy as np
 import os
 import pandas as pd
+from pyproj.crs import CRS
 import shapely
 import shutil
 import sys
@@ -15,7 +17,7 @@ import xarray as xr
 
 from . import l2
 from .misc import *
-from .gis import find_planar_crs
+from .gis import ensure_pyproj_crs, find_planar_crs
 
 __all__ = list()
     
@@ -36,6 +38,8 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
                   spatial_res_meter: float = 500,
                   agg_func_and_meta: tuple[callable, dict] = (med_iqr_cnt,
                                                               {"_median": "f8", "_iqr": "f8", "_count": "i8"}),
+                  crs: CRS|int = None,
+                  reprocess: bool = False,
                   **l2_from_id_kwargs):
     if window_ntimesteps%2 - 1:
         old_window = window_ntimesteps
@@ -71,36 +75,51 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
           "processing L1b files if not available...")
     if isinstance(region_of_interest, str):
         region_id = region_of_interest
+        region_of_interest = load_glacier_outlines(region_id)
     else:
         region_id = "_".join([region_of_interest.centroid.x, region_of_interest.centroid.y])
     cache_path = os.path.join(data_path, "tmp", region_id)
-    if "crs" not in l2_from_id_kwargs:
-        l2_from_id_kwargs["crs"] = find_planar_crs(region_id=region_id)
+    if crs is None:
+        crs = find_planar_crs(region_id=region_id)
+    else:
+        crs = ensure_pyproj_crs(crs)
+    bbox = gpd.GeoSeries(
+        shapely.box(*gpd.GeoSeries(region_of_interest, crs=4326).to_crs(crs).bounds.values[0]),
+        crs=crs)
     # l2 backs up the cache when writing to it. however, there should not be a backup, yet. if there is, throw an error
     if os.path.isfile(cache_path+"__backup"):
         raise Exception(f"Backup exists unexpectedly at {cache_path+"__backup"}. This may point to a running process. If this is a relict, remove it manually.")
     try:
-        l2.from_id(cs_tracks.index, save_or_return="save", cache=cache_path,
-                   **filter_kwargs(l2.from_id, l2_from_id_kwargs, blacklist=["save_or_return", "cache"],
-                                   whitelist=["crs"]))
+        l2.from_id(cs_tracks.index, save_or_return="save", cache=cache_path, crs=crs, bbox=bbox,
+                   **filter_kwargs(l2.from_id, l2_from_id_kwargs, blacklist=["save_or_return", "cache"]))
     finally:
         # remove l2's cache backup. it is not needed as no more writing takes
         # place but it occupies some 10 Gb disk space.
         if os.path.isfile(cache_path+"__backup"):
             os.remove(cache_path+"__backup")
-
+    outfilepath = build_path(region_id, timestep_months, spatial_res_meter)
+    if not reprocess and os.path.isfile(outfilepath):
+        previously_processed_l3 = xr.open_dataset(outfilepath, decode_coords="all")
     node_list = []
     def guide_hdf_node(name, node):
         nonlocal node_list
         if not isinstance(node, h5py.Dataset) and "_i_table" in node:
-            print(node, node.name)
+            if "previously_processed_l3" in locals():
+                x_range, y_range = node.name.split("/")[-2:]
+                # string values passed to xarray in slices. however, seems xarray is fine with that
+                tmp = previously_processed_l3._median.sel(x=slice(*x_range.split("_")[-2:]),
+                                                           y=slice(*y_range.split("_")[-2:]))
+                if not previously_processed_l3._median.sel(x=slice(*x_range.split("_")[-2:]),
+                                                           y=slice(*y_range.split("_")[-2:])).isnull().all():
+                    print("cell", node.name, "will be skipped. data is present")
+                    return None
             node_list.append(node.name)
     with h5py.File(cache_path, "r") as h5:
         h5["swath"].visititems(guide_hdf_node)
-    l3_collection = []
-    print("Gridding the data. Each chunk at a time...")
+    print("processing queue contains:\n", node_list)
+    print("\nGridding the data. Each chunk at a time...")
     for node_name in node_list:
-        print("entered aggregate_l2 for node", node_name)
+        print("-----\n\nnext chunk:", node_name)
         # reading from hdf has issues acquiring the lock. Since no writing takes
         # place, it should be safe to turn this off. This can potentially be
         # resumed in future.
@@ -144,30 +163,45 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
             l3_data.index = l3_data.index.remove_unused_levels()
             l3_data.index = l3_data.index.set_levels(
                     ext_t_axis[l3_data.index.levels[0]].astype("datetime64[ns]"), level=0)
-            l3_collection.append(l3_data)
-            # ! tbi: write to netcdf when already taking the effort cutting the data
-            # into chunks, processing them separately, and using netCDF as final
-            # data format, one should take the opportunity to save the results of
-            # each chunk in case the process terminates for some reason. make sure
-            # that this does not corrupt the resulting file.
-    l3_data = pd.concat(l3_collection)
-    del l3_collection
-    l3_data = l3_data.sort_index()
-    l3_data = l3_data.query(f"time >= '{start_datetime}' and time <= '{end_datetime}'")
-    # # to_xarray threw errors in the past because of duplicate indices. there
-    # # should never(?) be any. activate the below to debug should this
-    # # problem occur again.
-    # duplicates = l3_data.index.duplicated(keep=False)
-    # print(l3_data.index[duplicates])
-    # print(l3_data.tail(30))
-    crs = find_planar_crs(region_id=region_id)
-    # fill x and y such that they are continuous
-    # otherwise, issues arise when working with the data. occurs because
-    # data is not reduced to glacierized region (but could in theory always
-    # occur anyway)
-    l3_data = fill_missing_coords(l3_data.to_xarray()).rio.write_crs(crs)
-    l3_data.to_netcdf(build_path(region_id, timestep_months, spatial_res_meter))
-    return l3_data
+            l3_data = l3_data.sort_index()
+            l3_data = l3_data.query(f"time >= '{start_datetime}' and time <= '{end_datetime}'")
+            # # to_xarray threw errors in the past because of duplicate indices. there
+            # # should never(?) be any. activate the below to debug should this
+            # # problem occur again.
+            # duplicates = l3_data.index.duplicated(keep=False)
+            # print(l3_data.index[duplicates])
+            # print(l3_data.tail(30))
+            
+            # fill x and y such that they are continuous
+            # otherwise, issues arise when working with the data. occurs because
+            # data is not reduced to glacierized region (but could in theory always
+            # occur anyway)
+            l3_data = fill_missing_coords(l3_data.to_xarray()).rio.write_crs(crs)
+            # merge with previous data if there are any
+            if "previously_processed_l3" in locals():
+                # unfortunately, combining datasets can be nasty:
+                # `xarray.combine_by_coords()` uses the coordinates in order, leading to
+                # issues if, e.g., x starts earlier for one, but y starts earlier for
+                # the other dataset. the below attempts different orders; however,
+                # success is not guaranteed :/
+                try:
+                    previously_processed_l3 = xr.combine_nested([previously_processed_l3, l3_data], concat_dim=None)
+                except ValueError:
+                    previously_processed_l3 = xr.combine_nested([l3_data, previously_processed_l3], concat_dim=None)
+            else:
+                previously_processed_l3 = l3_data
+            # save/backup result
+            tmp_path = os.path.join(data_path, "tmp", f"{region_id}_l3")
+            # try to write new data to file. if anything goes wrong, restore. is this sufficiently safe?
+            try:
+                shutil.move(outfilepath, tmp_path)
+                previously_processed_l3.to_netcdf(outfilepath)
+                print(f"processed and stored cell", node_name)
+            except:
+                shutil.move(tmp_path, outfilepath)
+            else:
+                os.remove(tmp_path)
+    return previously_processed_l3
 __all__.append("build_dataset")
 
 
