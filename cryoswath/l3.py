@@ -240,11 +240,11 @@ __all__.append("fill_missing_coords")
 def fill_voids(l3_data):
     # for now, this is a very specific function despite its name. it expects
     # l3_data to have the dimensions x, y, and time, that it covers an RGI
-    # o2 region, and that it contains the stats: median_h_diff, IQR_h_diff,
-    # and data_count.
+    # o2 region, and that it contains the stats: _median, _iqr,
+    # and _count.
     print("... reading reference DEM")
     # finding a latitude to determine the reference DEM like below may be prone to bugs
-    with get_dem_reader(l3_data.median_h_diff[0].transpose("y", "x").rio.reproject(4326).y.values[0]) as dem_reader:
+    with get_dem_reader(l3_data._median[0].transpose("y", "x").rio.reproject(4326).y.values[0]) as dem_reader:
         with rioxr.open_rasterio(dem_reader) as ref_dem:
             ref_dem = ref_dem.rio.clip_box(*l3_data.rio.bounds()).squeeze()
     l3_data["ref_elev"] = ref_dem.rio.reproject_match(l3_data, resampling=rasterio.warp.Resampling.average).transpose("x", "y")
@@ -296,49 +296,49 @@ def fill_voids(l3_data):
                 subset = interpolate_hypsometrically_poly3(subset)
                 l3_ddf.loc[subset.index] = subset
                 basin_shapes.loc[basin_lon_group[1].index,"voids_filled"] = True
-    l3_data = l3_ddf.set_index(["time", "x", "y"])[["median_h_diff", "IQR_h_diff", "data_count"]].to_xarray().rio.write_crs(l3_crs)
+    l3_data = l3_ddf.set_index(["time", "x", "y"])[["_median", "_iqr", "_count"]].to_xarray().rio.write_crs(l3_crs)
     return l3_data
 __all__.append("fill_voids")
 
 
 def interpolate_hypsometrically_poly3(df):
     # helper function for `fill_voids`. as it is now, there is a number of
-    # strict requirements on df: it has to have the columns median_h_diff,
-    # IQR_h_diff, data_count, and ref_elev. in ref_elev, there should be no
-    # no-data values where median_h_diff is valid.
-    weights = df.data_count**.5/df.IQR_h_diff
+    # strict requirements on df: it has to have the columns _median,
+    # _iqr, _count, and ref_elev. in ref_elev, there should be no
+    # no-data values where _median is valid.
+    weights = df._count**.5/df._iqr
     # use only grid cells based on a minimum number of elevation estimates
     # and that are not too far of
-    weights.loc[~(df.data_count>3)] = 0
-    weights.loc[~(np.abs(df.median_h_diff)<150)] = 0
+    weights.loc[~(df._count>3)] = 0
+    weights.loc[~(np.abs(df._median)<150)] = 0
     # abort if too little data. necessary to prevent errors but also introduces data gaps
     if sum(weights>0) <= 20:
         return df
     weights = weights/weights.loc[weights>0].mean()
     # first fit
-    coeffs = np.polyfit(df.ref_elev, df.median_h_diff, 3, w=weights)
-    residuals = np.polyval(coeffs, df.ref_elev) - df.median_h_diff.fillna(0)
+    coeffs = np.polyfit(df.ref_elev, df._median, 3, w=weights)
+    residuals = np.polyval(coeffs, df.ref_elev) - df._median.fillna(0)
     # find and remove outlier
     outlier_mask = flag_outliers(residuals[weights>0], deviation_factor=5)
     # print("dropping", sum(outlier_mask), f", {sum(~outlier_mask)} remain")
     weights.loc[weights>0] = ~outlier_mask.values * weights.loc[weights>0]
     # fit again
-    coeffs = np.polyfit(df.ref_elev, df.median_h_diff, 3, w=weights)
+    coeffs = np.polyfit(df.ref_elev, df._median, 3, w=weights)
     lowest = df.ref_elev[weights>0].min()
     highest = df.ref_elev[weights>0].max()
     weights = weights.reindex(df.index, fill_value=0)
-    df.loc[weights==0,"median_h_diff"] = np.polyval(coeffs, df.ref_elev[weights==0])
-    df.loc[df.ref_elev<lowest,"median_h_diff"] = np.polyval(coeffs, lowest)
-    df.loc[df.ref_elev>highest,"median_h_diff"] = np.polyval(coeffs, highest)
-    df.loc[weights==0,"IQR_h_diff"] = np.inf
-    df.loc[weights==0,"data_count"] = 0
+    df.loc[weights==0,"_median"] = np.polyval(coeffs, df.ref_elev[weights==0])
+    df.loc[df.ref_elev<lowest,"_median"] = np.polyval(coeffs, lowest)
+    df.loc[df.ref_elev>highest,"_median"] = np.polyval(coeffs, highest)
+    df.loc[weights==0,"_iqr"] = np.inf
+    df.loc[weights==0,"_count"] = 0
     return df
 __all__.append("interpolate_hypsometrically_poly3")
 
 
 def interpolation_wrapper(df):
     # helper function for `fill_voids`
-    n_data_per_t = df[df.data_count>3].time.groupby(df.time).count()
+    n_data_per_t = df[df._count>3].time.groupby(df.time).count()
     if np.mean(n_data_per_t)/8 < 5:
         return df
     df = df.groupby(df.time).apply(interpolate_hypsometrically_poly3) #.reset_index()(names=""), include_groups=False
