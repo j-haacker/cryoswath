@@ -35,15 +35,11 @@ cryoswath builds on a number of other packages. See
 - the reference elevation model is not provided
 - the RGI data are not automatically downloaded
 
-### other issues
-
-- paths (partly) only for UNIX systems
-
 ## 🎯 what's coming
 
 - pipeline building gridded change rates
 
-Further: See [wish-list.md](https://github.com/j-haacker/cryoswath/blob/main/wish-list.md).
+Further: See the [wish-list (#enhancement in GH issues)](https://github.com/j-haacker/cryoswath/labels/enhancement).
 
 ## citation and attribution
 
