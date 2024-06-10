@@ -194,7 +194,8 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
             tmp_path = os.path.join(data_path, "tmp", f"{region_id}_l3")
             # try to write new data to file. if anything goes wrong, restore. is this sufficiently safe?
             try:
-                shutil.move(outfilepath, tmp_path)
+                if os.path.isfile(outfilepath):
+                    shutil.move(outfilepath, tmp_path)
                 previously_processed_l3.to_netcdf(outfilepath)
                 print(f"processed and stored cell", node_name)
             except:
