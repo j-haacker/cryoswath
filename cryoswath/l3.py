@@ -116,7 +116,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
             node_list.append(node.name)
     with h5py.File(cache_path, "r") as h5:
         h5["swath"].visititems(guide_hdf_node)
-    print("processing queue contains:\n", node_list)
+    print("processing queue contains:\n", "\n".join(node_list))
     print("\nGridding the data. Each chunk at a time...")
     for node_name in node_list:
         print("-----\n\nnext chunk:", node_name)
