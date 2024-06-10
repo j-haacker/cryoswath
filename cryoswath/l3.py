@@ -243,22 +243,43 @@ def fill_voids(l3_data):
     # l3_data to have the dimensions x, y, and time, that it covers an RGI
     # o2 region, and that it contains the stats: _median, _iqr,
     # and _count.
-    print("... reading reference DEM")
-    # finding a latitude to determine the reference DEM like below may be prone to bugs
-    with get_dem_reader(l3_data._median[0].transpose("y", "x").rio.reproject(4326).y.values[0]) as dem_reader:
-        with rioxr.open_rasterio(dem_reader) as ref_dem:
-            ref_dem = ref_dem.rio.clip_box(*l3_data.rio.bounds()).squeeze()
-    l3_data["ref_elev"] = ref_dem.rio.reproject_match(l3_data, resampling=rasterio.warp.Resampling.average).transpose("x", "y")
     # figure out region. limited to o2 meanwhile
     print("... loading basin outlines")
     left, lower, right, upper = l3_data.rio.transform_bounds(4326)
     o2code = find_region_id(shapely.Point(left+(right-left)/2, lower+(upper-lower)/2), scope="o2")
+    # print(o2code)
     basin_shapes = load_o2region(o2code, product="glaciers").to_crs(l3_data.rio.crs)
+    print("... reading reference DEM")
+    # finding a latitude to determine the reference DEM like below may be prone to bugs
+    with get_dem_reader(l3_data._median[0].transpose("y", "x").rio.reproject(4326).y.values[0]) as dem_reader:
+        with rioxr.open_rasterio(dem_reader) as ref_dem:
+            ref_dem = ref_dem.rio.clip_box(*l3_data._median[0].rio.reproject(ref_dem.rio.crs).rio.bounds()).squeeze()
+    # print(l3_data.dims, ref_dem.dims)
+    l3_data["ref_elev"] = ref_dem.rio.reproject_match(l3_data, resampling=rasterio.warp.Resampling.average).transpose("x", "y").rio.clip(basin_shapes.geometry)
+    l3_data.ref_elev.attrs.update({"_FillValue": np.nan})
+    l3_data["ref_elev"] = xr.where(l3_data.ref_elev < 100, np.nan, l3_data.ref_elev)
+    # from matplotlib import pyplot as plt
+    # l3_data.ref_elev.T.plot(robust=True)
+    # plt.show()
+    print("num nan in ref_elev", l3_data.ref_elev.isnull().sum())
+    print("num other in ref_elev", np.logical_or(l3_data.ref_elev<-100, l3_data.ref_elev>3000).sum())
+    # print(l3_data.ref_elev)
+    # l3_data.ref_elev.rio.clip(basin_shapes.geometry).T.plot(vmin=-10, vmax=1300)
+    # basin_shapes.boundary.plot(ax=plt.gca())
+    # plt.show()
+    # ref_dem.rio.reproject_match(l3_data, resampling=rasterio.warp.Resampling.average).rio.clip(basin_shapes.geometry).plot(vmin=-10, vmax=1300)
+    # basin_shapes.boundary.plot(ax=plt.gca())
+    # plt.show()
+    # ref_dem.rio.clip(basin_shapes.to_crs(ref_dem.rio.crs).geometry).plot(vmin=-10, vmax=1300)
+    # basin_shapes.to_crs(ref_dem.rio.crs).boundary.plot(ax=plt.gca())
+    # plt.show()
     print("... assigning basin ids to grid cells")
     l3_crs = l3_data.rio.crs
+    # print(l3_crs)
     l3_data["basin_id"] = xr.DataArray(np.zeros_like(l3_data.ref_elev, dtype="i4"),
                                        coords={k: v for k, v in l3_data.coords.items() if k in ["x", "y"]}
                                        ).rio.write_crs(l3_crs)
+    # print(l3_data.basin_id)
     for i in range(len(basin_shapes)):
         try:
             subset = l3_data.basin_id.rio.clip(basin_shapes.iloc[[i]].geometry)
@@ -268,36 +289,35 @@ def fill_voids(l3_data):
             subset = xr.where(subset.isnull(), subset, int(basin_shapes.iloc[i].rgi_id.split("-")[-1]))
             aligned = xr.align(subset, l3_data.basin_id, join="right")#, copy=False
             l3_data["basin_id"] = xr.where(aligned[0].isnull(), l3_data.basin_id, aligned[0]).rio.write_crs(l3_crs)
-    l3_ddf = l3_data.to_dask_dataframe()
-    l3_ddf = l3_ddf.map_partitions(lambda df: df[df.basin_id>0])
-    del l3_data
+    l3_df = l3_data.to_dataframe()
+    l3_df = l3_df[l3_df.basin_id>0]
     print("... interpolating data per basin")
-    global filled_basin_ids
-    filled_basin_ids = []
-    l3_ddf = l3_ddf.groupby(l3_ddf.basin_id).apply(interpolation_wrapper, meta=l3_ddf.partitions[0].head(0)).compute()
+    l3_df = l3_df.groupby(l3_df.basin_id).apply(interpolation_wrapper)
+    print("l3_ddf shape after basin void filling:\n", l3_df.head(0))
+    l3_df = l3_df.droplevel(0)
+    print("l3_ddf shape after dropping lev0:\n", l3_df.head(0))
     print("... interpolating remaining voids")
     # the remaining voids are filled based on termination type and location
-    basin_shapes["voids_filled"] = [basin_id in filled_basin_ids for basin_id in basin_shapes.rgi_id.apply(lambda x: int(x.split("-")[-1]))]
-    for basin_tt_group in basin_shapes[~basin_shapes.voids_filled].groupby("term_type"):
+    for basin_tt_group in basin_shapes.groupby("term_type"):
         # cut latitude into degree slices
         n_lat_bins = max(1, round(basin_tt_group[1].cenlat.max()-basin_tt_group[1].cenlat.min()))
-        for basin_lat_group in basin_tt_group[1].groupby(pd.cut(basin_tt_group[1].cenlat, bins=n_lat_bins)):
+        # below, `observed=True` to grant compatibility with future pandas versions.
+        for basin_lat_group in basin_tt_group[1].groupby(pd.cut(basin_tt_group[1].cenlat, bins=n_lat_bins),
+                                                         observed=True):
             # similarly, cut longitude
             n_lon_bins = max(1, round((basin_lat_group[1].cenlon.max()-basin_lat_group[1].cenlon.min())
                                       * np.cos(np.deg2rad(basin_lat_group[0].mid))))
-            for basin_lon_group in basin_lat_group[1].groupby(pd.cut(basin_lat_group[1].cenlon, bins=n_lon_bins)):
+            for basin_lon_group in basin_lat_group[1].groupby(pd.cut(basin_lat_group[1].cenlon, bins=n_lon_bins),
+                                                              observed=True):
                 # use all cells with matching term_type in proximity as reference
                 frame = basin_lon_group[1].unary_union.bounds
                 matching_tt = basin_shapes.clip(frame).rgi_id.apply(lambda x: int(x.split("-")[-1])).to_list()
                 # below, cutting to the frame is probably not really necessary because
                 # matching_tt is already constrained
-                subset = l3_ddf.loc[lambda df: df.basin_id.isin(matching_tt)].loc[lambda df: df.x >= frame[0]]\
-                               .loc[lambda df: df.y >= frame[1]].loc[lambda df: df.x <= frame[2]]\
-                               .loc[lambda df: df.y <= frame[3]]
-                subset = interpolate_hypsometrically_poly3(subset)
-                l3_ddf.loc[subset.index] = subset
-                basin_shapes.loc[basin_lon_group[1].index,"voids_filled"] = True
-    l3_data = l3_ddf.set_index(["time", "x", "y"])[["_median", "_iqr", "_count"]].to_xarray().rio.write_crs(l3_crs)
+                subset = l3_df.loc[l3_df.basin_id.isin(matching_tt)]
+                subset = interpolation_wrapper(subset)
+                l3_df.loc[subset.index] = subset
+    l3_data = xr.merge([l3_df[["_median", "_iqr", "_count"]].to_xarray(), l3_data], join="right", compat="override")
     return l3_data
 __all__.append("fill_voids")
 
@@ -307,30 +327,51 @@ def interpolate_hypsometrically_poly3(df):
     # strict requirements on df: it has to have the columns _median,
     # _iqr, _count, and ref_elev. in ref_elev, there should be no
     # no-data values where _median is valid.
-    weights = df._count**.5/df._iqr
+    df_valid_ref_elev = df[~df.ref_elev.isnull()]
+    if df_valid_ref_elev.empty:
+        return df
+    df_only_valid = df_valid_ref_elev[~df_valid_ref_elev.isnull().any(axis=1)]
+    if df_only_valid.empty:
+        return df
+    weights = df_only_valid._count**.5/df_only_valid._iqr
     # use only grid cells based on a minimum number of elevation estimates
     # and that are not too far of
-    weights.loc[~(df._count>3)] = 0
-    weights.loc[~(np.abs(df._median)<150)] = 0
+    weights.loc[~(df_only_valid._count>3)] = 0
+    weights.loc[~(np.abs(df_only_valid._median)<150)] = 0
     # abort if too little data. necessary to prevent errors but also introduces data gaps
     if sum(weights>0) <= 20:
         return df
+    # also, abort if there isn't anything to do
+    if not any(weights==0):
+        return df
     weights = weights/weights.loc[weights>0].mean()
     # first fit
-    coeffs = np.polyfit(df.ref_elev, df._median, 3, w=weights)
-    residuals = np.polyval(coeffs, df.ref_elev) - df._median.fillna(0)
+    x0 = df_only_valid.ref_elev.mean()
+    coeffs = np.polyfit(df_only_valid.ref_elev-x0, df_only_valid._median, 3, w=weights)
+    residuals = np.polyval(coeffs, df_only_valid.ref_elev-x0) - df_only_valid._median
     # find and remove outlier
     outlier_mask = flag_outliers(residuals[weights>0], deviation_factor=5)
-    # print("dropping", sum(outlier_mask), f", {sum(~outlier_mask)} remain")
+
+    # # debugging tool
+    # import matplotlib.pyplot as plt
+    # # print(df_only_valid.ref_elev[weights>0], df_only_valid._median[weights>0], 1/weights[weights>0], '_')
+    # plt.errorbar(df_only_valid.ref_elev[weights>0], df_only_valid._median[weights>0], yerr=.1/weights[weights>0], fmt='_')
+    # plt.plot(df_only_valid.ref_elev[weights>0][outlier_mask], df_only_valid._median[weights>0][outlier_mask], 'rx')
+    # pl_x = np.arange(0, 2001, 100)
+    # plt.plot(pl_x, np.polyval(coeffs, pl_x), '-')
+    # plt.show()
+
     weights.loc[weights>0] = ~outlier_mask.values * weights.loc[weights>0]
     # fit again
-    coeffs = np.polyfit(df.ref_elev, df._median, 3, w=weights)
-    lowest = df.ref_elev[weights>0].min()
-    highest = df.ref_elev[weights>0].max()
-    weights = weights.reindex(df.index, fill_value=0)
-    df.loc[weights==0,"_median"] = np.polyval(coeffs, df.ref_elev[weights==0])
-    df.loc[df.ref_elev<lowest,"_median"] = np.polyval(coeffs, lowest)
-    df.loc[df.ref_elev>highest,"_median"] = np.polyval(coeffs, highest)
+    coeffs = np.polyfit(df_only_valid.ref_elev-x0, df_only_valid._median, 3, w=weights)
+    lowest = df_only_valid.ref_elev[weights>0].min()
+    highest = df_only_valid.ref_elev[weights>0].max()
+    # from here, weights are only used as mask. to-be-filled: 0, missing ref_elev: -1
+    weights = weights.reindex(df_valid_ref_elev.index, fill_value=0)
+    weights = weights.reindex(df.index, fill_value=-1)
+    df.loc[weights==0,"_median"] = np.polyval(coeffs, df.ref_elev[weights==0]-x0)
+    df.loc[df.ref_elev<lowest,"_median"] = np.polyval(coeffs, lowest-x0)
+    df.loc[df.ref_elev>highest,"_median"] = np.polyval(coeffs, highest-x0)
     df.loc[weights==0,"_iqr"] = np.inf
     df.loc[weights==0,"_count"] = 0
     return df
@@ -339,13 +380,11 @@ __all__.append("interpolate_hypsometrically_poly3")
 
 def interpolation_wrapper(df):
     # helper function for `fill_voids`
-    n_data_per_t = df[df._count>3].time.groupby(df.time).count()
-    if np.mean(n_data_per_t)/8 < 5:
+    n_data_per_t = df[df._count>3].groupby(level=[0]).size()
+    if not np.mean(n_data_per_t)/8 >= 5:
         return df
-    df = df.groupby(df.time).apply(interpolate_hypsometrically_poly3) #.reset_index()(names=""), include_groups=False
-    df.index = df.index.levels[1]
-    global filled_basin_ids
-    filled_basin_ids.append(df.iat[0,-1])
+    df = df.groupby(level=[0]).apply(interpolate_hypsometrically_poly3)
+    df = df.droplevel(0)
     return df
 
 __all__ = sorted(__all__)
