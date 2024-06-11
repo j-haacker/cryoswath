@@ -517,18 +517,20 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
             while not task_queue.empty() or not result_queue.empty():
                 try:
                     tmp = result_queue.get(block=True, timeout=10*60)
-                    new_tracks_collection.append(tmp)
+                    if not tmp.empty:
+                        new_tracks_collection.append(tmp)
                 except queue.Empty:
                     print("waiting for task queue")
                     time.sleep(10)
-            # append to local collection and save the result
-            cs_tracks = pd.concat([cs_tracks, pd.concat(new_tracks_collection)], sort=True)
-            duplicate = cs_tracks.index.duplicated(keep="last")
-            if duplicate.sum() > 0:
-                warnings.warn(f"{duplicate.sum()} duplicates found; dropping them.")
-                cs_tracks = cs_tracks[~duplicate]
-                cs_tracks.sort_index(inplace=True)
-            save_current_track_list(cs_tracks)
+            # append to local collection and save the result, if any
+            if new_tracks_collection:
+                cs_tracks = pd.concat([cs_tracks, pd.concat(new_tracks_collection)], sort=True)
+                duplicate = cs_tracks.index.duplicated(keep="last")
+                if duplicate.sum() > 0:
+                    warnings.warn(f"{duplicate.sum()} duplicates found; dropping them.")
+                    cs_tracks = cs_tracks[~duplicate]
+                    cs_tracks.sort_index(inplace=True)
+                save_current_track_list(cs_tracks)
             print(f"scanned all files in", last_idx.strftime("%Y/%m"))
             last_idx = last_idx + pd.DateOffset(months=1)
             print(f"switching to", last_idx.strftime("%Y/%m"))
