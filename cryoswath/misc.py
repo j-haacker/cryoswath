@@ -84,12 +84,6 @@ cryosat_id_pattern = re.compile("20[12][0-9][01][0-9][0-3][0-9]T[0-2][0-9]([0-5]
 
 ## Functions ##########################################################
 
-def append_filename(file_name: str, appendix: str) -> str:
-    fn_parts = file_name.split(os.path.extsep)
-    return os.path.extsep.join(fn_parts[:-1]) + appendix + os.path.extsep + fn_parts[-1]
-__all__.append("append_filename")
-
-
 # security issue?
 class binary_chache():
     __all__ = []
@@ -173,6 +167,12 @@ __all__.append("convert_all_esri_to_feather")
 #                 #if chunk: 
 #                 f.write(chunk)
 #     return local_filename
+
+
+def extend_filename(file_name: str, extension: str) -> str:
+    fn_parts = file_name.split(os.path.extsep)
+    return os.path.extsep.join(fn_parts[:-1]) + extension + os.path.extsep + fn_parts[-1]
+__all__.append("extend_filename")
 
 
 # ! make recursive
@@ -318,6 +318,74 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
     return rasterio.open(os.path.join(dem_path, "arcticdem_mosaic_100m_v4.1_dem.tif"))
 
 
+def interpolate_hypsometrically(ds: xr.Dataset,
+                                main_var: str,
+                                elev: str = "ref_elev",
+                                weights: str = "weights",
+                                degree: int = 3) -> xr.Dataset:
+    # print(ds)
+    # import matplotlib.pyplot as plt
+    # ds[weights].unstack().plot()
+    # plt.show()
+    ds[weights] = xr.where(ds[elev].isnull(), np.nan, ds[weights])
+    if ds[elev].where(ds[weights]>0).count()==0:
+        return ds
+    # abort if too little data. necessary to prevent errors but also introduces data gaps
+    if sum(ds[weights]>0) <= 20:
+        print("too little data")
+        return ds
+    # also, abort if there isn't anything to do
+    if not any(ds[weights]==0):
+        print("nothing to do")
+        return ds
+    ds[weights] = ds[weights]/ds[weights].mean()
+    # first fit
+    x0 = ds[elev].where(ds[weights]>0).mean().values
+    # print(x0)
+    tmp = ds.to_dataframe()[[main_var, elev, weights]].dropna(axis=0, how="any")
+    # print(tmp)
+    # print(tmp[elev]-x0, tmp[main_var], degree, tmp[weights])
+    coeffs = np.polyfit(tmp[elev]-x0, tmp[main_var], degree, w=tmp[weights])
+    # print(coeffs)
+    residuals = np.polyval(coeffs, tmp[elev]-x0) - tmp[main_var]
+    # print(residuals)
+    # find and remove outlier
+    outlier_mask = flag_outliers(residuals[tmp[weights]>0], deviation_factor=5)
+
+    # # debugging tool
+    # import matplotlib.pyplot as plt
+    # # print(df_only_valid.ref_elev[weights>0], df_only_valid._median[weights>0], 1/weights[weights>0], '_')
+    # plt.errorbar(df_only_valid.ref_elev[weights>0], df_only_valid._median[weights>0], yerr=.1/weights[weights>0], fmt='_')
+    # plt.plot(df_only_valid.ref_elev[weights>0][outlier_mask], df_only_valid._median[weights>0][outlier_mask], 'rx')
+    # pl_x = np.arange(0, 2001, 100)
+    # plt.plot(pl_x, np.polyval(coeffs, pl_x), '-')
+    # plt.show()
+
+    tmp.loc[tmp[weights]>0,weights] = ~outlier_mask.values * tmp.loc[tmp[weights]>0,weights]
+    # fit again
+    coeffs = np.polyfit(tmp[elev]-x0, tmp[main_var], degree, w=tmp[weights])
+    lowest = tmp.loc[tmp[weights]>0,elev].min()
+    highest = tmp.loc[tmp[weights]>0,elev].max()
+    ds[main_var] = xr.where(ds[weights]==0,
+                            xr.where(ds[elev]>lowest,
+                                     xr.where(ds[elev]<highest,
+                                              np.polyval(coeffs, ds[elev]-x0),
+                                              np.polyval(coeffs, highest-x0)), 
+                                     np.polyval(coeffs, lowest-x0)),
+                            ds[main_var])
+    ds[weights] = xr.where(ds[weights]==0, -1, ds[weights])
+    # print(ds[main_var].where(ds[weights]==0).isnull().sum().values)
+    # # from here, weights are only used as mask. to-be-filled: 0, missing ref_elev: -1
+    # weights = df_only_valid[weights].reindex(df_valid_ref_elev.index, fill_value=0)
+    # weights = weights.reindex(df.index, fill_value=-1)
+    # df.loc[weights==0,main_var] = np.polyval(coeffs, df.loc[weights==0,elev]-x0)
+    # df.loc[df[elev]<lowest,main_var] = 
+    # df.loc[df[elev]>highest,main_var] = 
+    # print(df)
+    return ds
+__all__.append("interpolate_hypsometrically")
+
+
 def load_cs_full_file_names(update: str = "no") -> pd.Series:
     """Loads a pandas.Series of the original CryoSat-2 L1b file names.
 
@@ -447,10 +515,10 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
         # the next two function have only a local purpose.
         def save_current_track_list(new_track_series: gpd.GeoSeries):
             """saves the tracklist; backing up the old if older than 5 days."""
-            if not os.path.isfile(append_filename(cs_ground_tracks_path, "__backup"))\
+            if not os.path.isfile(extend_filename(cs_ground_tracks_path, "__backup"))\
                     or time.time() - os.path.getmtime(cs_ground_tracks_path)  > 5 * 24*60*60:
                 print("backing up \"old\" track file")
-                shutil.copyfile(cs_ground_tracks_path, append_filename(cs_ground_tracks_path, "__backup"))
+                shutil.copyfile(cs_ground_tracks_path, extend_filename(cs_ground_tracks_path, "__backup"))
             print("saving current track list to file")
             new_track_series.to_feather(cs_ground_tracks_path)
 
