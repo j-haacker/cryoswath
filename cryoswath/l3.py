@@ -45,6 +45,51 @@ def append_basin_id(ds: xr.DataArray|xr.Dataset,
 __all__.append("append_basin_id")
     
 
+def append_basin_group(ds: xr.DataArray|xr.Dataset,
+                       basin_gdf: gpd.GeoDataFrame = None,
+                       ) -> xr.Dataset:
+    if basin_gdf is None:
+        raise NotImplementedError("Automatic basin loading is not yet implemented.")
+    if isinstance(ds, xr.DataArray):
+        ds = ds.to_dataset()
+    ds["group_id"] = xr.DataArray(np.int32(-1),
+                                  coords={k: v for k, v in ds.coords.items() if k in ["x", "y"]},
+                                  dims=["x", "y"],
+                                  attrs={"_FillValue": np.int32(-9e9)})
+    for basin_tt_group in basin_gdf.groupby("term_type"):
+        # cut latitude into degree slices
+        n_lat_bins = max(1, round(basin_tt_group[1].cenlat.max()-basin_tt_group[1].cenlat.min()))
+        # below, `observed=True` to grant compatibility with future pandas versions.
+        for basin_lat_group in basin_tt_group[1].groupby(pd.cut(basin_tt_group[1].cenlat, bins=n_lat_bins),
+                                                         observed=True):
+            # similarly, cut longitude
+            n_lon_bins = max(1, round((basin_lat_group[1].cenlon.max()-basin_lat_group[1].cenlon.min())
+                                        * np.cos(np.deg2rad(basin_lat_group[0].mid))))
+            for basin_lon_group in basin_lat_group[1].groupby(pd.cut(basin_lat_group[1].cenlon, bins=n_lon_bins),
+                                                                observed=True):
+                # use all cells with matching term_type in proximity as reference
+                try:
+                    mask = ds.group_id.rio.clip(basin_lon_group[1].geometry)
+                except rioxr.exceptions.NoDataInBounds:
+                    # if there is no data at all, continue
+                    # debugging:
+                    # basin_lon_group[1].plot()
+                    # plt.show()
+                    continue
+                # construct id: sign indicates hemisphere, first digit is termination
+                # type (see RGI doc; 0: land, 1: tidewater, 2: lake, 3: shelf, 9: n/a),
+                # digits 2+3 are latitude, digits 4-6 are longitude east of 0 (0-360)
+                term_type = basin_tt_group[0]
+                lat = basin_lat_group[0].mid
+                lon = basin_lon_group[0].mid
+                group_id = int(f"{np.sign(lat)*term_type:.0f}{np.abs(lat):02.0f}{lon%360:03.0f}")
+                mask = xr.where(mask==mask._FillValue, ds.group_id.loc[dict(x=mask.x, y=mask.y)], group_id)
+                ds["group_id"].loc[dict(x=mask.x, y=mask.y)] = mask
+    ds["group_id"] = xr.where(ds.group_id==-1, ds.group_id._FillValue, ds.group_id)
+    return ds
+__all__.append("append_basin_group")
+
+
 # numba does not do help here easily. using the numpy functions is as fast as it gets.
 def med_iqr_cnt(data):
     quartiles = np.quantile(data, [.25, .5, .75])
