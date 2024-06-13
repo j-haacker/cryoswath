@@ -88,7 +88,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
         crs=crs)
     # l2 backs up the cache when writing to it. however, there should not be a backup, yet. if there is, throw an error
     if os.path.isfile(cache_path+"__backup"):
-        raise Exception(f"Backup exists unexpectedly at {cache_path+"__backup"}. This may point to a running process. If this is a relict, remove it manually.")
+        raise Exception(f"Backup exists unexpectedly at {cache_path+'__backup'}. This may point to a running process. If this is a relict, remove it manually.")
     try:
         l2.from_id(cs_tracks.index, save_or_return="save", cache=cache_path, crs=crs, bbox=bbox,
                    **filter_kwargs(l2.from_id, l2_from_id_kwargs, blacklist=["save_or_return", "cache"]))
@@ -312,8 +312,6 @@ def fill_voids(l3_data):
                 # use all cells with matching term_type in proximity as reference
                 frame = basin_lon_group[1].unary_union.bounds
                 matching_tt = basin_shapes.clip(frame).rgi_id.apply(lambda x: int(x.split("-")[-1])).to_list()
-                # below, cutting to the frame is probably not really necessary because
-                # matching_tt is already constrained
                 subset = l3_df.loc[l3_df.basin_id.isin(matching_tt)]
                 subset = interpolation_wrapper(subset)
                 l3_df.loc[subset.index] = subset
