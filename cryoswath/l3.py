@@ -29,10 +29,10 @@ def append_basin_id(ds: xr.DataArray|xr.Dataset,
         raise NotImplementedError("Automatic basin loading is not yet implemented.")
     if isinstance(ds, xr.DataArray):
         ds = ds.to_dataset()
-    ds["basin_id"] = xr.DataArray(-1,
+    ds["basin_id"] = xr.DataArray(np.int32(-1),
                                   coords={k: v for k, v in ds.coords.items() if k in ["x", "y"]},
                                   dims=["x", "y"],
-                                  attrs={"_FillValue": -9999})
+                                  attrs={"_FillValue": np.int32(-9e9)})
     for i in range(len(basin_gdf)):
         try:
             subset = ds.basin_id.rio.clip(basin_gdf.iloc[[i]].geometry)
