@@ -22,6 +22,29 @@ from .gis import ensure_pyproj_crs, find_planar_crs
 __all__ = list()
     
 
+def append_basin_id(ds: xr.DataArray|xr.Dataset,
+                    basin_gdf: gpd.GeoDataFrame = None,
+                    ) -> xr.Dataset:
+    if basin_gdf is None:
+        raise NotImplementedError("Automatic basin loading is not yet implemented.")
+    if isinstance(ds, xr.DataArray):
+        ds = ds.to_dataset()
+    ds["basin_id"] = xr.DataArray(-1,
+                                  coords={k: v for k, v in ds.coords.items() if k in ["x", "y"]},
+                                  dims=["x", "y"],
+                                  attrs={"_FillValue": -9999})
+    for i in range(len(basin_gdf)):
+        try:
+            subset = ds.basin_id.rio.clip(basin_gdf.iloc[[i]].geometry)
+        except rioxr.exceptions.NoDataInBounds:
+            continue
+        subset = xr.where(subset==subset._FillValue, ds.basin_id.loc[dict(x=subset.x, y=subset.y)], int(basin_gdf.iloc[i].rgi_id.split("-")[-1])).rio.write_crs(ds.rio.crs)
+        ds["basin_id"].loc[dict(x=subset.x, y=subset.y)] = subset
+    ds["basin_id"] = xr.where(ds.basin_id==-1, ds.basin_id._FillValue, ds.basin_id)
+    return ds
+__all__.append("append_basin_id")
+    
+
 # numba does not do help here easily. using the numpy functions is as fast as it gets.
 def med_iqr_cnt(data):
     quartiles = np.quantile(data, [.25, .5, .75])
