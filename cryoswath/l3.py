@@ -312,85 +312,48 @@ def fill_missing_coords(l3_data):
 __all__.append("fill_missing_coords")
 
 
-def fill_voids(l3_data):
-    # for now, this is a very specific function despite its name. it expects
-    # l3_data to have the dimensions x, y, and time, that it covers an RGI
-    # o2 region, and that it contains the stats: _median, _iqr,
-    # and _count.
-    # figure out region. limited to o2 meanwhile
-    print("... loading basin outlines")
-    left, lower, right, upper = l3_data.rio.transform_bounds(4326)
-    o2code = find_region_id(shapely.Point(left+(right-left)/2, lower+(upper-lower)/2), scope="o2")
-    # print(o2code)
-    basin_shapes = load_o2region(o2code, product="glaciers").to_crs(l3_data.rio.crs)
-    print("... reading reference DEM")
-    # finding a latitude to determine the reference DEM like below may be prone to bugs
-    with get_dem_reader(l3_data._median[0].transpose("y", "x").rio.reproject(4326).y.values[0]) as dem_reader:
-        with rioxr.open_rasterio(dem_reader) as ref_dem:
-            ref_dem = ref_dem.rio.clip_box(*l3_data._median[0].rio.reproject(ref_dem.rio.crs).rio.bounds()).squeeze()
-    # print(l3_data.dims, ref_dem.dims)
-    l3_data["ref_elev"] = ref_dem.rio.reproject_match(l3_data, resampling=rasterio.warp.Resampling.average).transpose("x", "y").rio.clip(basin_shapes.geometry)
-    l3_data.ref_elev.attrs.update({"_FillValue": np.nan})
-    l3_data["ref_elev"] = xr.where(l3_data.ref_elev < 100, np.nan, l3_data.ref_elev)
-    # from matplotlib import pyplot as plt
-    # l3_data.ref_elev.T.plot(robust=True)
-    # plt.show()
-    print("num nan in ref_elev", l3_data.ref_elev.isnull().sum())
-    print("num other in ref_elev", np.logical_or(l3_data.ref_elev<-100, l3_data.ref_elev>3000).sum())
-    # print(l3_data.ref_elev)
-    # l3_data.ref_elev.rio.clip(basin_shapes.geometry).T.plot(vmin=-10, vmax=1300)
-    # basin_shapes.boundary.plot(ax=plt.gca())
-    # plt.show()
-    # ref_dem.rio.reproject_match(l3_data, resampling=rasterio.warp.Resampling.average).rio.clip(basin_shapes.geometry).plot(vmin=-10, vmax=1300)
-    # basin_shapes.boundary.plot(ax=plt.gca())
-    # plt.show()
-    # ref_dem.rio.clip(basin_shapes.to_crs(ref_dem.rio.crs).geometry).plot(vmin=-10, vmax=1300)
-    # basin_shapes.to_crs(ref_dem.rio.crs).boundary.plot(ax=plt.gca())
-    # plt.show()
-    print("... assigning basin ids to grid cells")
-    l3_crs = l3_data.rio.crs
-    # print(l3_crs)
-    l3_data["basin_id"] = xr.DataArray(np.zeros_like(l3_data.ref_elev, dtype="i4"),
-                                       coords={k: v for k, v in l3_data.coords.items() if k in ["x", "y"]}
-                                       ).rio.write_crs(l3_crs)
-    # print(l3_data.basin_id)
-    for i in range(len(basin_shapes)):
-        try:
-            subset = l3_data.basin_id.rio.clip(basin_shapes.iloc[[i]].geometry)
-        except rioxr.exceptions.NoDataInBounds:
-            continue
+def fill_voids(ds: xr.Dataset,
+               main_var: str = None,
+               *,
+               weights: str = "weights",
+               elev: str = "ref_elev",
+               per: tuple[str] = ("basin", "basin_group"),
+               basin_shapes: gpd.GeoDataFrame = None,
+               ) -> xr.Dataset:
+    if basin_shapes is None:
+        # figure out region. limited to o2 meanwhile
+        print("... loading basin outlines")
+        o2code = find_region_id(ds, scope="o2")
+        basin_shapes = load_o2region(o2code, product="glaciers").to_crs(ds.rio.crs)
+    if elev not in ds:
+        print("... reading reference DEM")
+        # finding a latitude to determine the reference DEM like below may be prone to bugs
+        with get_dem_reader(ds.transpose("y", "x").rio.reproject(4326).y.values[0]) as dem_reader:
+            with rioxr.open_rasterio(dem_reader) as ref_dem:
+                ref_dem = ref_dem.rio.clip_box(*ds[main_var].transpose("y", "x").rio.bounds()).squeeze()
+                ref_dem = xr.where(ref_dem==ref_dem._FillValue, np.nan, ref_dem).rio.write_crs(ref_dem.rio.crs)
+                ref_dem.attrs.update({"_FillValue": np.nan})
+        ds[elev] = xr.align(ref_dem.rio.reproject_match(ds, resampling=rasterio.warp.Resampling.average, nodata=ref_dem._FillValue), ds[main_var], join="right")[0]
+        ds[elev].attrs.update({"_FillValue": np.nan})
+    for grouper in per:
+        if grouper=="basin":
+            if "basin_id" not in ds:
+                print("... assigning basin ids to grid cells")
+                ds = append_basin_id(ds, basin_shapes)
+            if "time" in ds.dims:
+                raise NotImplementedError
+            ds = ds.groupby(ds.basin_id).apply(interpolate_hypsometrically, (main_var,), elev=elev, weights=weights)
+            print("weights dtype", ds.weights.dtype)
+        elif grouper=="basin_group":
+            if "group_id" not in ds:
+                print("... assigning basin groups to grid cells")
+                ds = append_basin_group(ds, basin_shapes)
+            if "time" in ds.dims:
+                raise NotImplementedError
+            ds = ds.groupby(ds.group_id).apply(interpolate_hypsometrically, (main_var,), elev=elev, weights=weights)
         else:
-            subset = xr.where(subset.isnull(), subset, int(basin_shapes.iloc[i].rgi_id.split("-")[-1]))
-            aligned = xr.align(subset, l3_data.basin_id, join="right")#, copy=False
-            l3_data["basin_id"] = xr.where(aligned[0].isnull(), l3_data.basin_id, aligned[0]).rio.write_crs(l3_crs)
-    l3_df = l3_data.to_dataframe()
-    l3_df = l3_df[l3_df.basin_id>0]
-    print("... interpolating data per basin")
-    l3_df = l3_df.groupby(l3_df.basin_id).apply(interpolation_wrapper)
-    print("l3_ddf shape after basin void filling:\n", l3_df.head(0))
-    l3_df = l3_df.droplevel(0)
-    print("l3_ddf shape after dropping lev0:\n", l3_df.head(0))
-    print("... interpolating remaining voids")
-    # the remaining voids are filled based on termination type and location
-    for basin_tt_group in basin_shapes.groupby("term_type"):
-        # cut latitude into degree slices
-        n_lat_bins = max(1, round(basin_tt_group[1].cenlat.max()-basin_tt_group[1].cenlat.min()))
-        # below, `observed=True` to grant compatibility with future pandas versions.
-        for basin_lat_group in basin_tt_group[1].groupby(pd.cut(basin_tt_group[1].cenlat, bins=n_lat_bins),
-                                                         observed=True):
-            # similarly, cut longitude
-            n_lon_bins = max(1, round((basin_lat_group[1].cenlon.max()-basin_lat_group[1].cenlon.min())
-                                      * np.cos(np.deg2rad(basin_lat_group[0].mid))))
-            for basin_lon_group in basin_lat_group[1].groupby(pd.cut(basin_lat_group[1].cenlon, bins=n_lon_bins),
-                                                              observed=True):
-                # use all cells with matching term_type in proximity as reference
-                frame = basin_lon_group[1].unary_union.bounds
-                matching_tt = basin_shapes.clip(frame).rgi_id.apply(lambda x: int(x.split("-")[-1])).to_list()
-                subset = l3_df.loc[l3_df.basin_id.isin(matching_tt)]
-                subset = interpolation_wrapper(subset)
-                l3_df.loc[subset.index] = subset
-    l3_data = xr.merge([l3_df[["_median", "_iqr", "_count"]].to_xarray(), l3_data], join="right", compat="override")
-    return l3_data
+            raise NotImplementedError
+    return ds
 __all__.append("fill_voids")
 
 

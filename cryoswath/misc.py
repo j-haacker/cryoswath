@@ -333,32 +333,22 @@ def interpolate_hypsometrically(ds: xr.Dataset,
                                 elev: str = "ref_elev",
                                 weights: str = "weights",
                                 degree: int = 3) -> xr.Dataset:
-    # print(ds)
-    # import matplotlib.pyplot as plt
-    # ds[weights].unstack().plot()
-    # plt.show()
     ds[weights] = xr.where(ds[elev].isnull(), np.nan, ds[weights])
-    if ds[elev].where(ds[weights]>0).count()==0:
-        return ds
-    # abort if too little data. necessary to prevent errors but also introduces data gaps
-    if sum(ds[weights]>0) <= 20:
+    # abort if too little data (checking elevation and data validity).
+    # necessary to prevent errors but also introduces data gaps
+    if ds[elev].where(ds[weights]>0).count() < degree*3:
         print("too little data")
         return ds
     # also, abort if there isn't anything to do
     if not (ds[weights]==0).any():
         print("nothing to do")
         return ds
-    ds[weights] = ds[weights]/ds[weights].mean()
+    ds[weights] = ds[weights]/ds[weights].where(ds[weights]>0).mean()
     # first fit
     x0 = ds[elev].where(ds[weights]>0).mean().values
-    # print(x0)
     tmp = ds.to_dataframe()[[main_var, elev, weights]].dropna(axis=0, how="any")
-    # print(tmp)
-    # print(tmp[elev]-x0, tmp[main_var], degree, tmp[weights])
     coeffs = np.polyfit(tmp[elev]-x0, tmp[main_var], degree, w=tmp[weights])
-    # print(coeffs)
     residuals = np.polyval(coeffs, tmp[elev]-x0) - tmp[main_var]
-    # print(residuals)
     # find and remove outlier
     outlier_mask = flag_outliers(residuals[tmp[weights]>0], deviation_factor=5)
 
@@ -383,15 +373,9 @@ def interpolate_hypsometrically(ds: xr.Dataset,
                                               np.polyval(coeffs, highest-x0)), 
                                      np.polyval(coeffs, lowest-x0)),
                             ds[main_var])
-    ds[weights] = xr.where(ds[weights]==0, -1, ds[weights])
-    # print(ds[main_var].where(ds[weights]==0).isnull().sum().values)
-    # # from here, weights are only used as mask. to-be-filled: 0, missing ref_elev: -1
-    # weights = df_only_valid[weights].reindex(df_valid_ref_elev.index, fill_value=0)
-    # weights = weights.reindex(df.index, fill_value=-1)
-    # df.loc[weights==0,main_var] = np.polyval(coeffs, df.loc[weights==0,elev]-x0)
-    # df.loc[df[elev]<lowest,main_var] = 
-    # df.loc[df[elev]>highest,main_var] = 
-    # print(df)
+    # set weights to nan, so that the grid cells do not get overwritten in a
+    # second interpolation cycle
+    ds[weights] = xr.where(ds[weights]==0, np.nan, ds[weights])
     return ds
 __all__.append("interpolate_hypsometrically")
 
