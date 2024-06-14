@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import scipy.special
 import xarray as xr
 
 from . import l3
@@ -37,6 +38,22 @@ def fit_trend(data: xr.Dataset, *,
     ds["weights"] = xr.apply_ufunc(trunc_weights, ds.trend_CI95, ds.trend, vectorize=True)
     return l3.fill_voids(ds.rio.write_crs(data.rio.crs), "trend")
 __all__.append("fit_trend")
+
+
+def differential_change(data: xr.Dataset,
+                        ) -> xr.Dataset:
+    shiftby = np.argwhere((data.time==data.time[0].values+pd.DateOffset(years=1)).values)[0][0]
+    differences = data._median.shift(time=shiftby).dropna("time", how="all")-data._median.where(data._count>3)
+    scaling_factor = .5**.5/scipy.special.erf(.5)
+    uncertainties = data._iqr/2 * scaling_factor * 2 / data._count**.5
+    uncertainties = (uncertainties.shift(time=shiftby).dropna("time", how="all")**2+uncertainties.where(data._count>3)**2)**.5
+    def trunc_weights(CI, trend):
+        if CI<np.min([15, 5+.2*np.abs(trend)]): return 1/CI
+        else: return 0
+    weights = xr.apply_ufunc(trunc_weights, uncertainties, differences, vectorize=True)
+    data = xr.merge([differences.rename("elev_change"), uncertainties.rename("elev_change_CI95"), weights.rename("weights")])
+    return l3.fill_voids(data, "elev_change")
+__all__.append("differential_change")
 
 
 __all__ = sorted(__all__)

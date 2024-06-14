@@ -328,24 +328,27 @@ def fill_voids(ds: xr.Dataset,
     if elev not in ds:
         print("... reading reference DEM")
         # finding a latitude to determine the reference DEM like below may be prone to bugs
-        with get_dem_reader(ds.transpose(..., "y", "x").rio.reproject(4326).y.values[0]) as dem_reader:
+        with get_dem_reader(ds) as dem_reader:
             with rioxr.open_rasterio(dem_reader) as ref_dem:
-                ref_dem = ref_dem.rio.clip_box(*ds[main_var].transpose(..., "y", "x").rio.bounds()).squeeze()
+                ref_dem = ref_dem.rio.clip_box(*ds[main_var].transpose(..., "y", "x").rio.transform_bounds(ref_dem.rio.crs)).squeeze()
                 ref_dem = xr.where(ref_dem==ref_dem._FillValue, np.nan, ref_dem).rio.write_crs(ref_dem.rio.crs)
                 ref_dem.attrs.update({"_FillValue": np.nan})
-        ds[elev] = xr.align(ref_dem.rio.reproject_match(ds, resampling=rasterio.warp.Resampling.average, nodata=ref_dem._FillValue), ds[main_var], join="right")[0]
+        ds[elev] = xr.align(ref_dem.rio.reproject_match(ds, resampling=rasterio.warp.Resampling.average,
+                                                        nodata=ref_dem._FillValue),
+                            ds[main_var].isel({"time": 0} if "time" in ds[main_var].dims else {}),
+                            join="right")[0]
         ds[elev].attrs.update({"_FillValue": np.nan})
     for grouper in per:
         if grouper=="basin":
             if "basin_id" not in ds:
                 print("... assigning basin ids to grid cells")
                 ds = append_basin_id(ds, basin_shapes)
-            ds = ds.groupby(ds.basin_id).apply(interpolate_hypsometrically, (main_var,), elev=elev, weights=weights)
+            ds = ds.groupby(ds.basin_id).apply(interpolate_hypsometrically, main_var=main_var, elev=elev, weights=weights)
         elif grouper=="basin_group":
             if "group_id" not in ds:
                 print("... assigning basin groups to grid cells")
                 ds = append_basin_group(ds, basin_shapes)
-            ds = ds.groupby(ds.group_id).apply(interpolate_hypsometrically, (main_var,), elev=elev, weights=weights)
+            ds = ds.groupby(ds.group_id).apply(interpolate_hypsometrically, main_var=main_var, elev=elev, weights=weights)
         else:
             raise NotImplementedError
     return ds
