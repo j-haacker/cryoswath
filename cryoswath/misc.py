@@ -345,7 +345,7 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         print("too little data")
         return ds
     # also, abort if there isn't anything to do
-    if not any(ds[weights]==0):
+    if not (ds[weights]==0).any():
         print("nothing to do")
         return ds
     ds[weights] = ds[weights]/ds[weights].mean()
