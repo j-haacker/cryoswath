@@ -308,7 +308,7 @@ def gauss_filter_DataArray(da, dim, window_extent, std):
 
 def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
     if isinstance(data, xr.DataArray) or isinstance(data, xr.Dataset):
-        lat = np.mean(data.rio.transform_bounds("EPSG:4326")[[1,3]])
+        lat = np.mean(data.rio.transform_bounds("EPSG:4326")[1::2])
     elif isinstance(data, gpd.GeoSeries) or isinstance(data, gpd.GeoDataFrame):
         lat = data.to_crs(4326).centroid.y
     elif isinstance(data, shapely.Geometry):
