@@ -334,7 +334,7 @@ def interpolate_hypsometrically(ds: xr.Dataset,
                                 weights: str = "weights",
                                 degree: int = 3) -> xr.Dataset:
     if "time" in ds.dims:
-        raise NotImplementedError
+        return ds.groupby("time").apply(interpolate_hypsometrically, main_var=main_var, elev=elev, weights=weights, degree=degree)
     ds[weights] = xr.where(ds[elev].isnull(), np.nan, ds[weights])
     # abort if too little data (checking elevation and data validity).
     # necessary to prevent errors but also introduces data gaps
