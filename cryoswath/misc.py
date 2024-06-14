@@ -307,18 +307,25 @@ def gauss_filter_DataArray(da, dim, window_extent, std):
 
 
 def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
-    # # data can be either l1b.l1b_data (xarray.Dataset containing
-    # # "lat_20_ku"), l2 data (geopandas.GeoDataFrame containing "lat"),
-    # # or  a (lon, lat) tuple/list/dict.
-    # if isinstance(data, float):
-    #     lat = data
-    # elif len(data.lat_20_ku) > 1:
-    #     lat = np.abs(data.lat_20_ku).min()
-    # else:
-    #     lat = data.lat_20_ku
-    # if lat
-    # return rasterio.open(os.path.join(dem_path, "09-02_novaya_zemlya.tif"))
-    return rasterio.open(os.path.join(dem_path, "arcticdem_mosaic_100m_v4.1_dem.tif"))
+    if isinstance(data, xr.DataArray) or isinstance(data, xr.Dataset):
+        lat = np.mean(data.rio.transform_bounds("EPSG:4326")[[1,3]])
+    elif isinstance(data, gpd.GeoSeries) or isinstance(data, gpd.GeoDataFrame):
+        lat = data.to_crs(4326).centroid.y
+    elif isinstance(data, shapely.Geometry):
+        lat = np.mean(data.total_bounds[[1,3]])
+    elif isinstance(data, float) or isinstance(data, int):
+        lat = data
+    elif isinstance(data, str):
+        if data.lower() in ["arctic", "arcticdem"]:
+            lat = 90
+        elif data.lower() in ["antarctic", "rema"]:
+            lat = -90
+    if "lat" not in locals():
+        raise NotImplementedError(f"`get_dem_reader` could not handle the input of type {data.__class__}. See doc for further info.")
+    if lat > 0:
+        return rasterio.open(os.path.join(dem_path, "arcticdem_mosaic_100m_v4.1_dem.tif"))
+    else:
+        return rasterio.open(os.path.join(dem_path, "rema_mosaic_100m_v2.0_filled_cop30_dem.tif"))
 
 
 def interpolate_hypsometrically(ds: xr.Dataset,
