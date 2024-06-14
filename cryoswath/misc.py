@@ -193,6 +193,9 @@ __all__.append("filter_kwargs")
 
 
 def find_region_id(location: any, scope: str = "o2") -> str:
+    if isinstance(location, xr.DataArray) or isinstance(location, xr.Dataset):
+        left, lower, right, upper = location.rio.transform_bounds(4326)
+        location = shapely.Point(left+(right-left)/2, lower+(upper-lower)/2)
     if isinstance(location, gpd.GeoDataFrame):
         location = location.geometry
     if isinstance(location, gpd.GeoSeries):
