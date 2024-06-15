@@ -100,6 +100,8 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     outfilepath = build_path(region_id, timestep_months, spatial_res_meter)
     if not reprocess and os.path.isfile(outfilepath):
         previously_processed_l3 = xr.open_dataset(outfilepath, decode_coords="all")
+        print(previously_processed_l3)
+        print(previously_processed_l3.rio.crs) # no crs? that shouldn't be the case! 
     node_list = []
     def guide_hdf_node(name, node):
         nonlocal node_list
@@ -175,7 +177,12 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
             # otherwise, issues arise when working with the data. occurs because
             # data is not reduced to glacierized region (but could in theory always
             # occur anyway)
-            l3_data = fill_missing_coords(l3_data.to_xarray()).rio.write_crs(crs)
+            try:
+                l3_data = fill_missing_coords(l3_data.to_xarray())
+            except:
+                print(l3_data)
+                print(l3_data.to_xarray())
+                raise
             # merge with previous data if there are any
             if "previously_processed_l3" in locals():
                 # unfortunately, combining datasets can be nasty:
