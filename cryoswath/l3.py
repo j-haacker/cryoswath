@@ -106,11 +106,10 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
         if not isinstance(node, h5py.Dataset) and "_i_table" in node:
             if "previously_processed_l3" in locals():
                 x_range, y_range = node.name.split("/")[-2:]
-                # string values passed to xarray in slices. however, seems xarray is fine with that
-                tmp = previously_processed_l3._median.sel(x=slice(*x_range.split("_")[-2:]),
-                                                           y=slice(*y_range.split("_")[-2:]))
-                if not previously_processed_l3._median.sel(x=slice(*x_range.split("_")[-2:]),
-                                                           y=slice(*y_range.split("_")[-2:])).isnull().all():
+                x0, x1 = [int(item) for item in x_range.split("_")[-2:]]
+                y0, y1 = [int(item) for item in y_range.split("_")[-2:]]
+                # print(x0, x1, y0, y1)
+                if not previously_processed_l3._median.sel(x=slice(x0, x1), y=slice(y0, y1)).isnull().all():
                     print("cell", node.name, "will be skipped. data is present")
                     return None
             node_list.append(node.name)
@@ -196,7 +195,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
             try:
                 if os.path.isfile(outfilepath):
                     shutil.move(outfilepath, tmp_path)
-                previously_processed_l3.to_netcdf(outfilepath)
+                previously_processed_l3.rio.write_crs(crs).to_netcdf(outfilepath)
                 print(f"processed and stored cell", node_name)
             except:
                 shutil.move(tmp_path, outfilepath)
@@ -233,7 +232,7 @@ def fill_missing_coords(l3_data):
     # inspired by user9413641
     # https://stackoverflow.com/questions/68207994/fill-in-missing-index-positions-in-xarray-dataarray
     coords = {k: range(l3_data[k].min().values, l3_data[k].max().values+1, l3_data[k].diff(k).min().values)
-              for k in ["x", "y"]}
+              for k in ["x", "y"] if len(l3_data[k])>2}
     return l3_data.reindex(coords, fill_value=np.nan)
 __all__.append("fill_missing_coords")
 
