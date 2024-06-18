@@ -121,6 +121,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
                   start_datetime: str|pd.Timestamp,
                   end_datetime: str|pd.Timestamp, *,
                   l2_type: str = "swath",
+                  max_elev_diff: float = 150,
                   timestep_months: int = 1,
                   window_ntimesteps: int = 3,
                   spatial_res_meter: float = 500,
@@ -179,7 +180,8 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
         raise Exception(f"Backup exists unexpectedly at {cache_path+'__backup'}. This may point to a running process. If this is a relict, remove it manually.")
     try:
         l2.from_id(cs_tracks.index, save_or_return="save", cache=cache_path, crs=crs, bbox=bbox,
-                   **filter_kwargs(l2.from_id, l2_from_id_kwargs, blacklist=["save_or_return", "cache"]))
+                   max_elev_diff=max_elev_diff, **filter_kwargs(l2.from_id, l2_from_id_kwargs,
+                                                                blacklist=["save_or_return", "cache", "max_elev_diff"]))
     finally:
         # remove l2's cache backup. it is not needed as no more writing takes
         # place but it occupies some 10 Gb disk space.

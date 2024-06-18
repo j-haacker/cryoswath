@@ -106,25 +106,27 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
             if cores > 1 and len(current_track_indices) > 1:
                 with Pool(processes=cores) as p:
                     # function is defined at the bottom of this module
-                    collective_swath_poca_list = p.starmap(
-                        process_track,
-                        [(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"], current_subdir, kwargs) for idx
-                        in current_track_indices],
-                        chunksize=1)
+                    collective_swath_poca_list = p.starmap(process_track,
+                        [(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"],
+                          current_subdir, kwargs) for idx in current_track_indices], chunksize=1)
             else:
                 collective_swath_poca_list = []
                 for idx in current_track_indices:
-                    collective_swath_poca_list.append(process_track(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"],
-                                                                    current_subdir, kwargs))
-            # ensure all data in same CRS and clip to bbox
+                    collective_swath_poca_list.append(
+                        process_track(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"],
+                                      current_subdir, kwargs))
+            # ensure all data within `max_elev_diff`, in same CRS, and clip to bbox
             # note: if no crs is provided, check will not be done. if CRS mismatch,
             #       error occurs later
-            if "crs" in kwargs:
+            if any(key in kwargs for key in ["max_elev_diff", "crs", "bbox"]):
                 for i in range(len(collective_swath_poca_list)):
                     tmp = list(collective_swath_poca_list[i])
                     for j in range(len(tmp)):
                         if not tmp[j].empty:
-                            tmp[j] = tmp[j].to_crs(kwargs["crs"])
+                            if "max_elev_diff" in kwargs:
+                                tmp[j] = limit_filter(tmp[j], "h_diff", kwargs["max_elev_diff"])
+                            if "crs" in kwargs:
+                                tmp[j] = tmp[j].to_crs(kwargs["crs"])
                             # bbox must be `shapely.(Multi)Polygon` in same crs
                             if "bbox" in kwargs:
                                 tmp[j] = tmp[j].clip(kwargs["bbox"])
@@ -223,36 +225,41 @@ __all__.append("from_id")
 
 
 def from_processed_l1b(l1b_data: l1b.l1b_data = None,
-                       **kwargs) -> gpd.GeoDataFrame:
+                       max_elev_diff: float = None,
+                       **gdf_kwargs) -> gpd.GeoDataFrame:
     # kwargs: crs, max_elev_diff, input to GeoDataFrame
     if l1b_data is None:
         print("No data passed.")
         # ! empty GeoDataFrames can't have a CRS
         # super().__init__(crs=crs, **kwargs)
-        pass
+        return None
+    tmp = l1b_data.to_dataframe().dropna(axis=0, how="any")
+    if max_elev_diff is not None and "h_diff" in tmp:
+        tmp = limit_filter(tmp, "h_diff", max_elev_diff)
+        if tmp.empty:
+            return None
+    if isinstance(tmp.index, pd.MultiIndex): #
+        tmp.rename_axis(("time", "sample"), inplace=True)
+        tmp.index = tmp.index.set_levels(pd.DatetimeIndex(tmp["time"].groupby(level=0).first(), tz="UTC"), level=0)
+    elif tmp.index.name[:4].lower()=="time":
+        tmp.rename_axis(("time"), inplace=True)
+        tmp.index = pd.DatetimeIndex(tmp["time"], tz="UTC")
+    elif tmp.index.name[:2].lower()=="ns":
+        tmp.rename_axis(("sample"), inplace=True)
     else:
-        tmp = l1b_data.to_dataframe().dropna(axis=0, how="any")
-        if "max_elev_diff" in kwargs and "h_diff" in tmp:
-            tmp = limit_filter(tmp, "h_diff", kwargs.pop("max_elev_diff"))
-        if isinstance(tmp.index, pd.MultiIndex): #
-            tmp.rename_axis(("time", "sample"), inplace=True)
-            tmp.index = tmp.index.set_levels(pd.DatetimeIndex(tmp["time"].groupby(level=0).first(), tz="UTC"), level=0)
-        elif tmp.index.name[:4].lower()=="time":
-            tmp.rename_axis(("time"), inplace=True)
-            tmp.index = pd.DatetimeIndex(tmp["time"], tz="UTC")
-        elif tmp.index.name[:2].lower()=="ns":
-            tmp.rename_axis(("sample"), inplace=True)
-        else:
-            warnings.warn("Unexpected index name. May lead to issues.")
-        tmp.drop(columns=[col for col in ["time", "sample"] if col in tmp.columns], inplace=True)
-        # convert either lat, lon or x, y data to points assuming that any crs but 4326 uses x, y coordinates
-        if l1b_data.CRS == CRS.from_epsg(4326):
-            geometry = gpd.points_from_xy(tmp.lon, tmp.lat)
-            tmp.drop(columns=["lat", "lon"], inplace=True)
-        else:
-            geometry = gpd.points_from_xy(tmp.x, tmp.y)
-            tmp.drop(columns=["x", "y"], inplace=True)
-        return gpd.GeoDataFrame(tmp, geometry=geometry, crs=l1b_data.CRS, **filter_kwargs(gpd.GeoDataFrame, kwargs, blacklist=["crs"]))
+        warnings.warn("Unexpected index name. May lead to issues.")
+    tmp.drop(columns=[col for col in ["time", "sample"] if col in tmp.columns], inplace=True)
+    # convert either lat, lon or x, y data to points assuming that any crs but 4326 uses x, y coordinates
+    if l1b_data.CRS == CRS.from_epsg(4326):
+        geometry = gpd.points_from_xy(tmp.lon, tmp.lat)
+        tmp.drop(columns=["lat", "lon"], inplace=True)
+    else:
+        geometry = gpd.points_from_xy(tmp.x, tmp.y)
+        tmp.drop(columns=["x", "y"], inplace=True)
+    res = gpd.GeoDataFrame(tmp, geometry=geometry, crs=l1b_data.CRS, **filter_kwargs(gpd.GeoDataFrame, gdf_kwargs, blacklist=["crs"]))
+    if "crs" in gdf_kwargs:
+        res = res.to_crs(gdf_kwargs.pop("crs"))
+    return res
 __all__.append("from_processed_l1b")
 
 
@@ -296,7 +303,12 @@ def grid(l2_data: gpd.GeoDataFrame, spatial_res_meter: float, aggregation_functi
 def limit_filter(data: pd.DataFrame, column: str, limit: float) -> pd.DataFrame:
     if np.isnan(limit) or limit <= 0:
         return data
-    return data[np.abs(data[column])<limit]
+    res = data[np.abs(data[column])<limit]
+    # if a multiindex is used, it retains the level values for the deleted
+    # rows. this is, I believe, not the expected result of a filter.
+    if isinstance(res.index, pd.MultiIndex):
+        res.index = res.index.remove_unused_levels()
+    return res
 __all__.append("limit_filter")
 
 
@@ -335,7 +347,8 @@ def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwar
             else:
                 cs_full_file_names = load_cs_full_file_names(update="no")
         l1b_kwargs = filter_kwargs(l1b.l1b_data, kwargs)
-        to_l2_kwargs = filter_kwargs(l1b.l1b_data.to_l2, kwargs, blacklist=["swath_or_poca"], whitelist=["crs"])
+        to_l2_kwargs = filter_kwargs(l1b.l1b_data.to_l2, kwargs, blacklist=["swath_or_poca"],
+                                     whitelist=["crs", "max_elev_diff"])
         swath_poca_tuple = l1b.l1b_data.from_id(cs_time_to_id(idx), **l1b_kwargs)\
                                        .to_l2(swath_or_poca="both", **to_l2_kwargs)
         if save_or_return != "return":
