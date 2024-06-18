@@ -90,6 +90,26 @@ def append_basin_group(ds: xr.DataArray|xr.Dataset,
 __all__.append("append_basin_group")
 
 
+def append_elevation_reference(geospatial_ds: xr.Dataset|xr.DataArray,
+                               ref_elev_name: str = "ref_elev",
+                               ) -> xr.Dataset:
+    if isinstance(geospatial_ds, xr.DataArray):
+        geospatial_ds = geospatial_ds.to_dataset()
+    # finding a latitude to determine the reference DEM like below may be prone to bugs
+    with get_dem_reader(geospatial_ds) as dem_reader:
+        with rioxr.open_rasterio(dem_reader) as ref_dem:
+            ref_dem = ref_dem.rio.clip_box(*geospatial_ds.rio.transform_bounds(ref_dem.rio.crs)).squeeze()
+            ref_dem = xr.where(ref_dem==ref_dem._FillValue, np.nan, ref_dem).rio.write_crs(ref_dem.rio.crs)
+            ref_dem.attrs.update({"_FillValue": np.nan})
+    geospatial_ds[ref_elev_name] = xr.align(
+        ref_dem.rio.reproject_match(geospatial_ds, resampling=rasterio.warp.Resampling.average,
+                                    nodata=ref_dem._FillValue),
+        geospatial_ds, join="right")[0]
+    geospatial_ds[ref_elev_name].attrs.update({"_FillValue": np.nan})
+    return geospatial_ds
+__all__.append("append_elevation_reference")
+
+
 # numba does not do help here easily. using the numpy functions is as fast as it gets.
 def med_iqr_cnt(data):
     quartiles = np.quantile(data, [.25, .5, .75])
