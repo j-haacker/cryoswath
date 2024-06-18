@@ -50,7 +50,7 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
         start_datetime, end_datetime = track_idx.sort_values()[[0,-1]]
         # ! below will not return data that is cached, even if save_or_return="both"
         # this is a flaw in the current logic. rework.
-        if cache is not None and save_or_return != "return":
+        if not reprocess and cache is not None and save_or_return != "return":
             try:
                 poca_collection = []
                 def collect_pocas(name, node):
@@ -84,7 +84,10 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
         kwargs["cs_full_file_names"] = load_cs_full_file_names(update="no")
         for current_month in pd.date_range(start_datetime.normalize()-pd.DateOffset(day=1),
                                            end_datetime, freq="MS"):
-            if cache is not None and save_or_return != "return" and current_month.tz_localize(None) in skip_months:
+            if not reprocess\
+                    and cache is not None\
+                    and save_or_return != "return"\
+                    and current_month.tz_localize(None) in skip_months:
                 print("Skipping cached month", current_month.strftime("%Y-%m"))
                 continue
             current_subdir = current_month.strftime(f"%Y{os.path.sep}%m")
