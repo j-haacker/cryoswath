@@ -29,7 +29,7 @@ from . import gis
 
 # make contents accessible
 __all__ = ["WGS84_ellpsoid", "antenna_baseline", "Ku_band_freq", "sample_width",     # vars ...........................
-           "speed_of_light", "cryosat_id_pattern",
+           "speed_of_light", "cryosat_id_pattern", "nanoseconds_per_year",
            "cs_id_to_time", "cs_time_to_id", "find_region_id", "flag_translator",    # funcs ..........................
            "gauss_filter_DataArray", "get_dem_reader", "load_cs_full_file_names", 
            "load_cs_ground_tracks", "load_o1region", "load_o2region", "load_basins",
@@ -81,6 +81,7 @@ antenna_baseline = 1.1676
 Ku_band_freq = 13.575e9
 sample_width = speed_of_light/(320e6*2)/2
 cryosat_id_pattern = re.compile("20[12][0-9][01][0-9][0-3][0-9]T[0-2][0-9]([0-5][0-9]){2}")
+nanoseconds_per_year = 365.25*24*60*60*1e9
 
 ## Functions ##########################################################
 
