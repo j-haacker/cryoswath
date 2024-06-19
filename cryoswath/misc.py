@@ -226,7 +226,7 @@ def find_region_id(location: any, scope: str = "o2") -> str:
 def flag_outliers(data,
                   stat: callable = np.median,
                   deviation_factor: float = 3,
-                  scaling_factor: float = .5**.5/scipy.special.erf(.5)):
+                  scaling_factor: float = 2*2**.5*scipy.special.erfinv(.5)):
     """Flags data that is considered outlier given a set of assumptions.
 
     Data too far from a reference point is marked. Works analogous comparing
@@ -247,7 +247,7 @@ def flag_outliers(data,
             point distances between data and first reference point.
             Defaults to 3.
         scaling_factor (float, optional): Reference distance scaling.
-            Defaults to .5**.5/scipy.special.erf(.5).
+            Defaults to 2*2**.5*scipy.special.erfinv(.5)).
 
     Returns:
         bool, shaped like input: Mask that is positive for outliers.
