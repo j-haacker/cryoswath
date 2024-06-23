@@ -243,6 +243,9 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
             results_list = [None]*window_ntimesteps
             for i in range(window_ntimesteps):
                 def local_closure(roll_iteration):
+                    # note: consider calculating the kurtosis of the data between the 25th
+                    #       and the 75th percentile. this could help later on to identify
+                    #       the approximate distribution shape
                     return l2_ddf.rename(columns={f"roll_{i}": "time_idx"}).groupby(["time_idx", "x", "y"], sort=False).h_diff.apply(agg_func_and_meta[0], meta=agg_func_and_meta[1])
                 results_list[i] = local_closure(i)
             for i in range(window_ntimesteps):
