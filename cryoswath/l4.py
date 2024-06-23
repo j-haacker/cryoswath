@@ -3,6 +3,7 @@ import pandas as pd
 import scipy.special
 import xarray as xr
 
+from .misc import data_path, find_region_id, nanoseconds_per_year
 from . import l3
 
 __all__ = list()
@@ -21,8 +22,9 @@ def fit_trend(data: xr.Dataset, *,
     # 3-monthly, aggregation time, the current approach should work equally
     # fine.
     time_indices = pd.date_range(data.time[0].values+pivot, data.time[-1].values, freq=f"{timestep_months}MS")
-    fit_res = data.sel(time=time_indices).polyfit("time", 1, cov=True)
-    nanoseconds_per_year = 365.25*24*60*60*1e9
+    data = data.sel(time=time_indices)
+    data = data.where(data.isel(time=slice(None,3)).any("time")).where(data.isel(time=slice(-3,None)).any("time"))
+    fit_res = data.polyfit("time", 1, cov=True)
     fit_res["polyfit_coefficients"][0] = fit_res["polyfit_coefficients"][0] * nanoseconds_per_year
     fit_res["polyfit_covariance"][0,0] = fit_res["polyfit_covariance"][0,0] * nanoseconds_per_year**2
     fit_res["polyfit_covariance"][0,1] = fit_res["polyfit_covariance"][0,1] * nanoseconds_per_year
