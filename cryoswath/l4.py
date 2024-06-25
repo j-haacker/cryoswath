@@ -8,6 +8,20 @@ from . import l3
 
 __all__ = list()
 
+# notes for future development:
+# the current code exploits yearly orbit repeats. however, the orbit was
+# changed in July, 2020 (search the internet for "cryo2ice"). thus, it
+# would be better, to separate the data into the periods before and
+# after the manoeuvre.
+# further: the stability of the hypsometric void filling fit could be
+# increased by evaluating a variety of relative surface elevation
+# changes and averaging the results. E.g. the change from 2010-09-01 to
+# 2015-09-01 and the change from 2010-09-01 to 2020-09-01 minus the
+# change from 2015-09-01 to 2020-09-01 have to be the same. So the best
+# would be to calculate all relative changes, then find all meaningful
+# combinations, and derive a final product by averaging those
+# combinations.
+
 
 def fit_trend(data: xr.Dataset, *,
             pivot: pd.DateOffset, # ? best class?
