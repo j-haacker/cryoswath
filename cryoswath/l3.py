@@ -300,7 +300,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
             except:
                 shutil.move(tmp_path, outfilepath)
             else:
-                os.remove(tmp_path)
+                if os.path.isfile(tmp_path):
     return previously_processed_l3
 __all__.append("build_dataset")
 
