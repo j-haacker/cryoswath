@@ -368,6 +368,8 @@ class l1b_data(xr.Dataset):
                                                .dropna("time_20_ku", how="all")
         elif swath_or_poca == "poca":
             waveforms_with_poca = self.time_20_ku[~self.poca_idx.isnull()]
+            if len(waveforms_with_poca) == 0:
+                return gpd.GeoDataFrame()
             tmp = self[out_vars+retain_vars+["ph_idx"]].sel(time_20_ku=waveforms_with_poca)\
                                                           .sel(ns_20_ku=self.poca_idx[~self.poca_idx.isnull()])
             tmp = tmp[out_vars+retain_vars].sel(phase_wrap_factor=tmp.ph_idx).dropna("time_20_ku", how="all")
