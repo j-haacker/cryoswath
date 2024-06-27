@@ -3,7 +3,7 @@ import pandas as pd
 import scipy.special
 import xarray as xr
 
-from .misc import data_path, find_region_id, nanoseconds_per_year
+from .misc import l4_path, find_region_id, nanoseconds_per_year
 from . import l3
 
 __all__ = list()
