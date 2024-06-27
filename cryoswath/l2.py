@@ -103,6 +103,9 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
             print("start processing", current_month)
             # indices per month with work-around :/ should be easier
             current_track_indices = pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index
+            if len(current_track_indices) == 0:
+                warnings.warn(f"No tracks to load data from for month {current_month}.")
+                continue
             if cores > 1 and len(current_track_indices) > 1:
                 with Pool(processes=cores) as p:
                     # function is defined at the bottom of this module
@@ -138,6 +141,9 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                 # to_hdf(format="fixed")
                 for l2_type, i in zip(["swath", "poca"], [0, 1]):
                     l2_data = pd.concat([item[i] for item in collective_swath_poca_list])
+                    if l2_data.empty:
+                        warnings.warn(f"No {l2_type} data at all for month {current_month}.")
+                        continue
                     if l2_type == "swath":
                         l2_data.index = l2_data.index.get_level_values(0).astype(np.int64) \
                                         + l2_data.index.get_level_values(1)
