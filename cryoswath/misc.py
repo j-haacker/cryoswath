@@ -718,6 +718,7 @@ def request_workers(task_func: callable, n_workers: int, result_queue: queue.Que
                 result = task_func(*next_task)
                 if result_queue is not None:
                     result_queue.put(result)
+                task_queue.task_done()
     for i in range(n_workers):
         worker_thread = threading.Thread(target=worker, daemon=True)
         worker_thread.start()
