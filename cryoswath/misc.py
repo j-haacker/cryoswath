@@ -608,10 +608,12 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
     cs_tracks = cs_tracks.loc[start_datetime:end_datetime+pd.offsets.Day(1)]
     if region_of_interest is not None:
         if isinstance(region_of_interest, str):
-            region_of_interest = load_glacier_outlines(region_of_interest)
+            # unary_union=False neccessary for Greenland and large regions
+            region_of_interest = load_glacier_outlines(region_of_interest, unary_union=False).geometry.values
         if buffer_region_by is not None:
-            region_of_interest = gis.buffer_4326_shp(region_of_interest, buffer_region_by)
-        region_of_interest = gis.simplify_4326_shp(region_of_interest)
+            region_of_interest = shapely.ops.unary_union([gis.buffer_4326_shp(shapely.ops.unary_union(region_of_interest), buffer_region_by)])
+        else:
+            region_of_interest = gis.simplify_4326_shp(shapely.ops.unary_union(region_of_interest))
         # find all tracks that intersect the buffered region of interest.
         # mind that this are calculations on a sphere. currently, the
         # polygon is transformed to ellipsoidal coordinates. not a 100 %

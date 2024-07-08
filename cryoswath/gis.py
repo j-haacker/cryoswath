@@ -26,20 +26,24 @@ def buffer_4326_shp(shp: shapely.Geometry, radius: float, simplify: bool = True)
         warnings.warn("shp=None passed to buffer_4326_shp, returning empty MultiPolygon.")
         return shapely.MultiPolygon()
     planar_crs = find_planar_crs(shp=shp)
+    # # below does not take the geopandas detour. while more straight forward,
+    # # geopandas used to be more stable. however the below was improved and
+    # # may be equally good now.
+    # transformer = Transformer.from_crs("EPSG:4326", planar_crs)
+    # shp = shapely.ops.transform(transformer.invert().transform, shapely.ops.transform(transformer.transform, shp).simplify(100).buffer(radius)).make_valid()
     try:
-        buffered_planar = [] #gpd.GeoSeries([]*len(shp.geoms))
-        # counter = 0
+        buffered_planar = []
         for poly in list(shp.geoms):
             buffered_planar.append(
-                gpd.GeoSeries(poly, crs=4326).to_crs(planar_crs).buffer(0).simplify(100).buffer(radius))
-            # counter += 1
+                gpd.GeoSeries(poly, crs=4326).to_crs(planar_crs).make_valid().simplify(100).buffer(radius))
         buffered_planar = pd.concat(buffered_planar)
     except AttributeError:
         buffered_planar = \
-                gpd.GeoSeries(shp, crs=4326).to_crs(planar_crs).buffer(0).simplify(100).buffer(radius)
+                gpd.GeoSeries(shp, crs=4326).to_crs(planar_crs).make_valid().simplify(100).buffer(radius)
     if simplify:
-        return buffered_planar.simplify(radius/3).to_crs(4326).unary_union
-    return buffered_planar.to_crs(4326).unary_union
+        buffered_planar = buffered_planar.simplify(radius/3)
+    buffered_planar = buffered_planar.to_crs(4326)
+    return buffered_planar.unary_union
 __all__.append("buffer_4326_shp")
 
 
@@ -116,7 +120,9 @@ def simplify_4326_shp(shp: shapely.Geometry, tolerance: float = None) -> shapely
         else:
             tolerance = 300
     planar_crs = find_planar_crs(shp=shp)
-    # simplify can create holes outside of the polygon. this is fixed by buffer(0)
-    return gpd.GeoSeries(shp, crs=4326).to_crs(planar_crs).simplify(tolerance).buffer(0).to_crs(4326).unary_union
+    # simplify can create holes outside of the polygon. this is fixed by buffer(0) or make_valid()
+    if isinstance(shp, shapely.Geometry):
+        shp = gpd.GeoSeries(shp, crs=4326)
+    return shp.to_crs(planar_crs).simplify(tolerance).to_crs(4326).make_valid().unary_union
 __all__.append("simplify_4326_shp")
     
