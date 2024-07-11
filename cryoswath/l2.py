@@ -32,6 +32,7 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
     # the number of cores. 8 cores worked for me, 16 was too many
     if not isinstance(track_idx, pd.DatetimeIndex):
         track_idx = pd.DatetimeIndex(track_idx if isinstance(track_idx, list) else [track_idx])
+    track_idx = track_idx.sort_values()
     if track_idx.tz != None:
         track_idx = track_idx.tz_localize(None)
     # somehow the download thread prevents the processing of tracks. it may
