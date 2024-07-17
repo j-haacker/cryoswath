@@ -43,7 +43,7 @@ def buffer_4326_shp(shp: shapely.Geometry, radius: float, simplify: bool = True)
     if simplify:
         buffered_planar = buffered_planar.simplify(radius/3)
     buffered_planar = buffered_planar.to_crs(4326)
-    return buffered_planar.unary_union
+    return buffered_planar.union_all(method="unary")
 __all__.append("buffer_4326_shp")
 
 
@@ -113,7 +113,6 @@ __all__.append("points_on_glacier")
 
 
 def simplify_4326_shp(shp: shapely.Geometry, tolerance: float = None) -> shapely.Geometry:
-    # ! currently only works for the Arctic
     if tolerance is None:
         if shp.length >= 20_000: # 5 x 5 km
             tolerance = 1000
@@ -123,6 +122,6 @@ def simplify_4326_shp(shp: shapely.Geometry, tolerance: float = None) -> shapely
     # simplify can create holes outside of the polygon. this is fixed by buffer(0) or make_valid()
     if isinstance(shp, shapely.Geometry):
         shp = gpd.GeoSeries(shp, crs=4326)
-    return shp.to_crs(planar_crs).simplify(tolerance).to_crs(4326).make_valid().unary_union
+    return shp.to_crs(planar_crs).simplify(tolerance).to_crs(4326).make_valid().union_all(method="unary")
 __all__.append("simplify_4326_shp")
     
