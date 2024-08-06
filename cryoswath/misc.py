@@ -796,6 +796,39 @@ def repair_l2_cache(filepath: str, *, region_of_interest: shapely.MultiPolygon =
 __all__.append("repair_l2_cache")
 
 
+def rgi_code_translator(input: str, out_type: str = "full_name") -> str:
+    if isinstance(input, list):
+        return [rgi_code_translator(element, out_type) for element in input]
+    if isinstance(input, int) or len(input) <= 2 and int(input) < 20:
+        return rgi_o1region_translator(input, out_type)
+    if re.match(r"\d\d-\d\d", input):
+        return rgi_o2region_translator(*[int(x) for x in input.split("-")], out_type)
+    raise ValueError(f"Input {input} not understood. Pass RGI o1- or o2region codes.")
+__all__.append("rgi_code_translator")
+
+
+def rgi_o1region_translator(input: int, out_type: str = "full_name") -> str:
+    if isinstance(input, list):
+        return [rgi_o1region_translator(element, out_type) for element in input]
+    lut = pd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o1regions.feather"),
+                          columns=["o1region", "full_name", "long_code"],
+                          ).set_index("o1region")
+    return lut.loc[f"{input:02d}", out_type]
+__all__.append("rgi_o1region_translator")
+
+
+def rgi_o2region_translator(o1: int, o2: int, out_type: str = "full_name") -> str:
+    if isinstance(o1, list):
+        return [rgi_o2region_translator(o1_, o2_, out_type) for o1_, o2_ in zip(o1, o2)]
+    if isinstance(o2, list):
+        return [rgi_o2region_translator(o1, o2_, out_type) for o2_ in o2]
+    lut = pd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"),
+                          columns=["o2region", "full_name", "long_code"],
+                          ).set_index("o2region")
+    return lut.loc[f"{o1:02d}-{o2:02d}", out_type]
+__all__.append("rgi_o2region_translator")
+
+
 def xycut(data: gpd.GeoDataFrame, x_chunk_meter = 3*4*5*1_000, y_chunk_meter = 3*4*5*1_000)\
     -> list[dict[str, Union[float, gpd.GeoDataFrame]]]:
     # 3*4*5=60 [km] fits many grid cell sizes and makes reasonable chunks
