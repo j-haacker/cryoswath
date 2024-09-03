@@ -173,11 +173,11 @@ class l1b_data(xr.Dataset):
             self = self.append_elev_diff_to_ref()
         self = self.assign(ph_idx=(("time_20_ku", "ns_20_ku"),
                                    np.empty((len(self.time_20_ku), len(self.ns_20_ku)), dtype="int")))
-        def min_abs_idx(ph_diff, group_ids):
+        def min_abs_idx(elev_diff, group_ids):
             out = np.zeros_like(group_ids)
             for i in nan_unique(group_ids):
                 mask = group_ids == i
-                out[mask] = np.argmin(np.abs(np.sum(ph_diff[mask,:], axis=0)))-3
+                out[mask] = np.argmin(np.abs(np.sum(elev_diff[mask,:], axis=0)))-3
             return out
         self["ph_idx"] = xr.apply_ufunc(min_abs_idx, 
                                         self.xph_elev_diffs, 
