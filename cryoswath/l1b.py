@@ -548,17 +548,17 @@ def download_files(track_idx: pd.DatetimeIndex|str,
                    stop_event: Event = None,
                    #baseline: str = "latest",
                    ):
-    year_month_str_list = [month.strftime(f"%Y{os.path.sep}%m")
-                           for month in (track_idx.normalize()+pd.DateOffset(day=1)).unique()]
+    year_month_str_list = track_idx.strftime(f"%Y{os.path.sep}%m").unique()
     for year_month_str in year_month_str_list:
+        print("scanning", year_month_str, end=" ")
         if stop_event is not None and stop_event.is_set():
             return
         try:
-            currently_present_files = os.listdir(os.path.join(l1b_path, year_month_str))
+            currently_present_files = [x[19:] for x in os.listdir(os.path.join(l1b_path, year_month_str))]
         except FileNotFoundError:
             os.makedirs(os.path.join(l1b_path, year_month_str))
             currently_present_files = []
-        with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
+        with ftplib.FTP("science-pds.cryosat.esa.int", timeout=120) as ftp:
             ftp.login(passwd=personal_email)
             try:
                 ftp.cwd("/SIR_SIN_L1/"+year_month_str)
@@ -570,7 +570,7 @@ def download_files(track_idx: pd.DatetimeIndex|str,
                     return
                 if remote_file[-3:] == ".nc" \
                         and pd.to_datetime(remote_file[19:34]) in track_idx \
-                        and remote_file not in currently_present_files:
+                        and remote_file[19:] not in currently_present_files:
                     local_path = os.path.join(l1b_path, year_month_str, remote_file)
                     try:
                         with open(local_path, "wb") as local_file:
