@@ -6,6 +6,7 @@ from multiprocessing import Pool
 import numpy as np
 import os
 import pandas as pd
+from pyarrow.lib import ArrowInvalid
 from pyproj import CRS
 import re
 import shapely
@@ -351,7 +352,7 @@ def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwar
                                                 l2_paths.loc[idx, "swath"])),
                 gpd.read_feather(os.path.join(l2_poca_path, current_subdir,
                                                 l2_paths.loc[idx, "poca"])))
-    except (KeyError, FileNotFoundError):
+    except (KeyError, FileNotFoundError, AssertionError, ArrowInvalid):
         if "cs_full_file_names" not in locals():
             if "cs_full_file_names" in kwargs:
                 cs_full_file_names = kwargs.pop("cs_full_file_names")
@@ -360,8 +361,17 @@ def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwar
         l1b_kwargs = filter_kwargs(l1b.l1b_data, kwargs)
         to_l2_kwargs = filter_kwargs(l1b.l1b_data.to_l2, kwargs, blacklist=["swath_or_poca"],
                                      whitelist=["crs", "max_elev_diff"])
-        swath_poca_tuple = l1b.l1b_data.from_id(cs_time_to_id(idx), **l1b_kwargs)\
-                                       .to_l2(swath_or_poca="both", **to_l2_kwargs)
+        try:
+            tmp = l1b.l1b_data.from_id(cs_time_to_id(idx), **l1b_kwargs)
+            swath_poca_tuple = tmp.to_l2(swath_or_poca="both", **to_l2_kwargs)
+            tmp.close()
+        except Exception as err:
+            if isinstance(err, KeyboardInterrupt):
+                raise
+            else:
+                # raise
+                warnings.warn(f"Error {str(err)} occured while processing l1b {idx}. Continuing with next file.")
+                swath_poca_tuple = (gpd.GeoDataFrame(), gpd.GeoDataFrame())
         if save_or_return != "return":
             print("saving", idx)
             # ! consider writing empty files
