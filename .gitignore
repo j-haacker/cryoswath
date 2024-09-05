@@ -1,4 +1,3 @@
 */
 !.gitignore
-!auxiliary/CryoSat-2_SARIn_file_names.pkl
-!auxiliary/CryoSat-2_SARIn_ground_tracks.feather
+!auxiliary
