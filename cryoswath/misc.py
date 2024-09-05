@@ -224,7 +224,8 @@ def find_region_id(location: any, scope: str = "o2") -> str:
     # if shapely.ops.transform(to_planar.transform, region_outlines).area > 
 
 
-def flag_outliers(data,
+def flag_outliers(data, *,
+                  weights = None,
                   stat: callable = np.median,
                   deviation_factor: float = 3,
                   scaling_factor: float = 2*2**.5*scipy.special.erfinv(.5)):
@@ -242,6 +243,8 @@ def flag_outliers(data,
         data (ArrayLike): If data is an array, outliers will be flagged
             along first dimension (given `stat` works like most numpy
             functions).
+        weights (ArrayLike): If weights are provided, they are passed as
+            the keyword argument to `stat`.
         stat (callable, optional): Function to return first and second
             reference points. Defaults to np.median.
         deviation_factor (float, optional): Allowed number of reference
@@ -253,8 +256,19 @@ def flag_outliers(data,
     Returns:
         bool, shaped like input: Mask that is positive for outliers.
     """
-    deviation = np.abs(data - stat(data))
-    return deviation > stat(deviation) * deviation_factor * scaling_factor
+    if weights is None:
+        first_moment = stat(data)
+    else:
+        first_moment = stat(data, weights=weights)
+    # print(first_moment)
+    deviation = np.abs(data - first_moment)
+    # print(deviation)
+    if weights is None:
+        deviation_limit = stat(deviation) * deviation_factor * scaling_factor
+    else:
+        deviation_limit = stat(deviation, weights=weights) * deviation_factor * scaling_factor
+    # print(deviation_limit)
+    return deviation > deviation_limit
 __all__.append("flag_outliers")
 
 
