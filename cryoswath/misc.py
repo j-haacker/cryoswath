@@ -202,7 +202,7 @@ def find_region_id(location: any, scope: str = "o2") -> str:
     if isinstance(location, gpd.GeoDataFrame):
         location = location.geometry
     if isinstance(location, gpd.GeoSeries):
-        location = location.to_crs(4326).unary_union
+        location = location.to_crs(4326).union_all("coverage")
     if not isinstance(location, shapely.Geometry):
         if isinstance(location, tuple) or (isinstance(location, list) and len(location)<3):
             location = shapely.Point(location[1], location[0])
@@ -213,12 +213,20 @@ def find_region_id(location: any, scope: str = "o2") -> str:
     if scope == "o1":
         return rgi_region["o1region"].values[0]
     elif scope == "o2":
-        return rgi_region["o2region"].values[0]
+        out = rgi_region["o2region"].values[0]
+        if out == "05-01":
+            sub_o2 = gpd.GeoSeries([load_o2region(f"05-1{i+1}").union_all("coverage").envelope for i in range(5)], crs=4326)
+            contains_location = sub_o2.contains(location)
+            if not any(contains_location):
+                raise Exception(f"Location {location} not in any of Greenlands subregions (N,W,SW,SE,E).")
+            elif sum(contains_location) > 1:
+                raise Exception(f"Location {location} is in multiple subregions (N,W,SW,SE,E).")
+            out = f"05-1{int(sub_o2[contains_location].index.values)+1}"
+        return out
     elif scope == "basin":
         rgi_glacier_gpdf = load_o2region(rgi_region["o2region"].values[0], "glaciers")
         return rgi_glacier_gpdf[rgi_glacier_gpdf.contains(location.centroid)]["rgi_id"].values[0]
-    else:
-        raise Exception("`scope` can be one of \"o1\", \"o2\", or \"basin\".")
+    raise Exception("`scope` can be one of \"o1\", \"o2\", or \"basin\".")
 
     # ! tbi: if only small region/one glacier, make get its
     # to_planar = Transformer.from_crs(CRS.from_epsg(4326), CRS.from_epsg(3413))
@@ -624,13 +632,13 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
     if buffer_period_by is not None:
         start_datetime = start_datetime - buffer_period_by
         end_datetime = end_datetime + buffer_period_by
-    cs_tracks = cs_tracks.loc[start_datetime:end_datetime+pd.offsets.Day(1)]
+    cs_tracks = cs_tracks.loc[start_datetime:end_datetime]
     if region_of_interest is not None:
         if isinstance(region_of_interest, str):
-            # unary_union=False neccessary for Greenland and large regions
-            region_of_interest = load_glacier_outlines(region_of_interest, unary_union=False).geometry.values
+            # union=False neccessary for Greenland and large regions
+            region_of_interest = load_glacier_outlines(region_of_interest, union=False).geometry.values
         if buffer_region_by is not None:
-            region_of_interest = shapely.ops.unary_union([gis.buffer_4326_shp(shapely.ops.unary_union(region_of_interest), buffer_region_by)])
+            region_of_interest = gis.buffer_4326_shp(region_of_interest, buffer_region_by)
         else:
             region_of_interest = gis.simplify_4326_shp(shapely.ops.unary_union(region_of_interest))
         # find all tracks that intersect the buffered region of interest.
@@ -695,6 +703,9 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
 
 def load_o2region(o2code: str, product: str = "complexes") -> gpd.GeoDataFrame:
     o1region = load_o1region(o2code[:2], product)
+    # special handling for greenland periphery
+    if o2code.startswith("05") and not o2code.endswith("01"):
+        return o1region[o1region.intersects(gpd.read_feather(os.path.join(rgi_path, o2code+".feather")).union_all("coverage"))]
     return o1region[o1region["o2region"]==o2code[:5]]
 
 
@@ -884,6 +895,10 @@ def rgi_o2region_translator(o1: int, o2: int, out_type: str = "full_name") -> st
         return [rgi_o2region_translator(o1_, o2_, out_type) for o1_, o2_ in zip(o1, o2)]
     if isinstance(o2, list):
         return [rgi_o2region_translator(o1, o2_, out_type) for o2_ in o2]
+    if o1 == 5 and o2 in range(11, 16):
+        if out_type != "full_name":
+            raise NotImplementedError()
+        return dict([(11, "North Greenland"), (12, "West Greenland"), (13, "South West Greenland"), (14, "South East Greenland"), (15, "East Greenland")])[o2]
     lut = pd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"),
                           columns=["o2region", "full_name", "long_code"],
                           ).set_index("o2region")
