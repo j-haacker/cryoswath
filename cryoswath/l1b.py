@@ -145,11 +145,14 @@ class l1b_data(xr.Dataset):
             self = self.assign(xph_x=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), x), 
                                xph_y=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), y))
             self.attrs.update({"CRS": ensure_pyproj_crs(dem_reader.crs)})
-            with rioxr.open_rasterio(dem_reader) as ref_dem:
-                # ! huge improvement potential: instead of the below, rasterio.sample could be used
-                # [edit] use postgis
-                ref_dem = ref_dem.rio.clip_box(np.nanmin(x), np.nanmin(y), np.nanmax(x), np.nanmax(y)).squeeze()
-                self["xph_ref_elevs"] = ref_dem.sel(x=self.xph_x, y=self.xph_y, method="nearest")
+            # ! huge improvement potential: instead of the below, rasterio.sample could be used
+            # [edit] use postgis
+            try:
+                ref_dem = rioxr.open_rasterio(dem_reader).rio.clip_box(np.nanmin(x), np.nanmin(y), np.nanmax(x), np.nanmax(y)).squeeze()
+            except rioxr.exceptions.NoDataInBounds:
+                warnings.warn(f"couldn't find ref dem data in box: {np.nanmin(x)}, {np.nanmin(y)}, {np.nanmax(x)}, {np.nanmax(y)}\nouter lat lon coords: {self.lat_20_ku.values[[0,-1]]}, {self.lon_20_ku.values[[0,-1]]}")
+                raise
+            self["xph_ref_elevs"] = ref_dem.sel(x=self.xph_x, y=self.xph_y, method="nearest")
         # rasterio suggests sorting like `for ind in np.lexsort([y, x]): rv.append((x[ind], y[ind]))`
         # sort_key = np.lexsort([y, x])
         # planar_coords = zip(x[sort_key], y[sort_key])
