@@ -250,7 +250,7 @@ class l1b_data(xr.Dataset):
         """
         rgi_o2_gpdf = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
         return rgi_o2_gpdf[rgi_o2_gpdf.contains(
-                gpd.points_from_xy(self.lon_20_ku, self.lat_20_ku, crs=4326).unary_union().centroid
+                gpd.points_from_xy(self.lon_20_ku, self.lat_20_ku, crs=4326).unary_all(method="coverage").centroid
             )].long_code.values[0]
     __all__.append("get_rgi_o2")
 
