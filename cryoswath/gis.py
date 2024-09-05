@@ -131,4 +131,36 @@ def simplify_4326_shp(shp: shapely.Geometry, tolerance: float = None) -> shapely
         shp = gpd.GeoSeries(shp, crs=4326)
     return shp.to_crs(planar_crs).simplify(tolerance).to_crs(4326).make_valid().union_all(method="unary")
 __all__.append("simplify_4326_shp")
+
+
+def subdivide_region(basin_gdf: gpd.GeoDataFrame,
+                     lat_bin_width_degree: float = 1,
+                     lon_bin_width_degree: float = 1,
+                    ) -> list[gpd.GeoDataFrame]:
+    """Devides GeoDataFrame of basins into smaller GeoDataFrame based on
+    their central lat/lon coords.
+
+    Args:
+        basin_gdf (gpd.GeoDataFrame, optional): Basins to subdivide.
+        lat_bin_width_degree (float, optional): Requested sub-region latitude
+            range in degrees. Defaults to 1.
+        lon_bin_width_degree (float, optional): Requested sub-region longitude
+            range in degrees.. Defaults to 1.
+
+    Returns:
+        list[gpd.GeoDataFrame]: List of region parts.
+    """
+    return_list = []
+    # cut latitude into degree slices
+    n_lat_bins = max(1, round((basin_gdf.cenlat.max()-basin_gdf.cenlat.min())/lat_bin_width_degree))
+    # below, `observed=True` to grant compatibility with future pandas versions.
+    for lat_label, lat_group in basin_gdf.groupby(pd.cut(basin_gdf.cenlat, bins=n_lat_bins), observed=True):
+        # similarly, cut longitude
+        n_lon_bins = max(1, round((lat_group.cenlon.max()-lat_group.cenlon.min())
+                                                     / lon_bin_width_degree
+                                                     * np.cos(np.deg2rad(lat_label.mid))))
+        for _, lon_group in lat_group.groupby(pd.cut(lat_group.cenlon, bins=n_lon_bins), observed=True):
+            return_list.append(lon_group)
+    return return_list
+__all__.append("subdivide_region")
     
