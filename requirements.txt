@@ -1,16 +1,17 @@
 ## cryoswath dependencies #############################################
 defusedxml # will be optional in future. used for additional security
-geopandas # implies among others: shapely
+geopandas>=1.0.1 # implies among others: shapely
 h5py
 matplotlib
 netCDF4
 # numbagg # for numpy: for exponential rolling window operations
 rioxarray # implies among others: rasterio
 scipy
-xarray<=2024.1.1
+seaborn
+xarray<=2024.1.1 # or patch scaling
 
 ## cryoswath optional #################################################
 # bottleneck # for numpy:speeds up NaN-skipping and rolling window aggregations by a large factor
 # cartopy
 dask
-# flox??
+# flox # speeds, e.g., up xarray reduction operations
