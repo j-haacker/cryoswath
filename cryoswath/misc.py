@@ -703,6 +703,49 @@ def load_glacier_outlines(identifier: str|list[str]) -> shapely.MultiPolygon:
 __all__.append("load_glacier_outlines")
 
 
+def merge_l2_cache(source_glob: str,
+                   destination_file_name: str,
+                   exclude_endswith: list[str] = ["backup", "collection"],
+                   ) -> None:
+    """Append cached l2 data from various hdf files into one.
+
+    Tests whether data is present in destination; if not, copies the data.
+
+    This function is very specifically for cached l2 data as created by
+    `l3.build_dataset`. 
+
+    Args:
+        source_glob (str): Unix-like glob pattern to match source files
+            in `misc.tmp_path` (default: data/tmp/).
+        destination_file_name (str): ... in `misc.tmp_path`.
+        exclude_endswith (list[str], optional): Do not include files with
+            the specified ending. Useful to exclude backups. Defaults to
+            ["backup", "collection"].
+    """
+    # this snippet turned out useful: one can split the caching process,
+    # e.g., into years and combine the cache files using this function
+    # afterward.
+    # not tested after migrating here from notebook
+    with h5py.File(os.path.join(tmp_path, destination_file_name), "a") as h5_dest:
+        for source_path in sorted(glob.glob(os.path.join(tmp_path, source_glob))):
+            print("\n", source_path)
+            if any([source_path.endswith(ending) for ending in exclude_endswith]):
+                continue
+            with h5py.File(source_path, "r") as h5_src:
+                def collect_groups(name, node):
+                    if name.split("/")[-1].startswith("t_"):
+                        if name not in h5_dest:
+                            print(name, "will be copied ...")
+                            h5_src.copy(h5_src["/"+name], h5_dest, "/"+name)
+                        else:
+                            print(name, "exists in collection")
+                    else:
+                        pass
+                        # print(name, "is not an end node")
+                h5_src.visititems(collect_groups)
+__all__.append("merge_l2_cache")
+
+
 def nan_unique(data: np.typing.ArrayLike) -> list:
     return [element for element in np.unique(data) if not np.isnan(element)]
 __all__.append("nan_unique")
