@@ -20,7 +20,7 @@ __all__ = list()
 
 
 def from_id(track_idx: pd.DatetimeIndex|str, *,
-            reprocess: bool = True,
+            reprocess: bool|pd.Timestamp = True,
             save_or_return: str = "both",
             cache: str = None,
             cores: int = len(os.sched_getaffinity(0)),
@@ -35,6 +35,8 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
     track_idx = track_idx.sort_values()
     if track_idx.tz != None:
         track_idx = track_idx.tz_localize(None)
+    if isinstance(reprocess, str):
+        reprocess = pd.Timestamp(reprocess)
     # somehow the download thread prevents the processing of tracks. it may
     # be due to GIL lock. for now, it is just disabled, so one has to
     # download in advance. on the fly is always possible, however, with
@@ -339,8 +341,18 @@ def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwar
     print("getting", idx)
     # print("kwargs", wargs)
     try:
-        if reprocess or any(l2_paths.loc[idx,:].isnull()):
+        if any(l2_paths.loc[idx,:].isnull()) or (isinstance(reprocess, bool) and reprocess):
             raise FileNotFoundError()
+        if isinstance(reprocess, pd.Timestamp):
+            # print(reprocess, pd.Timestamp(
+            #     os.stat(os.path.join(l2_swath_path, current_subdir, l2_paths.loc[idx, "swath"])).st_mtime,
+            #     unit="s"))
+            assert(reprocess<pd.Timestamp(
+                os.stat(os.path.join(l2_swath_path, current_subdir, l2_paths.loc[idx, "swath"])).st_mtime,
+                unit="s"))
+            assert(reprocess<pd.Timestamp(
+                os.stat(os.path.join(l2_swath_path, current_subdir, l2_paths.loc[idx, "poca"])).st_mtime,
+                unit="s"))
         if save_or_return != "save":
             swath_poca_tuple = (
                 gpd.read_feather(os.path.join(l2_swath_path, current_subdir,
