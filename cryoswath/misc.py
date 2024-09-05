@@ -829,6 +829,56 @@ def rgi_o2region_translator(o1: int, o2: int, out_type: str = "full_name") -> st
 __all__.append("rgi_o2region_translator")
 
 
+def weighted_mean_excl_outliers(df: pd.DataFrame|xr.Dataset = None,
+                                weights: np.ndarray|str = "weights", *,
+                                values: np.ndarray|str = None,
+                                deviation_factor: int = 5,
+                                return_mask: bool = False,
+                                ) -> float:
+    """Calculates the weighted average after excluding outliers.
+
+    Note: This function uses `np.average` which expects weights similar
+          to 1/variance - incontrast to `np.lstsq` and derivates, that
+          expect 1/std and square the weights internally.
+
+    Args:
+        df (DataFrame): DataFrame containing values and weights.
+        values (1d-numpy array): Values to average or name of dataframe
+            column to average.
+        weights (1d-numpy array): Weights to apply to values or name
+            of dataframe column to use.
+        deviation_factor (int, optional): Factor to apply to standard
+            deviation. Values further appart from average are excluded.
+            Defaults to 5.
+
+    Returns:
+        float: Weighted average excluding outliers.
+        if `return_mask`: returns a boolean mask, true where outlier.
+                          The mask is same as input type.
+    """
+    # todo: write a test: mainly confirm math works
+    if isinstance(df, pd.DataFrame) or isinstance(df, xr.Dataset):
+        values = df[values].values
+        if isinstance(weights, str):
+            weights = df[weights].values
+    outlier_mask = flag_outliers(values, weights=weights, stat=np.average, deviation_factor=deviation_factor,
+                                 scaling_factor=1)
+    effective_sample_size = float(weights[~outlier_mask].sum()**2/(weights[~outlier_mask]**2).sum())
+    # print(outlier_mask)
+    if effective_sample_size > 6:
+        avg = float(np.average(values[~outlier_mask], weights=weights[~outlier_mask]))
+        _var = float(np.average((values[~outlier_mask]-avg)**2, weights=weights[~outlier_mask]))
+        if return_mask:
+            return avg, _var, effective_sample_size, outlier_mask
+    else:
+        avg = np.nan
+        _var = np.nan
+        if return_mask:
+            return avg, _var, effective_sample_size, outlier_mask == -1 # all False
+    return avg, _var, effective_sample_size
+__all__.append("weighted_mean_excl_outliers")
+
+
 def xycut(data: gpd.GeoDataFrame, x_chunk_meter = 3*4*5*1_000, y_chunk_meter = 3*4*5*1_000)\
     -> list[dict[str, Union[float, gpd.GeoDataFrame]]]:
     # 3*4*5=60 [km] fits many grid cell sizes and makes reasonable chunks
