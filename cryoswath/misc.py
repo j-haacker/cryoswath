@@ -309,13 +309,17 @@ def gauss_filter_DataArray(da, dim, window_extent, std):
 
 
 def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
-    if isinstance(data, xr.DataArray) or isinstance(data, xr.Dataset):
+    if "lat_20_ku" in data:
+        lat = data.lat_20_ku.values[0]
+    elif isinstance(data, xr.DataArray) or isinstance(data, xr.Dataset):
         lat = np.mean(data.rio.transform_bounds("EPSG:4326")[1::2])
     elif isinstance(data, gpd.GeoSeries) or isinstance(data, gpd.GeoDataFrame):
         lat = data.to_crs(4326).centroid.y
     elif isinstance(data, shapely.Geometry):
         lat = np.mean(data.total_bounds[[1,3]])
-    elif isinstance(data, float) or isinstance(data, int):
+    elif isinstance(data, float) \
+            or isinstance(data, int) \
+            or (isinstance(data, np.ndarray) and data.size==1):
         lat = data
     elif isinstance(data, str):
         if data.lower() in ["arctic", "arcticdem"]:
