@@ -1,6 +1,7 @@
 from dask import dataframe as dd
 import geopandas as gpd
 import h5py
+import itertools
 from multiprocessing import Pool
 import numpy as np
 import os
@@ -54,34 +55,19 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
         # ! below will not return data that is cached, even if save_or_return="both"
         # this is a flaw in the current logic. rework.
         if not reprocess and cache is not None and save_or_return != "return":
-            try:
-                poca_collection = []
-                def collect_pocas(name, node):
-                    if isinstance(node, h5py.Dataset):
-                        pass
-                    elif "_i_table" in node:
-                        nonlocal poca_collection
-                        poca_collection.append(pd.read_hdf(node.file.filename, node.name))
+            if os.path.isfile(cache):
+                present_months = []
+                def collect_present_months(name, node):
+                    nonlocal present_months
+                    if isinstance(node, h5py.Dataset) or not name.split("/")[-1].startswith("t_"):
+                        return None
+                    present_months.append(pd.to_datetime(name.split("/")[-1], format="t_%Y-%m"))
                 with h5py.File(cache, "r") as h5:
-                    h5["poca"].visititems(collect_pocas)
-                cached_pocas = pd.concat(poca_collection).sort_index()
-                # for better performance: reduce indices to two per month
-                sample_rate_ns = int(5*(24*60*60)*1e9)
-                tmp = cached_pocas.index.astype("int64")//sample_rate_ns
-                tmp = pd.arrays.DatetimeArray(np.append(np.unique(tmp)*sample_rate_ns,
-                                                        # adding first and last element
-                                                        # included for debugging. on default, at least adding the last
-                                                        # index should not be added to prevent missing data
-                                                        cached_pocas.index[[0,-1]].astype("int64")))
-                # print(tmp)
-                skip_months = np.unique(tmp.normalize()+pd.DateOffset(day=1))
-                # print(skip_months)
-                del cached_pocas
-            except (OSError, KeyError) as err:
-                if isinstance(err, KeyError):
-                    warnings.warn(f"Removed cache because of KeyError (\"{str(err)}\").")
-                    os.remove(cache)
-                skip_months = np.empty(0)
+                    h5.visititems(collect_present_months)
+                skip_months = pd.DatetimeIndex(present_months).unique().sort_values()
+                print(skip_months)
+            else:
+                skip_months = []
         swath_list = []
         poca_list = []
         kwargs["cs_full_file_names"] = load_cs_full_file_names(update="no")
@@ -104,23 +90,26 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                 else:
                     os.makedirs(os.path.join(data_path, f"L2_{l2_type}", current_subdir))
             print("start processing", current_month)
-            # indices per month with work-around :/ should be easier
-            current_track_indices = pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index
+            # # indices per month with work-around :/ should be easier
+            # current_track_indices = pd.Series(index=track_idx).loc[current_month:current_month+pd.offsets.MonthBegin(1)].index
+            current_track_indices = track_idx[np.logical_and(track_idx>=current_month,
+                                                             track_idx<current_month+pd.offsets.MonthBegin(1))]
             if len(current_track_indices) == 0:
                 warnings.warn(f"No tracks to load data from for month {current_month}.")
                 continue
-            if cores > 1 and len(current_track_indices) > 1:
-                with Pool(processes=cores) as p:
-                    # function is defined at the bottom of this module
-                    collective_swath_poca_list = p.starmap(process_track,
-                        [(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"],
-                          current_subdir, kwargs) for idx in current_track_indices], chunksize=1)
-            else:
-                collective_swath_poca_list = []
-                for idx in current_track_indices:
-                    collective_swath_poca_list.append(
-                        process_track(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"],
-                                      current_subdir, kwargs))
+            collective_swath_poca_list = []
+            for batch in itertools.batched(current_track_indices, cores*3):
+                if cores > 1 and len(batch) > 1:
+                    with Pool(processes=cores) as p:
+                        # function is defined at the bottom of this module
+                        collective_swath_poca_list.extend(p.starmap(process_track,
+                            [(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"],
+                            current_subdir, kwargs) for idx in batch], chunksize=1))
+                else:
+                    for idx in batch:
+                        collective_swath_poca_list.append(
+                            process_track(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"],
+                                        current_subdir, kwargs))
             # ensure all data within `max_elev_diff`, in same CRS, and clip to bbox
             # note: if no crs is provided, check will not be done. if CRS mismatch,
             #       error occurs later
@@ -138,10 +127,27 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                                 tmp[j] = tmp[j].clip(kwargs["bbox"])
                     collective_swath_poca_list[i] = tuple(tmp)
             if cache is not None:
-                # when postprocessing, loading the data cached here takes a substatial
+                # when postprocessing, loading the data caching here takes a substatial
                 # amount of time. not sure, but maybe the format can be improved. there
                 # is parquet or the data could be saved per month using
                 # to_hdf(format="fixed")
+                
+                # in the next step, the data will be cached on disk for later use. this bears
+                # the risk of introducing data gaps that are very difficult to detect.
+                # the main rationale is: be sure not to damage the data and be careful
+                # not to loose the cache.
+                # this implementation balances the chance loosing the current data with
+                # the cost of copying by backing up once per hour
+                if os.path.isfile(cache):
+                    if os.path.isfile(cache+"__backup"):
+                        # if backup older than 1 hour, renew
+                        if (pd.Timestamp.now()-pd.to_datetime(os.stat(cache+"__backup").st_mtime, unit="s"))\
+                                > pd.to_timedelta(1, unit="h"):
+                            os.remove(cache+"__backup")
+                            shutil.copyfile(cache, cache+"__backup")
+                    # if no backup, make one
+                    else:
+                        shutil.copyfile(cache, cache+"__backup")
                 for l2_type, i in zip(["swath", "poca"], [0, 1]):
                     l2_data = pd.concat([item[i] for item in collective_swath_poca_list])
                     if l2_data.empty:
@@ -155,22 +161,7 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                     l2_data.rename_axis("time", inplace=True)
                     l2_data.sort_index(inplace=True)
                     chunks = xycut(l2_data)
-                    # in the next step, the data cached on disk for later use. this bears
-                    # the risk of introducing data gaps that are very difficult to detect.
-                    # the main rationale is: be sure not to damage the data and be careful
-                    # not to loose the cache.
-                    # this implementation balances the chance loosing the current data with
-                    # the cost of copying by backing up once per hour
-                    if os.path.isfile(cache):
-                        if os.path.isfile(cache+"__backup"):
-                            # if backup older than 1 hour, renew
-                            if (pd.Timestamp.now()-pd.to_datetime(os.stat(cache+"__backup").st_mtime, unit="s"))\
-                                    > pd.to_timedelta(1, unit="h"):
-                                os.remove(cache+"__backup")
-                                shutil.copyfile(cache, cache+"__backup")
-                        # if no backup, make one
-                        else:
-                            shutil.copyfile(cache, cache+"__backup")
+                    
                     # now, try to add current data to cache. if anything happens, restore
                     # backup to ensure integrity
                     try:
@@ -190,8 +181,9 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                             tmp.astype(dict(h_diff=np.float32, x=np.int32, y=np.int32))\
                             .to_hdf(cache, key="/".join(
                                 [l2_type, f'x_{chunk["x_interval_start"]:.0f}_{chunk["x_interval_stop"]:.0f}',
-                                    f'y_{chunk["y_interval_start"]:.0f}_{chunk["y_interval_stop"]:.0f}']
-                                    ), mode="a", append=True, format="table")
+                                          f'y_{chunk["y_interval_start"]:.0f}_{chunk["y_interval_stop"]:.0f}',
+                                          current_month.strftime("t_%Y-%m")]
+                                    ), mode="a", format="fixed")
                             warnings.filterwarnings('default', category=NaturalNameWarning)
                     except:
                         if not os.path.isfile(cache):
