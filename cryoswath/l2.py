@@ -241,12 +241,12 @@ def from_processed_l1b(l1b_data: l1b.l1b_data = None,
         print("No data passed.")
         # ! empty GeoDataFrames can't have a CRS
         # super().__init__(crs=crs, **kwargs)
-        return None
+        return gpd.GeoDataFrame()
     tmp = l1b_data.to_dataframe().dropna(axis=0, how="any")
     if max_elev_diff is not None and "h_diff" in tmp:
         tmp = limit_filter(tmp, "h_diff", max_elev_diff)
         if tmp.empty:
-            return None
+            return gpd.GeoDataFrame()
     if isinstance(tmp.index, pd.MultiIndex): #
         tmp.rename_axis(("time", "sample"), inplace=True)
         tmp.index = tmp.index.set_levels(pd.DatetimeIndex(tmp["time"].groupby(level=0).first(), tz="UTC"), level=0)
