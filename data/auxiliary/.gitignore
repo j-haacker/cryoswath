@@ -1,0 +1,5 @@
+*
+!.gitignore
+!RGI
+!CryoSat-2_SARIn_file_names.pkl
+!CryoSat-2_SARIn_ground_tracks.feather
