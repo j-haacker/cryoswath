@@ -17,7 +17,6 @@ rgi_o1_epsg_dict = dict()
 
 
 def buffer_4326_shp(shp: shapely.Geometry, radius: float, simplify: bool = True) -> shapely.MultiPolygon:
-    # ! currently only works for the Arctic
     # the algorithm splits a multi-geomerty like MultiPolygon into its
     # parts, simplifies them if requested, buffers them, and joins them
     # finally.
@@ -25,25 +24,33 @@ def buffer_4326_shp(shp: shapely.Geometry, radius: float, simplify: bool = True)
     if shp is None: # this will occasionally fail, as it will be 'GEOMETRYCOLLECTION EMPTY'
         warnings.warn("shp=None passed to buffer_4326_shp, returning empty MultiPolygon.")
         return shapely.MultiPolygon()
-    planar_crs = find_planar_crs(shp=shp)
     # # below does not take the geopandas detour. while more straight forward,
     # # geopandas used to be more stable. however the below was improved and
     # # may be equally good now.
     # transformer = Transformer.from_crs("EPSG:4326", planar_crs)
     # shp = shapely.ops.transform(transformer.invert().transform, shapely.ops.transform(transformer.transform, shp).simplify(100).buffer(radius)).make_valid()
-    try:
-        buffered_planar = []
-        for poly in list(shp.geoms):
-            buffered_planar.append(
-                gpd.GeoSeries(poly, crs=4326).to_crs(planar_crs).make_valid().simplify(100).buffer(radius))
-        buffered_planar = pd.concat(buffered_planar)
-    except AttributeError:
-        buffered_planar = \
-                gpd.GeoSeries(shp, crs=4326).to_crs(planar_crs).make_valid().simplify(100).buffer(radius)
+    if isinstance(shp, shapely.geometry.base.BaseMultipartGeometry):
+        shp = list(shp.geoms)
+    elif isinstance(shp, shapely.geometry.base.BaseGeometry):
+        # assuming single shaply geometry as it is not a collection
+        shp = [shp]
+    elif isinstance(shp, gpd.GeoDataFrame):
+        shp = shp.geometry.values
+    elif isinstance(shp, gpd.GeoSeries):
+        shp = shp.values
+    elif isinstance(shp, gpd.array.GeometryArray):
+        # nothing to do
+        pass
+    planar_crs = find_planar_crs(shp=shp[0])
+    buffered_planar = []
+    for poly in shp:
+        buffered_planar.append(
+            gpd.GeoSeries(poly, crs=4326).to_crs(planar_crs).make_valid().simplify(100).buffer(radius))
+    buffered_planar = pd.concat(buffered_planar)
     if simplify:
         buffered_planar = buffered_planar.simplify(radius/3)
     buffered_planar = buffered_planar.to_crs(4326)
-    return buffered_planar.union_all(method="unary")
+    return shapely.make_valid(buffered_planar.union_all(method="unary"))
 __all__.append("buffer_4326_shp")
 
 
