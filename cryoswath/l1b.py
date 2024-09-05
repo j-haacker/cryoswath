@@ -14,7 +14,10 @@ import warnings
 import xarray as xr
 
 from .misc import *
-from .gis import buffer_4326_shp, find_planar_crs, ensure_pyproj_crs
+from .gis import buffer_4326_shp, \
+                 find_planar_crs, \
+                 ensure_pyproj_crs, \
+                 subdivide_region
 
 __all__ = list()
 
@@ -105,19 +108,31 @@ class l1b_data(xr.Dataset):
             ground_track_points_4326 = gpd.GeoSeries(gpd.points_from_xy(tmp.lon_20_ku, tmp.lat_20_ku), crs=4326)
             o2regions = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
             try:
-                intersected_o2 = o2regions.geometry.intersects(ground_track_points_4326.unary_union)
+                intersected_o2 = o2regions.geometry.intersects(ground_track_points_4326.union_all(method="unary"))
                 if sum(intersected_o2) == 0:
                     raise IndexError
                 else:
                     o2codes = o2regions.loc[intersected_o2,"o2region"].values
-                o2region_complexes = [load_o2region(o2code) for o2code in np.unique(o2codes)]
-                buffered_complexes = gpd.GeoSeries(buffer_4326_shp(pd.concat(o2region_complexes).unary_union, 30_000),
-                                                   crs=4326).to_crs(planar_crs).clip_by_rect(
-                                                       *ground_track_points_4326.to_crs(planar_crs).total_bounds)\
-                                                   .to_crs(4326).make_valid()
+                o2region_complexes = []
+                for o2 in np.unique(o2codes):
+                    if o2 != "05-01": # Greenland periphery is too large
+                        o2region_complexes.append(load_o2region(o2))
+                    else: # cut into 10 subregions, append if crossed
+                        # !tbi: instead of using the arbitrary chunks, use the custom subregions
+                        # 05-11--05-15 (added in commit 2265523)
+                        for grnlnd_part in subdivide_region(load_o2region("05-01"), lat_bin_width_degree=4.5,
+                                                            lon_bin_width_degree=4.5):
+                            if buffer_4326_shp(grnlnd_part.union_all(method="coverage").envelope, 30_000)\
+                                    .intersects(ground_track_points_4326.union_all(method="unary")):
+                                o2region_complexes.append(grnlnd_part)
+                # below, using geopandas as shapely wrapper for readability
+                buffered_complexes = gpd.GeoSeries(
+                    buffer_4326_shp(pd.concat(o2region_complexes).union_all(method="coverage"), 30_000), crs=4326
+                    ).to_crs(planar_crs).clip_by_rect(*ground_track_points_4326.to_crs(planar_crs).total_bounds)\
+                     .to_crs(4326).make_valid()
                 if all(buffered_complexes.is_empty):
                     raise IndexError
-                retain_indeces = ground_track_points_4326.intersects(buffered_complexes.unary_union)
+                retain_indeces = ground_track_points_4326.intersects(buffered_complexes.iloc[0])
                 tmp = tmp.isel(time_20_ku=retain_indeces[retain_indeces].index)
             except IndexError:
                 warnings.warn("No waveforms left on glacier. Proceeding with empty dataset.")
