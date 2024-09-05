@@ -673,9 +673,11 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
     for file in rgi_files:
         if re.match(f"RGI2000-v7\\.0-{product}-{o1code[:2]}_.*", file):
             file_path = os.path.join(rgi_path, file)
-            if file[-8:] == ".feather":
+            if file.endswith(".feather"):
+                # print("reading feather")
                 o1region = gpd.read_feather(file_path)
-            elif file[-4:] == ".shp" or os.path.isdir(file_path):
+                # print("file read")
+            elif file.endswith(".shp") or os.path.isdir(file_path):
                 o1region = gpd.read_file(file_path)
             else:
                 continue
@@ -875,7 +877,7 @@ def rgi_code_translator(input: str, out_type: str = "full_name") -> str:
     if isinstance(input, int) or len(input) <= 2 and int(input) < 20:
         return rgi_o1region_translator(input, out_type)
     if re.match(r"\d\d-\d\d", input):
-        return rgi_o2region_translator(*[int(x) for x in input.split("-")], out_type)
+        return rgi_o2region_translator(*[int(x) for x in input.split("-")], out_type=out_type)
     raise ValueError(f"Input {input} not understood. Pass RGI o1- or o2region codes.")
 __all__.append("rgi_code_translator")
 
