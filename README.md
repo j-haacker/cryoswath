@@ -5,7 +5,7 @@ library, and some pre-assemble data to retrieve and study CryoSat-2 data
 
 ## state
 
-Currently, it is in the alpha phase. `main` contains those parts that I
+Currently, it is in the beta phase. `main` contains those parts that I
 believe to work if used as intended and that tested to some
 extent. Other branches are for development.
 
@@ -18,6 +18,8 @@ for some inspiration how to start off.
 - download L1b data from ESA
 - retrieve swath elevation estimates
 - aggregate point data to gridded data
+- fill data gaps using tested methods
+- calculate change rates
 
 ## dependencies
 
@@ -27,10 +29,12 @@ cryoswath builds on a number of other packages. See
 ## 🐛 known issues
 
 - ! compatibility issues with xarray >= v2024.3.0  
-    -> downgrade to 2024.1.1 (or patch scaling yourself)
+    -> downgrade to 2024.1.1 (or patch yourself)
 - projected rgi basins sometimes "invalid"
     -> add `.make_valid()` if it is missing somewhere
-- it has only been tested for the Arctic
+- it has mostly been tested for the Arctic
+
+  Further: see [open issues](https://github.com/j-haacker/cryoswath/issues).
 
 ### missing dependencies
 
@@ -39,9 +43,7 @@ cryoswath builds on a number of other packages. See
 
 ## 🎯 what's coming
 
-- pipeline building gridded change rates
-
-Further: See the [wish-list (#enhancement in GH issues)](https://github.com/j-haacker/cryoswath/labels/enhancement).
+See the [wish-list (#enhancement in GH issues)](https://github.com/j-haacker/cryoswath/labels/enhancement).
 
 ## citation and attribution
 
