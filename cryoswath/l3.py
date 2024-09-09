@@ -11,6 +11,7 @@ from pyproj.crs import CRS
 import shapely
 import shutil
 import sys
+import tqdm
 import rasterio.warp
 import rioxarray as rioxr
 import xarray as xr
@@ -360,44 +361,68 @@ __all__.append("fill_missing_coords")
 
 
 def fill_voids(ds: xr.Dataset,
-               main_var: str = None,
+               main_var: str,
+               error: str,
                *,
-               weights: str = "weights",
                elev: str = "ref_elev",
                per: tuple[str] = ("basin", "basin_group"),
                basin_shapes: gpd.GeoDataFrame = None,
+                outlier_limit: float = 5,
+                outlier_replace: bool = False,
+                outlier_iterations: int = 1,
                ) -> xr.Dataset:
+    # mention memory footprint in docstring: reindexing leaks and takes a s**t ton of memory. roughly 5-10x l3_data size in total.
+    if any([grouper not in ["basin", "basin_group"] for grouper in per]):
+        raise NotImplementedError
     if basin_shapes is None:
         # figure out region. limited to o2 meanwhile
         print("... loading basin outlines")
         o2code = find_region_id(ds, scope="o2")
         basin_shapes = load_o2region(o2code, product="glaciers").to_crs(ds.rio.crs)
-    if elev not in ds:
-        print("... reading reference DEM")
-        # finding a latitude to determine the reference DEM like below may be prone to bugs
-        with get_dem_reader(ds) as dem_reader:
-            with rioxr.open_rasterio(dem_reader) as ref_dem:
-                ref_dem = ref_dem.rio.clip_box(*ds[main_var].transpose(..., "y", "x").rio.transform_bounds(ref_dem.rio.crs)).squeeze()
-                ref_dem = xr.where(ref_dem==ref_dem._FillValue, np.nan, ref_dem).rio.write_crs(ref_dem.rio.crs)
-                ref_dem.attrs.update({"_FillValue": np.nan})
-        ds[elev] = xr.align(ref_dem.rio.reproject_match(ds, resampling=rasterio.warp.Resampling.average,
-                                                        nodata=ref_dem._FillValue),
-                            ds[main_var].isel({"time": 0} if "time" in ds[main_var].dims else {}),
-                            join="right")[0]
-        ds[elev].attrs.update({"_FillValue": np.nan})
+    else:
+        basin_shapes = basin_shapes.to_crs(ds.rio.crs)
+    # polygons will be repaired in later functions. it may be more
+    # transparent to do it here.
+    ds = fill_missing_coords(ds, *basin_shapes.total_bounds)
+    if elev not in ds: # tbi: the ref elevs should always be loaded again after fill missing coords!
+        print("... appending reference DEM to dataset")
+        ds = append_elevation_reference(ds, ref_elev_name=elev)
+    ds[elev] = ds[elev].rio.clip(basin_shapes.make_valid())
+    ref_elev_da = ds[elev].copy()
     for grouper in per:
+        res = []
         if grouper=="basin":
             if "basin_id" not in ds:
                 print("... assigning basin ids to grid cells")
                 ds = append_basin_id(ds, basin_shapes)
-            ds = ds.groupby(ds.basin_id).apply(interpolate_hypsometrically, main_var=main_var, elev=elev, weights=weights)
+            print("... interpolating per basin")
+            for label, group in (pbar := tqdm.tqdm(ds.groupby(ds.basin_id, squeeze=False))):
+                pbar.set_description(f"... current basin id: {label:.0f}")
+                res.append(interpolate_hypsometrically(group, main_var=main_var, elev=elev, error=error, outlier_limit=outlier_limit, outlier_replace=outlier_replace))
         elif grouper=="basin_group":
             if "group_id" not in ds:
                 print("... assigning basin groups to grid cells")
                 ds = append_basin_group(ds, basin_shapes)
-            ds = ds.groupby(ds.group_id).apply(interpolate_hypsometrically, main_var=main_var, elev=elev, weights=weights)
-        else:
-            raise NotImplementedError
+            print("... interpolating per basin group")
+            res = []
+            for label, group in (pbar := tqdm.tqdm(ds.groupby(ds.group_id, squeeze=False))):
+                pbar.set_description(f"... current group id: {label:.0f}")
+                res.append(interpolate_hypsometrically(group, main_var=main_var, elev=elev, error=error, outlier_limit=outlier_limit, outlier_replace=False))
+        ds = xr.concat(res, "stacked_x_y")
+        for each in res:
+            each.close()
+        del res
+        ds = ds.unstack("stacked_x_y")
+        ds = ds.sortby("x").sortby("y")
+        # reindexing fills gaps that were created by the grouping. if there were
+        # gaps, the reference elevations need to be filled/resetted.
+        ds = ds.reindex_like(ref_elev_da, method=None, copy=False)
+        ds[elev] = ref_elev_da
+    # if there are still missing data, temporally interpolate (gaps shorter than 1 year)
+    ds[main_var] = ds[main_var].interpolate_na(dim="time", method="linear", max_gap=pd.Timedelta(days=367))
+    # if there are still missing data, interpolate region wide ("global hypsometric interpolation")
+    ds = interpolate_hypsometrically(ds.rio.clip(basin_shapes.make_valid()).stack({"stacked_x_y": ["x", "y"]}).dropna("stacked_x_y", how="all"), main_var=main_var, elev=elev, error=error, outlier_limit=2, outlier_replace=False, outlier_iterations=1)
+    ds = fill_missing_coords(ds.unstack("stacked_x_y").sortby("x").sortby("y"))
     return ds
 __all__.append("fill_voids")
 

@@ -10,7 +10,7 @@ import inspect
 import numpy as np
 import os
 import pandas as pd
-from pyproj import Geod
+from pyproj import CRS, Geod
 import queue
 import rasterio
 import re
@@ -18,6 +18,7 @@ from scipy.constants import speed_of_light
 import scipy.stats
 import shapely
 import shutil
+from sklearn import covariance, linear_model, preprocessing
 from tables import NaturalNameWarning
 import time
 import threading
@@ -359,54 +360,128 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
 
 def interpolate_hypsometrically(ds: xr.Dataset,
                                 main_var: str,
+                                error: str,
                                 elev: str = "ref_elev",
                                 weights: str = "weights",
-                                degree: int = 3) -> xr.Dataset:
-    if "time" in ds.dims:
-        return ds.groupby("time").apply(interpolate_hypsometrically, main_var=main_var, elev=elev, weights=weights, degree=degree)
-    ds[weights] = xr.where(ds[elev].isnull(), np.nan, ds[weights])
+                                degree: int = 3,
+                                outlier_limit: float = 5,
+                                outlier_replace: bool = False,
+                                outlier_iterations: int = 1,
+                                ) -> xr.Dataset:
+    if "time" in ds.dims and len(ds.time) > 1:
+        # note: `groupby("time")` creates time depencies for all data_vars. this
+        #       requires taking note of those data_vars that do not depend on
+        #       time and reset those after the operation
+        no_time_dep = [data_var for data_var in ds.data_vars if not "time" in ds[data_var].dims]
+        ds = ds.groupby("time", squeeze=False).apply(interpolate_hypsometrically, main_var=main_var, elev=elev, error=error, degree=degree, outlier_replace=outlier_replace)
+        ds[no_time_dep] = ds[no_time_dep].isel(time=0)
+        return ds
+    # assign weights if not present. use previously assigned weights to
+    # prevent using previously filled cells from inform a new average.
+    if weights not in ds:
+        ds[weights] = 1/ds[error]**2
     # abort if too little data (checking elevation and data validity).
     # necessary to prevent errors but also introduces data gaps
-    if ds[elev].where(ds[weights]>0).count() < degree*3:
-        print("too little data")
+    if ds[elev].where(ds[error]>0).count() < degree*3:
+        # print("too little data")
         return ds
     # also, abort if there isn't anything to do
-    if not (ds[weights]==0).any():
-        print("nothing to do")
+    if not ds[error].isnull().any() and not outlier_replace:
+        # print("nothing to do")
         return ds
-    ds[weights] = ds[weights]/ds[weights].where(ds[weights]>0).mean()
-    # first fit
-    x0 = ds[elev].where(ds[weights]>0).mean().values
-    tmp = ds.to_dataframe()[[main_var, elev, weights]].dropna(axis=0, how="any")
-    coeffs = np.polyfit(tmp[elev]-x0, tmp[main_var], degree, w=tmp[weights])
-    residuals = np.polyval(coeffs, tmp[elev]-x0) - tmp[main_var]
-    # find and remove outlier
-    outlier_mask = flag_outliers(residuals[tmp[weights]>0], deviation_factor=5)
-
-    # # debugging tool
-    # import matplotlib.pyplot as plt
-    # # print(df_only_valid.ref_elev[weights>0], df_only_valid._median[weights>0], 1/weights[weights>0], '_')
-    # plt.errorbar(df_only_valid.ref_elev[weights>0], df_only_valid._median[weights>0], yerr=.1/weights[weights>0], fmt='_')
-    # plt.plot(df_only_valid.ref_elev[weights>0][outlier_mask], df_only_valid._median[weights>0][outlier_mask], 'rx')
-    # pl_x = np.arange(0, 2001, 100)
-    # plt.plot(pl_x, np.polyval(coeffs, pl_x), '-')
-    # plt.show()
-
-    tmp.loc[tmp[weights]>0,weights] = ~outlier_mask.values * tmp.loc[tmp[weights]>0,weights]
-    # fit again
-    coeffs = np.polyfit(tmp[elev]-x0, tmp[main_var], degree, w=tmp[weights])
-    lowest = tmp.loc[tmp[weights]>0,elev].min()
-    highest = tmp.loc[tmp[weights]>0,elev].max()
-    ds[main_var] = xr.where(ds[weights]==0,
-                            xr.where(ds[elev]>lowest,
-                                     xr.where(ds[elev]<highest,
-                                              np.polyval(coeffs, ds[elev]-x0),
-                                              np.polyval(coeffs, highest-x0)), 
-                                     np.polyval(coeffs, lowest-x0)),
-                            ds[main_var])
-    # set weights to nan, so that the grid cells do not get overwritten in a
-    # second interpolation cycle
-    ds[weights] = xr.where(ds[weights]==0, np.nan, ds[weights])
+    elev_range_80pctl = float(ds[elev].quantile([.1, .9]).diff(dim="quantile").values)
+    if elev_range_80pctl >= 500:
+        elev_bin_width = 50
+    else:
+        elev_bin_width = elev_range_80pctl/10
+    group_obj = ds.groupby_bins(elev, np.arange(ds[elev].min(), ds[elev].max()+elev_bin_width, elev_bin_width))
+    elev_bin_means = pd.Series(index=group_obj.groups)
+    elev_bin_errs = pd.Series(index=group_obj.groups)
+    grp_result_buffer = []
+    for label, group in group_obj:
+        if (group[weights] > 0).sum() < 6:
+            grp_result_buffer.append(group)
+            continue
+        vals = group[main_var].fillna(-9999).squeeze() # make it obvious if anything goes wrong
+        w = group[weights].fillna(0).squeeze()
+        avg, _var, effective_samp_size, to_be_filled_mask = weighted_mean_excl_outliers(
+            values=vals, weights=w, deviation_factor=2, return_mask=True)
+        err = (_var/effective_samp_size)**.5
+        if outlier_replace:
+            to_be_filled_mask = np.logical_or(group[main_var].isnull().squeeze(), to_be_filled_mask)
+        else:
+            to_be_filled_mask = group[main_var].isnull().squeeze()
+        if np.isnan(avg) or not any(to_be_filled_mask):
+            grp_result_buffer.append(group)
+            # # debugging notice
+            # print("calc weighted avg failed (probably insufficient data)", label)
+            # print("avg", avg, "_var", _var, "effective_samp_size", effective_samp_size, "err", err)
+            continue
+        # # debugging notice
+        # print("calc weighted avg succeeded", label)
+        # print("avg", avg, "_var", _var, "effective_samp_size", effective_samp_size, "err", err)
+        group[main_var] = xr.where(to_be_filled_mask, avg, group[main_var])
+        elev_bin_means.loc[label] = avg
+        elev_bin_errs.loc[label] = err
+        if err < .01:
+            print("+++++++++++++++++++++++++++++++++++++++")
+            print("+++++++++++++++++++++++++++++++++++++++")
+            print("avg:", avg)
+            print("var:", _var)
+            print("n_eff:", effective_samp_size)
+            print("err:", err)
+            print(vals[~to_be_filled_mask])
+            print("+++++++++++++++++++++++++++++++++++++++")
+            print("+++++++++++++++++++++++++++++++++++++++")
+        group[error] = xr.where(to_be_filled_mask, 2*err, group[error])
+        # assigning 0 to weights of filled cells to prevent them from informing
+        # a next fit, e.g., if first filling cells per basin and then filling
+        # remaining voids by another grouping
+        group[weights] = xr.where(to_be_filled_mask, 0, group[weights])
+        grp_result_buffer.append(group)
+    ds = xr.concat(grp_result_buffer, "stacked_x_y")
+    for each in grp_result_buffer:
+        each.close()
+    elev_bin_means.dropna(inplace=True)
+    elev_bin_errs.dropna(inplace=True)
+    if elev_bin_means.empty \
+            or len(elev_bin_means.index) < 5 \
+            or elev_bin_means.index[-1].right - elev_bin_means.index[0].left < 2/3 * elev_range_80pctl:
+        return ds
+    else:
+        # fit polynomial
+        # print(elev_bin_means, elev_bin_errs)
+        try:
+            x_vals = np.array([[idx.mid for idx in elev_bin_means.index]]).T
+            scaler = preprocessing.StandardScaler().fit(x_vals, sample_weight=1/elev_bin_errs.values)
+            # print(x_vals, scaler.transform(x_vals))
+            def design_matrix(x_vals):
+                return np.hstack([x_vals, x_vals**2, x_vals**3])
+            # print(x_vals, design_matrix(x_vals), elev_bin_means.values, 1/elev_bin_errs.values)
+            # cov = covariance.EmpiricalCovariance().fit(design_matrix(scaler.transform(x_vals))).covariance_
+            fit = linear_model.Ridge(1).fit(design_matrix(scaler.transform(x_vals)), elev_bin_means.values, 1/elev_bin_errs.values)
+            coeffs = fit.coef_
+        except np.linalg.LinAlgError: # not sure what error sklearn raises
+            print(elev_bin_means)
+            print(elev_bin_errs)
+            return ds
+        coeffs = np.hstack((fit.intercept_, coeffs))[::-1]
+        if (np.abs(np.polyval(np.polyder(coeffs), scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))).max() > 15/100*scaler.var_**.5 \
+                and np.abs(np.polyval(coeffs, scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))-elev_bin_means.mean()).max() > 50) \
+            or np.abs(np.polyval(np.polyder(coeffs), scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))).max() > 50/100*scaler.var_**.5:
+            return ds
+        elev0 = design_matrix(scaler.transform(ds[elev].values[:,None]))
+        try:
+            ds[main_var] = xr.where(ds[weights] > 0, ds[main_var], xr.DataArray(fit.predict(elev0), coords={"stacked_x_y": ds.stacked_x_y}, dims="stacked_x_y"))
+        except:
+            print(xr.DataArray(fit.predict(elev0), coords={"stacked_x_y": ds.stacked_x_y}, dims="stacked_x_y"))
+            raise
+        y_hat = fit.predict(design_matrix(scaler.transform(x_vals)))
+        residuals = elev_bin_means.values - y_hat
+        effective_samp_size = float(elev_bin_errs.sum()**2/(elev_bin_errs**2).sum())
+        errs = ((residuals/elev_bin_errs.values)**2).sum()*(elev_bin_errs.values**2).sum()/effective_samp_size**.5
+        ds[error] = xr.where(ds[weights] > 0, ds[error], 2*errs)
+        ds[weights] = xr.where(ds[weights] > 0, ds[weights], 0)
     return ds
 __all__.append("interpolate_hypsometrically")
 
