@@ -1,16 +1,13 @@
-import dask.dataframe
-import dask.distributed
+import datetime
 from dateutil.relativedelta import relativedelta
 import geopandas as gpd
 import h5py
-# import numba
 import numpy as np
 import os
 import pandas as pd
 from pyproj.crs import CRS
 import shapely
 import shutil
-import sys
 import tqdm
 import rasterio.warp
 import rioxarray as rioxr
@@ -127,15 +124,20 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
                   spatial_res_meter: float = 500,
                   agg_func_and_meta: tuple[callable, dict] = (med_iqr_cnt,
                                                               {"_median": "f8", "_iqr": "f8", "_count": "i8"}),
+                  cache_extra: str = "",
                   crs: CRS|int = None,
                   reprocess: bool = False,
                   **l2_from_id_kwargs):
+    # include in docstring: function footprint = 2x resulting ds + 2Gb (min. 5Gb)
     if window_ntimesteps%2 - 1:
         old_window = window_ntimesteps
         window_ntimesteps = (window_ntimesteps//2+1)
         warnings.warn(f"The window should be a uneven number of time steps. You asked for {old_window}, but it has "+ f"been changed to {window_ntimesteps}.")
     # ! end time step should be included.
     start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
+    # this function only makes sense for multiple months, so assume input
+    # was on the month scale and set end_datetime to end of month
+    end_datetime = end_datetime.normalize() + pd.offsets.MonthBegin() - pd.Timedelta(1, "s")
     print("Building a gridded dataset of elevation estimates for",
           "the region "+region_of_interest if isinstance(region_of_interest, str) else "a custom area",
           f"from {start_datetime} to {end_datetime} every {timestep_months} months for",
@@ -165,23 +167,32 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     if isinstance(region_of_interest, str):
         region_id = region_of_interest
         region_of_interest = load_glacier_outlines(region_id)
+        cache_path = os.path.join(data_path, "tmp", region_id+cache_extra)
     else:
-        region_id = "_".join([region_of_interest.centroid.x, region_of_interest.centroid.y])
-    cache_path = os.path.join(data_path, "tmp", region_id)
+        region_id = "_".join([f"{region_of_interest.centroid.x:.0f}", f"{region_of_interest.centroid.y:.0f}"])
+        cache_path = os.path.join(data_path, "tmp", region_id+cache_extra)
     if crs is None:
-        crs = find_planar_crs(region_id=region_id)
+        crs = find_planar_crs(shp=region_of_interest)
     else:
         crs = ensure_pyproj_crs(crs)
-    bbox = gpd.GeoSeries(
-        shapely.box(*gpd.GeoSeries(region_of_interest, crs=4326).to_crs(crs).bounds.values[0]),
-        crs=crs)
+    # cutting to actual glacier outlines takes very long. if needed, implement multiprocessing.
+    # bbox = gpd.GeoSeries(
+    #     shapely.box(*gpd.GeoSeries(region_of_interest, crs=4326).to_crs(crs).bounds.values[0]),
+    #     crs=crs)
+    # below tries to balance a large cache file with speed. it is not meant
+    # to retain data in the suroundings - this is merely needed for the
+    # implicit `simplify`` which would come at the cost of data if not
+    # buffered
+    bbox = gpd.GeoSeries(l2.gis.buffer_4326_shp(region_of_interest, 3_000), crs=4326).to_crs(crs)
+
     # l2 backs up the cache when writing to it. however, there should not be a backup, yet. if there is, throw an error
     if os.path.isfile(cache_path+"__backup"):
         raise Exception(f"Backup exists unexpectedly at {cache_path+'__backup'}. This may point to a running process. If this is a relict, remove it manually.")
     try:
-        l2.from_id(cs_tracks.index, save_or_return="save", cache=cache_path, crs=crs, bbox=bbox,
+        l2.from_id(cs_tracks.index, reprocess=reprocess, save_or_return="save", cache=cache_path, crs=crs, bbox=bbox,
                    max_elev_diff=max_elev_diff, **filter_kwargs(l2.from_id, l2_from_id_kwargs,
-                                                                blacklist=["save_or_return", "cache", "max_elev_diff"]))
+                                                                blacklist=["cache", "max_elev_diff", "save_or_return",
+                                                                           "reprocess"]))
     finally:
         # remove l2's cache backup. it is not needed as no more writing takes
         # place but it occupies some 10 Gb disk space.
@@ -189,41 +200,57 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
             os.remove(cache_path+"__backup")
     outfilepath = build_path(region_id, timestep_months, spatial_res_meter)
     if not reprocess and os.path.isfile(outfilepath):
-        previously_processed_l3 = xr.open_dataset(outfilepath, decode_coords="all")
-        print(previously_processed_l3)
-        print(previously_processed_l3.rio.crs) # no crs? that shouldn't be the case! 
+        with xr.open_dataset(outfilepath, decode_coords="all") as ds:
+            previously_processed_l3 = ds.load().copy()
+    region_of_interest = gpd.GeoSeries(region_of_interest, crs=4326).to_crs(crs).make_valid().simplify(1_000).iloc[0]
     node_list = []
-    def guide_hdf_node(name, node):
+    def collect_chunk_names(name, node):
         nonlocal node_list
-        if not isinstance(node, h5py.Dataset) and "_i_table" in node:
-            if "previously_processed_l3" in locals():
-                x_range, y_range = node.name.split("/")[-2:]
-                x0, x1 = [int(item) for item in x_range.split("_")[-2:]]
-                y0, y1 = [int(item) for item in y_range.split("_")[-2:]]
-                # print(x0, x1, y0, y1)
-                if not previously_processed_l3._median.sel(x=slice(x0, x1), y=slice(y0, y1)).isnull().all():
-                    print("cell", node.name, "will be skipped. data is present")
-                    return None
-            node_list.append(node.name)
+        name_parts = name.split("/")
+        if not isinstance(node, h5py.Group) or len(name_parts) < 2 or not name_parts[-2].startswith("x_"):
+            return
+        chunk_name = name_parts[-2:]
+        if chunk_name not in node_list:
+            x_range, y_range = chunk_name
+            x0, x1 = [int(item) for item in x_range.split("_")[-2:]]
+            y0, y1 = [int(item) for item in y_range.split("_")[-2:]]
+            if x0 > region_of_interest.bounds[2] \
+            or x1 < region_of_interest.bounds[0] \
+            or y0 > region_of_interest.bounds[3] \
+            or y1 < region_of_interest.bounds[1]:
+                return
+            if not shapely.box(x0, y0, x1, y1).intersects(region_of_interest):
+                print("cell", chunk_name, "will be skipped. cell does not intersect current region")
+            elif "previously_processed_l3" in locals() \
+                    and not previously_processed_l3._median.sel(x=slice(x0, x1), y=slice(y0, y1)).isnull().all():
+                print("cell", chunk_name, "will be skipped. data is present")
+            else:
+                node_list.append(chunk_name)
     with h5py.File(cache_path, "r") as h5:
-        h5["swath"].visititems(guide_hdf_node)
-    print("processing queue contains:\n", "\n".join(node_list))
+        if l2_type == "swath":
+            h5["swath"].visititems(collect_chunk_names)
+        elif l2_type == "poca":
+            h5["poca"].visititems(collect_chunk_names)
+        elif l2_type in ["all", "both"]:
+            Exception("Joined swath and poca aggregation is not completely implemented.")
+            h5.visititems(collect_chunk_names)
+    print("processing queue contains:\n", node_list)
     print("\nGridding the data. Each chunk at a time...")
-    for node_name in node_list:
-        print("-----\n\nnext chunk:", node_name)
-        # reading from hdf has issues acquiring the lock. Since no writing takes
-        # place, it should be safe to turn this off. This can potentially be
-        # resumed in future.
-        l2_ddf = dask.dataframe.read_hdf(cache_path, node_name, sorted_index=True, lock=False, mode="r", )
-        l2_ddf = l2_ddf.loc[ext_t_axis[0]:ext_t_axis[-1]]
+    # for the loop below, multiprocessing could be used. however, the
+    # implementation should save intermediate results if interupted.
+    for chunk_name in node_list:
+        print("-----\n\nnext chunk:", chunk_name)
+        with h5py.File(cache_path, "r") as h5:
+            period_list = list(h5["/".join(["swath"] + chunk_name)].keys())
+        l2_df = pd.concat([pd.read_hdf(cache_path, "/".join(["swath"] + chunk_name + [period]), mode="r", ) for period in sorted(period_list)], axis=0)
         # one could drop some of the data before gridding. however, excluding
         # off-glacier data is expensive and filtering large differences to the
         # DEM can hide issues while statistics like the median and the IQR
         # should be fairly robust.
-        if len(l2_ddf.index) != 0:
-            l2_ddf = l2_ddf.repartition(npartitions=3*len(os.sched_getaffinity(0)))
-            l2_ddf[["x", "y"]] = ((l2_ddf[["x", "y"]]//spatial_res_meter+.5)*spatial_res_meter).astype("i4")
-            l2_ddf["roll_0"] = l2_ddf.index.map_partitions(pd.cut, bins=ext_t_axis, right=False, labels=False, include_lowest=True)
+        if len(l2_df.index) != 0:
+            l2_df = l2_df.loc[ext_t_axis[0]:ext_t_axis[-1]]
+            l2_df[["x", "y"]] = ((l2_df[["x", "y"]]//spatial_res_meter+.5)*spatial_res_meter).astype("i4")
+            l2_df["roll_0"] = pd.cut(l2_df.index, bins=ext_t_axis, right=False, labels=False, include_lowest=True)
             # note on the for-loops:
             #     because of the late-binding python behavior, one or the other way the
             #     counting index must be defined at place (as opposed to when dask tries
@@ -232,63 +259,58 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
             #     namespace (in which the index is copied and will not be changed from
             #     outside).
             for i in range(1, window_ntimesteps):
-                def local_closure(roll_iteration):
-                    return l2_ddf.map_partitions(lambda df: df.roll_0-roll_iteration)
-                l2_ddf[f"roll_{i}"] = local_closure(i)
+                l2_df[f"roll_{i}"] = l2_df.roll_0-i
             for i in range(window_ntimesteps):
-                def local_closure(roll_iteration):
-                    return l2_ddf[f"roll_{i}"].map_partitions(lambda series: series.astype("i4")//window_ntimesteps)
-                l2_ddf[f"roll_{i}"] = local_closure(i)
-            # results_list actually is a graph_list until .compute()
+                l2_df[f"roll_{i}"] = l2_df[f"roll_{i}"].astype("i4")//window_ntimesteps
             results_list = [None]*window_ntimesteps
             for i in range(window_ntimesteps):
                 def local_closure(roll_iteration):
                     # note: consider calculating the kurtosis of the data between the 25th
                     #       and the 75th percentile. this could help later on to identify
                     #       the approximate distribution shape
-                    return l2_ddf.rename(columns={f"roll_{i}": "time_idx"}).groupby(["time_idx", "x", "y"], sort=False).h_diff.apply(agg_func_and_meta[0], meta=agg_func_and_meta[1])
+                    return l2_df.rename(columns={f"roll_{i}": "time_idx"}).groupby(["time_idx", "x", "y"]).h_diff.apply(agg_func_and_meta[0])
                 results_list[i] = local_closure(i)
+            del l2_df
             for i in range(window_ntimesteps):
-                results_list[i] = results_list[i].compute()
                 results_list[i] = results_list[i].droplevel(3, axis=0)
                 results_list[i].index = results_list[i].index.set_levels(
                     (results_list[i].index.levels[0]*window_ntimesteps+i+1), level=0).rename("time", level=0)
             l3_data = pd.concat(results_list).sort_index().loc[(slice(0,len(ext_t_axis)-1),slice(None),slice(None)),:]
+            for df in results_list:
+                del df
             l3_data.index = l3_data.index.remove_unused_levels()
             l3_data.index = l3_data.index.set_levels(
                     ext_t_axis[l3_data.index.levels[0]].astype("datetime64[ns]"), level=0)
             l3_data = l3_data.sort_index()
             l3_data = l3_data.query(f"time >= '{start_datetime}' and time <= '{end_datetime}'")
-            # # to_xarray threw errors in the past because of duplicate indices. there
-            # # should never(?) be any. activate the below to debug should this
-            # # problem occur again.
-            # duplicates = l3_data.index.duplicated(keep=False)
-            # print(l3_data.index[duplicates])
-            # print(l3_data.tail(30))
-            
-            # fill x and y such that they are continuous
-            # otherwise, issues arise when working with the data. occurs because
-            # data is not reduced to glacierized region (but could in theory always
-            # occur anyway)
-            try:
-                l3_data = fill_missing_coords(l3_data.to_xarray())
-            except:
-                print(l3_data)
-                print(l3_data.to_xarray())
-                raise
+
+            # note on "erratically" renaming the data below:
+            #   the function consumes much memory. I tried to use xarrays close
+            #   function where possible to reduce the memory footprint. however,
+            #   does not seem to help. xarrays cache might be the problem. see
+            #   issue #32.
+
             # merge with previous data if there are any
             if "previously_processed_l3" in locals():
-                # unfortunately, combining datasets can be nasty:
-                # `xarray.combine_by_coords()` uses the coordinates in order, leading to
-                # issues if, e.g., x starts earlier for one, but y starts earlier for
-                # the other dataset. the below attempts different orders; however,
-                # success is not guaranteed :/
-                try:
-                    previously_processed_l3 = xr.combine_nested([previously_processed_l3, l3_data], concat_dim=None)
-                except ValueError:
-                    previously_processed_l3 = xr.combine_nested([l3_data, previously_processed_l3], concat_dim=None)
+                tmp = previously_processed_l3.to_dataframe().dropna(how="any")
+                previously_processed_l3.close()
+                previously_processed_l3 = pd.concat([tmp, l3_data], axis=0)
+                del tmp
+                print("data count of combined data", len(previously_processed_l3.index))
+                print(previously_processed_l3.head())
+                # there may not be duplicates. if there are, there is a bug
+                duplicates = previously_processed_l3.index.duplicated(keep=False)
+                if any(duplicates):
+                    print(previously_processed_l3.index[duplicates])
+                    print(previously_processed_l3.tail(30))
+                    raise KeyError("Duplicates found in merging new with preexisting data.")
             else:
                 previously_processed_l3 = l3_data
+            del l3_data
+            tmp = previously_processed_l3.to_xarray().sortby("x").sortby("y")
+            del previously_processed_l3
+            previously_processed_l3 = fill_missing_coords(tmp)
+            tmp.close()
             # save/backup result
             tmp_path = os.path.join(data_path, "tmp", f"{region_id}_l3")
             # try to write new data to file. if anything goes wrong, restore. is this sufficiently safe?
@@ -296,11 +318,29 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
                 if os.path.isfile(outfilepath):
                     shutil.move(outfilepath, tmp_path)
                 previously_processed_l3.rio.write_crs(crs).to_netcdf(outfilepath)
-                print(f"processed and stored cell", node_name)
-            except:
+            except Exception as err:
                 shutil.move(tmp_path, outfilepath)
+                print("\n")
+                warnings.warn(
+                    "Failed to write to netcdf! Restored previous state. Printing error"
+                    + "message below and continuing. Attempting to save to temporary file.")
+                try:
+                    safety_net_tmp_file_path = os.path.join(tmp_path, f"tmp_l3_state__{datetime.datetime.strftime('%dT%H%M%S')}.nc")
+                    previously_processed_l3.rio.write_crs(crs).to_netcdf(safety_net_tmp_file_path)
+                except Exception as err_inner:
+                    print("\n")
+                    warnings.warn(
+                        "Failed again to save safety! There likely is a problem with the data."
+                        +" Rethrowing errors.")
+                    raise
+                else:
+                    print("\n", "Managed to save state to", safety_net_tmp_file_path)
+                    print("\n", "Original error is printed below.", str(err), "\n")
             else:
+                print(datetime.datetime.now())
+                print(f"processed and stored cell", chunk_name)
                 if os.path.isfile(tmp_path):
+                    os.remove(tmp_path)
     return previously_processed_l3
 __all__.append("build_dataset")
 
