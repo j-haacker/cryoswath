@@ -309,7 +309,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
             del l3_data
             tmp = previously_processed_l3.to_xarray().sortby("x").sortby("y")
             del previously_processed_l3
-            previously_processed_l3 = fill_missing_coords(tmp)
+            previously_processed_l3 = fill_missing_coords(tmp).rio.write_crs(crs)
             tmp.close()
             # save/backup result
             tmp_path = os.path.join(data_path, "tmp", f"{region_id}_l3")
@@ -317,7 +317,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
             try:
                 if os.path.isfile(outfilepath):
                     shutil.move(outfilepath, tmp_path)
-                previously_processed_l3.rio.write_crs(crs).to_netcdf(outfilepath)
+                previously_processed_l3.to_netcdf(outfilepath)
             except Exception as err:
                 shutil.move(tmp_path, outfilepath)
                 print("\n")
@@ -326,7 +326,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
                     + "message below and continuing. Attempting to save to temporary file.")
                 try:
                     safety_net_tmp_file_path = os.path.join(tmp_path, f"tmp_l3_state__{datetime.datetime.strftime('%dT%H%M%S')}.nc")
-                    previously_processed_l3.rio.write_crs(crs).to_netcdf(safety_net_tmp_file_path)
+                    previously_processed_l3.to_netcdf(safety_net_tmp_file_path)
                 except Exception as err_inner:
                     print("\n")
                     warnings.warn(
