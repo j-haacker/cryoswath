@@ -29,16 +29,17 @@ def append_basin_id(ds: xr.DataArray|xr.Dataset,
         raise NotImplementedError("Automatic basin loading is not yet implemented.")
     if isinstance(ds, xr.DataArray):
         ds = ds.to_dataset()
-    ds["basin_id"] = xr.DataArray(np.int32(-1),
+    ds["basin_id"] = xr.DataArray(-1.0, # should be float. is converted later anyway and if defined here, _FillValue
+                                        # can be nan
                                   coords={k: v for k, v in ds.coords.items() if k in ["x", "y"]},
                                   dims=["x", "y"],
-                                  attrs={"_FillValue": np.int32(-9e9)})
+                                  attrs={"_FillValue": np.nan})
     for i in range(len(basin_gdf)):
         try:
-            subset = ds.basin_id.rio.clip(basin_gdf.iloc[[i]].geometry)
+            subset = ds.basin_id.rio.clip(basin_gdf.iloc[[i]].make_valid())
         except rioxr.exceptions.NoDataInBounds:
             continue
-        subset = xr.where(subset==subset._FillValue, ds.basin_id.loc[dict(x=subset.x, y=subset.y)], int(basin_gdf.iloc[i].rgi_id.split("-")[-1])).rio.write_crs(ds.rio.crs)
+        subset = xr.where(subset.isnull(), ds.basin_id.loc[dict(x=subset.x, y=subset.y)], float(basin_gdf.iloc[i].rgi_id.split("-")[-1]))
         ds["basin_id"].loc[dict(x=subset.x, y=subset.y)] = subset
     ds["basin_id"] = xr.where(ds.basin_id==-1, ds.basin_id._FillValue, ds.basin_id)
     return ds
@@ -52,10 +53,11 @@ def append_basin_group(ds: xr.DataArray|xr.Dataset,
         raise NotImplementedError("Automatic basin loading is not yet implemented.")
     if isinstance(ds, xr.DataArray):
         ds = ds.to_dataset()
-    ds["group_id"] = xr.DataArray(np.int32(-1),
+    ds["group_id"] = xr.DataArray(-1.0, # should be float. is converted later anyway and if defined here, _FillValue
+                                        # can be nan
                                   coords={k: v for k, v in ds.coords.items() if k in ["x", "y"]},
                                   dims=["x", "y"],
-                                  attrs={"_FillValue": np.int32(-9e9)})
+                                  attrs={"_FillValue": np.nan})
     for basin_tt_group in basin_gdf.groupby("term_type"):
         # cut latitude into degree slices
         n_lat_bins = max(1, round(basin_tt_group[1].cenlat.max()-basin_tt_group[1].cenlat.min()))
@@ -69,12 +71,9 @@ def append_basin_group(ds: xr.DataArray|xr.Dataset,
                                                                 observed=True):
                 # use all cells with matching term_type in proximity as reference
                 try:
-                    mask = ds.group_id.rio.clip(basin_lon_group[1].geometry)
+                    mask = ds.group_id.rio.clip(basin_lon_group[1].make_valid())
                 except rioxr.exceptions.NoDataInBounds:
                     # if there is no data at all, continue
-                    # debugging:
-                    # basin_lon_group[1].plot()
-                    # plt.show()
                     continue
                 # construct id: sign indicates hemisphere, first digit is termination
                 # type (see RGI doc; 0: land, 1: tidewater, 2: lake, 3: shelf, 9: n/a),
@@ -83,7 +82,7 @@ def append_basin_group(ds: xr.DataArray|xr.Dataset,
                 lat = basin_lat_group[0].mid
                 lon = basin_lon_group[0].mid
                 group_id = int(f"{np.sign(lat)*term_type:.0f}{np.abs(lat):02.0f}{lon%360:03.0f}")
-                mask = xr.where(mask==mask._FillValue, ds.group_id.loc[dict(x=mask.x, y=mask.y)], group_id)
+                mask = xr.where(mask==mask.isnull(), ds.group_id.loc[dict(x=mask.x, y=mask.y)], group_id)
                 ds["group_id"].loc[dict(x=mask.x, y=mask.y)] = mask
     ds["group_id"] = xr.where(ds.group_id==-1, ds.group_id._FillValue, ds.group_id)
     return ds
