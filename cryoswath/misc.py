@@ -118,6 +118,13 @@ def cs_time_to_id(time: pd.Timestamp) -> str:
 
 
 def convert_all_esri_to_feather(dir_path: str = None) -> None:
+    """Converts ESRI/ArcGIS formatted files to feathers
+
+    Finds all .shp in given directory. Not recursive.
+
+    Args:
+        dir_path (str, optional): Root directory. Defaults to None.
+    """
     for shp_file in glob.glob("*.shp", root_dir=dir_path):
         try:
             gis.esri_to_feather(os.path.join(dir_path, shp_file))
@@ -174,6 +181,15 @@ __all__.append("convert_all_esri_to_feather")
 
 
 def extend_filename(file_name: str, extension: str) -> str:
+    """Adds string at end of file name, before last "."
+
+    Args:
+        file_name (str): File name or path.
+        extension (str): String to insert at end.
+
+    Returns:
+        str: As input, including extension.
+    """
     fn_parts = file_name.split(os.path.extsep)
     return os.path.extsep.join(fn_parts[:-1]) + extension + os.path.extsep + fn_parts[-1]
 __all__.append("extend_filename")
@@ -185,6 +201,22 @@ def filter_kwargs(func: callable,
                   blacklist: list[str] = None,
                   whitelist: list[str] = None,
                   ) -> dict:
+    """Automatically reduces dict to accepted inputs
+
+    Detects expected key-word arguments of a function and only passes
+    those. Use black- and whitelists to refine.
+
+    Args:
+        func (callable): Target function.
+        kwargs (dict): KW-args to be filtered.
+        blacklist (list[str], optional): Blacklist undesired arguments.
+            Defaults to None.
+        whitelist (list[str], optional): Include extra arguments, that are
+            not part of the functions signature. Defaults to None.
+
+    Returns:
+        dict: Filtered kw-args.
+    """
     def ensure_list(tmp_list):
         if tmp_list is None: return []
         elif isinstance(tmp_list, str): return [tmp_list]
@@ -197,6 +229,26 @@ __all__.append("filter_kwargs")
 
 
 def find_region_id(location: any, scope: str = "o2") -> str:
+    """Returns RGI id for multitude of inputs
+
+    Special behavior in Greenland! If o2 region is requested, return id of
+    "custom" subregion: 05-11--05-15 for N, W, SW, SE, E. See geo-feathers
+    in `data/auxiliary/RGI/05-1*.feather`.
+
+    Args:
+        location (any): Can be a geo-referenced xarray.DataArray, a
+            geopandas.GeoDataFrame or Series, or a shapely.Geometry.
+        scope (str, optional): One of "o1", "o2", or "basin". Defaults to
+            "o2".
+
+    Raises:
+        Exception: `scope` is "o2" and `location` is in Greenland but
+            - not in one of the custom subregions or
+            - in more than one custom subregion.
+
+    Returns:
+        str: RGI id.
+    """
     if isinstance(location, xr.DataArray) or isinstance(location, xr.Dataset):
         left, lower, right, upper = location.rio.transform_bounds(4326)
         location = shapely.Point(left+(right-left)/2, lower+(upper-lower)/2)
@@ -239,7 +291,7 @@ def flag_outliers(data, *,
                   stat: callable = np.median,
                   deviation_factor: float = 3,
                   scaling_factor: float = 2*2**.5*scipy.special.erfinv(.5)):
-    """Flags data that is considered outlier given a set of assumptions.
+    """Flags data that is considered outlier given a set of assumptions
 
     Data too far from a reference point is marked. Works analogous comparing
     data to its mean in terms of standard deviations.
@@ -333,6 +385,21 @@ def gauss_filter_DataArray(da, dim, window_extent, std):
 
 
 def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
+    """Determines which DEM to use
+
+    Attempts to determine location of `data` and returns appropriate
+    `rasterio.io.DatasetReader`. Only implemented for ArcticDEM and
+    REMA.
+
+    Args:
+        data (any): Defaults to None.
+
+    Raises:
+        NotImplementedError: If region can't be inferred.
+
+    Returns:
+        rasterio.DatasetReader: Reader pointing to the file.
+    """
     if isinstance(data, shapely.Geometry):
         lat = np.mean(data.bounds[1::2])
     elif isinstance(data, float) \
@@ -363,15 +430,45 @@ def interpolate_hypsometrically(ds: xr.Dataset,
                                 error: str,
                                 elev: str = "ref_elev",
                                 weights: str = "weights",
-                                degree: int = 3,
                                 outlier_replace: bool = False,
                                 ) -> xr.Dataset:
+    """Fills data gaps by hypsometrical interpolation
+
+    If sufficient data is provided, this routine sorts and bins the data by
+    elevation bands and fits a third-order polynomial to the weighted
+    averages.
+
+    Sufficient data requires 4 or more bands, with an effective sample size
+    of 6 or larger, that span at least 2/3 of the total elevation range.
+    The weights used to calculate the weighted average are the reciprocal
+    squared errors if no weights are provided.
+
+    If dimension "time" exists, recurse into time steps and interpolate per
+    time step.
+
+    Args:
+        ds (xr.Dataset): Input with voids.
+        main_var (str): Name of variable to interpolate.
+        error (str): Name of errors. Only used, if weights are not provided.
+        elev (str, optional): Name of variable that contains the reference
+            elevation used for binning. If the variable does not exist, it
+            is attempted to read the reference elevations from disk.
+            Defaults to "ref_elev".
+        weights (str, optional): Provide name of variable that contains the
+            weights. The weights will be passed to `numpy.average` and
+            should be 1/variance or similar. Defaults to "weights".
+        outlier_replace (bool, optional): If enabled, also interpolates
+            outliers. Defaults to False.
+
+    Returns:
+        xr.Dataset: Filled dataset.
+    """
     if "time" in ds.dims and len(ds.time) > 1:
         # note: `groupby("time")` creates time depencies for all data_vars. this
         #       requires taking note of those data_vars that do not depend on
         #       time and reset those after the operation
         no_time_dep = [data_var for data_var in ds.data_vars if not "time" in ds[data_var].dims]
-        ds = ds.groupby("time", squeeze=False).apply(interpolate_hypsometrically, main_var=main_var, elev=elev, error=error, degree=degree, outlier_replace=outlier_replace)
+        ds = ds.groupby("time", squeeze=False).apply(interpolate_hypsometrically, main_var=main_var, elev=elev, error=error, outlier_replace=outlier_replace)
         ds[no_time_dep] = ds[no_time_dep].isel(time=0)
         return ds
     # assign weights if not present. use previously assigned weights to
@@ -380,7 +477,7 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         ds[weights] = 1/ds[error]**2
     # abort if too little data (checking elevation and data validity).
     # necessary to prevent errors but also introduces data gaps
-    if ds[elev].where(ds[error]>0).count() < degree*3:
+    if ds[elev].where(ds[error]>0).count() < 24:
         # print("too little data")
         return ds
     # also, abort if there isn't anything to do
@@ -723,7 +820,7 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
 
 
 def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
-    """Loads RGI v7 basin or complex outlines and meta data.
+    """Loads RGI v7 basin or complex outlines and meta data
 
     Args:
         o1code (str): starting with "01".."20"
@@ -777,6 +874,17 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
 
 
 def load_o2region(o2code: str, product: str = "complexes") -> gpd.GeoDataFrame:
+    """Loads RGI v7 basin or complex outlines and meta data
+
+    Args:
+        o2code (str): RGI o2 code.
+        product (str, optional): Either "glaciers" or "complexes". Defaults
+            to "complexes".
+
+    Returns:
+        gpd.GeoDataFrame: Queried RGI data with geometry column containing
+            the outlines.
+    """
     o1region = load_o1region(o2code[:2], product)
     # special handling for greenland periphery
     if o2code.startswith("05") and not o2code.endswith("01"):
@@ -785,6 +893,15 @@ def load_o2region(o2code: str, product: str = "complexes") -> gpd.GeoDataFrame:
 
 
 def load_basins(rgi_ids: list[str]) -> gpd.GeoDataFrame:
+    """Loads RGI v7 basin or complex outlines and meta data
+
+    Args:
+        rgi_ids (list[str]): RGI basin ids.
+
+    Returns:
+        gpd.GeoDataFrame: Queried RGI data with geometry column containing
+            the outlines.
+    """
     if len(rgi_ids) > 1:
         assert(all([id[:17]==rgi_ids[0][:17]] for id in rgi_ids))
     rgi_o1_gpdf = load_o1region(rgi_ids[0].split("-")[3], product="glaciers")
@@ -797,6 +914,26 @@ def load_glacier_outlines(identifier: str|list[str],
                           union: bool = True,
                           crs: int|CRS = None,
                           ) -> shapely.MultiPolygon:
+    """Loads RGI v7 basin or complex outlines and meta data
+
+    Args:
+        identifier (str | list[str]): RGI id: either o1, o2, or
+            basin/complex id.
+        product (str, optional): Either "glaciers" or "complexes". Defaults
+            to "complexes".
+        union (bool, optional): For backward compatibility, if enabled (by
+            default) only return union of all shapes. If disabled, return
+            full GeoDataFrame. Defaults to True.
+        crs (int | CRS, optional): Convenience option to reproject shape(s)
+            to crs. Defaults to None.
+
+    Raises:
+        ValueError: If identifier was not understood.
+
+    Returns:
+        shapely.MultiPolygon: Union of basin shapes. If `union` is disabled,
+            instead return geopandas.GeoDataFrame including the full data.
+    """
     if isinstance(identifier, list):
         out = load_basins(identifier)
     elif len(identifier) == (7+4+1+2+5+4) and identifier.split("-")[:3] == ["RGI2000", "v4.1", "G"]:
@@ -955,7 +1092,20 @@ def repair_l2_cache(filepath: str, *, region_of_interest: shapely.MultiPolygon =
 __all__.append("repair_l2_cache")
 
 
-def rgi_code_translator(input: str, out_type: str = "full_name") -> str:
+def rgi_code_translator(input: str|list[str], out_type: str = "full_name") -> str:
+    """Translate o1 or o2 codes to region names
+
+    Args:
+        input (str): RGI o1 or o2 codes.
+        out_type (str, optional): Either "full_name" or "long_code".
+            Defaults to "full_name".
+
+    Raises:
+        ValueError: If input is not understood.
+
+    Returns:
+        str: Either full name or RGI "long_code".
+    """
     if isinstance(input, list):
         return [rgi_code_translator(element, out_type) for element in input]
     if isinstance(input, int) or len(input) <= 2 and int(input) < 20:
@@ -1044,6 +1194,17 @@ __all__.append("weighted_mean_excl_outliers")
 
 def xycut(data: gpd.GeoDataFrame, x_chunk_meter = 3*4*5*1_000, y_chunk_meter = 3*4*5*1_000)\
     -> list[dict[str, Union[float, gpd.GeoDataFrame]]]:
+    """Chunk point data in planar reference system
+
+    This mainly is a helper function for `l3.build_dataset()` that takes
+    many data points and chunks them based on their location.
+    However, it may be helpful in other contexts.
+
+    Returns:
+        list: List of dicts of which each contains the x and y extents of
+            the current chunk and the GeoDataFrame or Series of the point
+            data.
+    """
     # 3*4*5=60 [km] fits many grid cell sizes and makes reasonable chunks
     # ! only implemented for l2 data. however, easily convertible for l1b and l3 data
 
