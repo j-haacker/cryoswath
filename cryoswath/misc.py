@@ -364,9 +364,7 @@ def interpolate_hypsometrically(ds: xr.Dataset,
                                 elev: str = "ref_elev",
                                 weights: str = "weights",
                                 degree: int = 3,
-                                outlier_limit: float = 5,
                                 outlier_replace: bool = False,
-                                outlier_iterations: int = 1,
                                 ) -> xr.Dataset:
     if "time" in ds.dims and len(ds.time) > 1:
         # note: `groupby("time")` creates time depencies for all data_vars. this
