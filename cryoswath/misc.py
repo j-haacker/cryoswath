@@ -1165,9 +1165,9 @@ def weighted_mean_excl_outliers(df: pd.DataFrame|xr.Dataset = None,
             Defaults to 5.
 
     Returns:
-        float: Weighted average excluding outliers.
-        if `return_mask`: returns a boolean mask, true where outlier.
-                          The mask is same as input type.
+        float: Weighted average excluding outliers. if `return_mask`,
+            returns a boolean mask that is true where outliers were
+            detected. The mask is same as input type.
     """
     # todo: write a test: mainly confirm math works
     if isinstance(df, pd.DataFrame) or isinstance(df, xr.Dataset):

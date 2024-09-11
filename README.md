@@ -3,7 +3,7 @@
 cryoswath is a python package containing processing pipelines, a tool
 library, and some pre-assemble data to retrieve and study CryoSat-2 data
 
-## state
+## 🌱 state
 
 Currently, it is in the beta phase. `main` contains those parts that I
 believe to work if used as intended and that tested to some
@@ -21,10 +21,20 @@ for some inspiration how to start off.
 - fill data gaps using tested methods
 - calculate change rates
 
+## 📖 documentation
+
+The documentation of functions is easily accessible at
+[j-haacker.github.io/cryoswath](https://j-haacker.github.io/cryoswath/).
+
 ## dependencies
 
 cryoswath builds on a number of other packages. See
 [requirements.txt](https://github.com/j-haacker/cryoswath/blob/main/requirements.txt).
+
+### external dependencies
+
+- the reference elevation model is not provided
+- the RGI data are not automatically downloaded
 
 ## 🐛 known issues
 
@@ -35,11 +45,6 @@ cryoswath builds on a number of other packages. See
 - it has mostly been tested for the Arctic
 
   Further: see [open issues](https://github.com/j-haacker/cryoswath/issues).
-
-### missing dependencies
-
-- the reference elevation model is not provided
-- the RGI data are not automatically downloaded
 
 ## 🎯 what's coming
 
