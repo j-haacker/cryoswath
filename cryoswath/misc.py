@@ -90,6 +90,8 @@ nanoseconds_per_year = 365.25*24*60*60*1e9
 
 # security issue?
 class binary_chache():
+    """Helper class to download via ftp.
+    """
     __all__ = []
     def __init__(self):
         self._cache = bytearray()
@@ -104,16 +106,37 @@ class binary_chache():
         del self._cache[:]
 
     def add(self, new_part):
+        """Appends to cache.
+
+        Args:
+            new_part (binary): New part.
+        """
         self._cache.extend(new_part)
     __all__.append("add")
 __all__.append("binary_chache")
 
 
 def cs_id_to_time(cs_id: str) -> pd.Timestamp:
+    """Formats CryoSat-2 file time tag as timestamp.
+
+    Args:
+        cs_id (str): CryoSat-2 file time tag.
+
+    Returns:
+        pd.Timestamp: Timestamp.
+    """
     return pd.to_datetime(cs_id, format="%Y%m%dT%H%M%S")
 
 
 def cs_time_to_id(time: pd.Timestamp) -> str:
+    """Converts timestamp to CryoSat-2 file time tag.
+
+    Args:
+        time (pd.Timestamp): Timestamp.
+
+    Returns:
+        str: CryoSat-2 file time tag.
+    """
     return time.strftime("%Y%m%dT%H%M%S")
 
 
@@ -371,7 +394,21 @@ def flag_translator(cs_l1b_flag):
         return flag_dictionary.loc[int(cs_l1b_flag.values)]
 
 
-def gauss_filter_DataArray(da, dim, window_extent, std):
+def gauss_filter_DataArray(da: xr.DataArray, dim: str, window_extent: int, std: int) -> xr.DataArray:
+    """Low-pass filters input array.
+
+    Convolves each vector of an array along the specified dimension with a
+    normalized gauss-function having the specified standard deviation.
+
+    Args:
+        da (xr.DataArray): Data to be filtered.
+        dim (str): Dimension to apply filter along.
+        window_extent (int): Window width. If not uneven, it is increased.
+        std (int): Standard deviation of gauss-filter.
+
+    Returns:
+        xr.DataArray: _description_
+    """
     # force window_extent to be uneven to ensure center to be where expected
     half_window_extent = window_extent//2
     window_extent = 2*half_window_extent+1
@@ -831,7 +868,8 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
         FileNotFoundError: If RGI data is missing.
 
     Returns:
-        gpd.GeoDataFrame: Queried RGI data with geometry column containing the outlines.
+        gpd.GeoDataFrame: Queried RGI data with geometry column containing
+        the outlines.
     """
     if product == "complexes":
         product = "C"
@@ -883,7 +921,7 @@ def load_o2region(o2code: str, product: str = "complexes") -> gpd.GeoDataFrame:
 
     Returns:
         gpd.GeoDataFrame: Queried RGI data with geometry column containing
-            the outlines.
+        the outlines.
     """
     o1region = load_o1region(o2code[:2], product)
     # special handling for greenland periphery
@@ -900,7 +938,7 @@ def load_basins(rgi_ids: list[str]) -> gpd.GeoDataFrame:
 
     Returns:
         gpd.GeoDataFrame: Queried RGI data with geometry column containing
-            the outlines.
+        the outlines.
     """
     if len(rgi_ids) > 1:
         assert(all([id[:17]==rgi_ids[0][:17]] for id in rgi_ids))
@@ -932,7 +970,7 @@ def load_glacier_outlines(identifier: str|list[str],
 
     Returns:
         shapely.MultiPolygon: Union of basin shapes. If `union` is disabled,
-            instead return geopandas.GeoDataFrame including the full data.
+        instead return geopandas.GeoDataFrame including the full data.
     """
     if isinstance(identifier, list):
         out = load_basins(identifier)
@@ -1000,11 +1038,30 @@ __all__.append("merge_l2_cache")
 
 
 def nan_unique(data: np.typing.ArrayLike) -> list:
+    """Returns unique values that are not nan.
+
+    Args:
+        data (np.typing.ArrayLike): Input data.
+
+    Returns:
+        list: List of unique values.
+    """
     return [element for element in np.unique(data) if not np.isnan(element)]
 __all__.append("nan_unique")
 
 
 def request_workers(task_func: callable, n_workers: int, result_queue: queue.Queue = None) -> queue.Queue:
+    """Creates workers and provides queue to assign work
+
+    Args:
+        task_func (callable): Task.
+        n_workers (int): Number of requested workers.
+        result_queue (queue.Queue, optional): Queue in which to drop
+            results. Defaults to None.
+
+    Returns:
+        queue.Queue: Task queue.
+    """
     task_queue = queue.Queue()
     def worker():
         while True:
@@ -1117,6 +1174,16 @@ __all__.append("rgi_code_translator")
 
 
 def rgi_o1region_translator(input: int, out_type: str = "full_name") -> str:
+    """Finds region name for given RGI o1 number.
+
+    Args:
+        input (int): RGI o1 number.
+        out_type (str, optional): Either "full_name" or "long_code".
+            Defaults to "full_name".
+
+    Returns:
+        str: Either full name or RGI "long_code".
+    """
     if isinstance(input, list):
         return [rgi_o1region_translator(element, out_type) for element in input]
     lut = pd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o1regions.feather"),
@@ -1127,6 +1194,17 @@ __all__.append("rgi_o1region_translator")
 
 
 def rgi_o2region_translator(o1: int, o2: int, out_type: str = "full_name") -> str:
+    """Finds subregion name for given RGI o1 and o2 number.
+
+    Args:
+        o1 (int): RGI o1 number.
+        o2 (int): RGI o2 number.
+        out_type (str, optional): Either "full_name" or "long_code".
+            Defaults to "full_name".
+
+    Returns:
+        str: Either full name or RGI "long_code".
+    """
     if isinstance(o1, list):
         return [rgi_o2region_translator(o1_, o2_, out_type) for o1_, o2_ in zip(o1, o2)]
     if isinstance(o2, list):
@@ -1166,8 +1244,8 @@ def weighted_mean_excl_outliers(df: pd.DataFrame|xr.Dataset = None,
 
     Returns:
         float: Weighted average excluding outliers. if `return_mask`,
-            returns a boolean mask that is true where outliers were
-            detected. The mask is same as input type.
+        returns a boolean mask that is true where outliers were detected.
+        The mask is same as input type.
     """
     # todo: write a test: mainly confirm math works
     if isinstance(df, pd.DataFrame) or isinstance(df, xr.Dataset):
@@ -1202,8 +1280,7 @@ def xycut(data: gpd.GeoDataFrame, x_chunk_meter = 3*4*5*1_000, y_chunk_meter = 3
 
     Returns:
         list: List of dicts of which each contains the x and y extents of
-            the current chunk and the GeoDataFrame or Series of the point
-            data.
+        the current chunk and the GeoDataFrame or Series of the point data.
     """
     # 3*4*5=60 [km] fits many grid cell sizes and makes reasonable chunks
     # ! only implemented for l2 data. however, easily convertible for l1b and l3 data
