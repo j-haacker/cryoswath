@@ -284,6 +284,14 @@ class l1b_data(xr.Dataset):
 
     # ! rename to something like retrieve_ambiguous_origins
     def locate_ambiguous_origin(self):
+        """Calculates all "possible" echo origins.
+
+        Adds for the 7 look angles `xph_thetas` the variables xph_lats,
+        xph_lons, xph_elevs, and xph_dists.
+
+        Returns:
+            Dataset: l1b_data including the calculated coordinates.
+        """
         # Calculate normal distance: position on ellipsoid surface <--> major axis
         r_N = WGS84_ellpsoid.a/np.sqrt(1-WGS84_ellpsoid.es*np.sin(np.deg2rad(self.lat_20_ku))**2)
         # Add satellite height
