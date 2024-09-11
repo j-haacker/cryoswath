@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>cryoswath.misc module &#8212; cryoswath 0.1.3-740684d documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=12dfc556" />
+    <script src="_static/documentation_options.js?v=0589f067"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="cryoswath.gis module" href="cryoswath.gis.html" />
+    <link rel="prev" title="cryoswath.l4 module" href="cryoswath.l4.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="module-cryoswath.misc">
+<span id="cryoswath-misc-module"></span><h1>cryoswath.misc module<a class="headerlink" href="#module-cryoswath.misc" title="Link to this heading">¶</a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="cryoswath.misc.binary_chache">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">binary_chache</span></span><a class="headerlink" href="#cryoswath.misc.binary_chache" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="cryoswath.misc.binary_chache.add">
+<span class="sig-name descname"><span class="pre">add</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">new_part</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.misc.binary_chache.add" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="cryoswath.misc.binary_chache.cache">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">cache</span></span><a class="headerlink" href="#cryoswath.misc.binary_chache.cache" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.convert_all_esri_to_feather">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">convert_all_esri_to_feather</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dir_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#cryoswath.misc.convert_all_esri_to_feather" title="Link to this definition">¶</a></dt>
+<dd><p>Converts ESRI/ArcGIS formatted files to feathers</p>
+<p>Finds all .shp in given directory. Not recursive.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>dir_path</strong> (<em>str</em><em>, </em><em>optional</em>) – Root directory. Defaults to None.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.cs_id_to_time">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">cs_id_to_time</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cs_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Timestamp</span></span></span><a class="headerlink" href="#cryoswath.misc.cs_id_to_time" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.cs_time_to_id">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">cs_time_to_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Timestamp</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#cryoswath.misc.cs_time_to_id" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.extend_filename">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">extend_filename</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">file_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">extension</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#cryoswath.misc.extend_filename" title="Link to this definition">¶</a></dt>
+<dd><p>Adds string at end of file name, before last “.”</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>file_name</strong> (<em>str</em>) – File name or path.</p></li>
+<li><p><strong>extension</strong> (<em>str</em>) – String to insert at end.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>As input, including extension.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.filter_kwargs">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">filter_kwargs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">callable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">blacklist</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">whitelist</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span></span></span><a class="headerlink" href="#cryoswath.misc.filter_kwargs" title="Link to this definition">¶</a></dt>
+<dd><p>Automatically reduces dict to accepted inputs</p>
+<p>Detects expected key-word arguments of a function and only passes
+those. Use black- and whitelists to refine.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>func</strong> (<em>callable</em>) – Target function.</p></li>
+<li><p><strong>kwargs</strong> (<em>dict</em>) – KW-args to be filtered.</p></li>
+<li><p><strong>blacklist</strong> (<em>list</em><em>[</em><em>str</em><em>]</em><em>, </em><em>optional</em>) – Blacklist undesired arguments.
+Defaults to None.</p></li>
+<li><p><strong>whitelist</strong> (<em>list</em><em>[</em><em>str</em><em>]</em><em>, </em><em>optional</em>) – Include extra arguments, that are
+not part of the functions signature. Defaults to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Filtered kw-args.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.find_region_id">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">find_region_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">location</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scope</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'o2'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#cryoswath.misc.find_region_id" title="Link to this definition">¶</a></dt>
+<dd><p>Returns RGI id for multitude of inputs</p>
+<p>Special behavior in Greenland! If o2 region is requested, return id of
+“custom” subregion: 05-11–05-15 for N, W, SW, SE, E. See geo-feathers
+in <cite>data/auxiliary/RGI/05-1*.feather</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>location</strong> (<em>any</em>) – Can be a geo-referenced xarray.DataArray, a
+geopandas.GeoDataFrame or Series, or a shapely.Geometry.</p></li>
+<li><p><strong>scope</strong> (<em>str</em><em>, </em><em>optional</em>) – One of “o1”, “o2”, or “basin”. Defaults to
+“o2”.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>Exception</strong> – <cite>scope</cite> is “o2” and <cite>location</cite> is in Greenland but
+    - not in one of the custom subregions or
+    - in more than one custom subregion.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>RGI id.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.flag_outliers">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">flag_outliers</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights=None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stat:</span> <span class="pre">callable</span> <span class="pre">=</span> <span class="pre">&lt;function</span> <span class="pre">median&gt;</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">deviation_factor:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scaling_factor:</span> <span class="pre">float</span> <span class="pre">=</span> <span class="pre">1.3489795003921636</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.misc.flag_outliers" title="Link to this definition">¶</a></dt>
+<dd><p>Flags data that is considered outlier given a set of assumptions</p>
+<p>Data too far from a reference point is marked. Works analogous comparing
+data to its mean in terms of standard deviations.</p>
+<p>Function was meant to be versatile. However, I’m not sure it makes
+sense using it with other than the “usual” statistics: mean and median.</p>
+<p>It defaults to marking data further from the median than 3 scaled MADs.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data</strong> (<em>ArrayLike</em>) – If data is an array, outliers will be flagged
+along first dimension (given <cite>stat</cite> works like most numpy
+functions).</p></li>
+<li><p><strong>weights</strong> (<em>ArrayLike</em>) – If weights are provided, they are passed as
+the keyword argument to <cite>stat</cite>.</p></li>
+<li><p><strong>stat</strong> (<em>callable</em><em>, </em><em>optional</em>) – Function to return first and second
+reference points. Defaults to np.median.</p></li>
+<li><p><strong>deviation_factor</strong> (<em>float</em><em>, </em><em>optional</em>) – Allowed number of reference
+point distances between data and first reference point.
+Defaults to 3.</p></li>
+<li><p><strong>scaling_factor</strong> (<em>float</em><em>, </em><em>optional</em>) – Reference distance scaling.
+Defaults to 2*2**.5*scipy.special.erfinv(.5)).</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Mask that is positive for outliers.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>bool, shaped like input</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.flag_translator">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">flag_translator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cs_l1b_flag</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.misc.flag_translator" title="Link to this definition">¶</a></dt>
+<dd><p>Retrieves the meaning of a flag from the attributes.</p>
+<p>If attributes contain “flag_masks”, it converts the value to a
+binary mask and returns a list of flags. Else it expects
+“flag_values” and interprets and returns the flag as one of a set of
+options.</p>
+<p>This works for CryoSat-2 L1b netCDF data. It depends on the
+attribute structure and names.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>cs_l1b_flag</strong> (<em>0-dim xarray.DataArray</em>) – Flag variable of waveform.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>List of flags or single option, depending on
+flag.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>list or string</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.gauss_filter_DataArray">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">gauss_filter_DataArray</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">da</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dim</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">window_extent</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">std</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.misc.gauss_filter_DataArray" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.get_dem_reader">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">get_dem_reader</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">any</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DatasetReader</span></span></span><a class="headerlink" href="#cryoswath.misc.get_dem_reader" title="Link to this definition">¶</a></dt>
+<dd><p>Determines which DEM to use</p>
+<p>Attempts to determine location of <cite>data</cite> and returns appropriate
+<cite>rasterio.io.DatasetReader</cite>. Only implemented for ArcticDEM and
+REMA.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>data</strong> (<em>any</em>) – Defaults to None.</p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>NotImplementedError</strong> – If region can’t be inferred.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Reader pointing to the file.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>rasterio.DatasetReader</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.interpolate_hypsometrically">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">interpolate_hypsometrically</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ds</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dataset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">main_var</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">error</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">elev</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'ref_elev'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'weights'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outlier_replace</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dataset</span></span></span><a class="headerlink" href="#cryoswath.misc.interpolate_hypsometrically" title="Link to this definition">¶</a></dt>
+<dd><p>Fills data gaps by hypsometrical interpolation</p>
+<p>If sufficient data is provided, this routine sorts and bins the data by
+elevation bands and fits a third-order polynomial to the weighted
+averages.</p>
+<p>Sufficient data requires 4 or more bands, with an effective sample size
+of 6 or larger, that span at least 2/3 of the total elevation range.
+The weights used to calculate the weighted average are the reciprocal
+squared errors if no weights are provided.</p>
+<p>If dimension “time” exists, recurse into time steps and interpolate per
+time step.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ds</strong> (<em>xr.Dataset</em>) – Input with voids.</p></li>
+<li><p><strong>main_var</strong> (<em>str</em>) – Name of variable to interpolate.</p></li>
+<li><p><strong>error</strong> (<em>str</em>) – Name of errors. Only used, if weights are not provided.</p></li>
+<li><p><strong>elev</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of variable that contains the reference
+elevation used for binning. If the variable does not exist, it
+is attempted to read the reference elevations from disk.
+Defaults to “ref_elev”.</p></li>
+<li><p><strong>weights</strong> (<em>str</em><em>, </em><em>optional</em>) – Provide name of variable that contains the
+weights. The weights will be passed to <cite>numpy.average</cite> and
+should be 1/variance or similar. Defaults to “weights”.</p></li>
+<li><p><strong>outlier_replace</strong> (<em>bool</em><em>, </em><em>optional</em>) – If enabled, also interpolates
+outliers. Defaults to False.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Filled dataset.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xr.Dataset</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.load_basins">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">load_basins</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rgi_ids</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">GeoDataFrame</span></span></span><a class="headerlink" href="#cryoswath.misc.load_basins" title="Link to this definition">¶</a></dt>
+<dd><p>Loads RGI v7 basin or complex outlines and meta data</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>rgi_ids</strong> (<em>list</em><em>[</em><em>str</em><em>]</em>) – RGI basin ids.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>Queried RGI data with geometry column containing</dt><dd><p>the outlines.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>gpd.GeoDataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.load_cs_full_file_names">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">load_cs_full_file_names</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">update</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'no'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Series</span></span></span><a class="headerlink" href="#cryoswath.misc.load_cs_full_file_names" title="Link to this definition">¶</a></dt>
+<dd><p>Loads a pandas.Series of the original CryoSat-2 L1b file names.</p>
+<p>Having the file names available can be handy to organize your local
+data.</p>
+<p>This function can be used to update your local list by setting <cite>update</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>update</strong> (<em>str</em><em>, </em><em>optional</em>) – One of “no”, “quick”, “regular, or “full”.
+“quick” continues from the last locally known file name,
+“regular” checks for changes between the stages OFFL and LTA,
+and “full” replaces the local data base with a new one. Defaults
+to “no”.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Full L1b file names without path or extension.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>pd.Series</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.load_cs_ground_tracks">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">load_cs_ground_tracks</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">region_of_interest</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Polygon</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start_datetime</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Timestamp</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'2010'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end_datetime</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Timestamp</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'2030'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">buffer_period_by</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">relativedelta</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">buffer_region_by</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">update</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'no'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_threads</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">8</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">GeoDataFrame</span></span></span><a class="headerlink" href="#cryoswath.misc.load_cs_ground_tracks" title="Link to this definition">¶</a></dt>
+<dd><p>Read the GeoDataFrame of CryoSat-2 tracks from disk.</p>
+<p>If desired, you can query certain extents or periods by specifying
+arguments.</p>
+<p>Further, you can update the database by setting <cite>update</cite> to “regular” or
+“full”. Mind that this typically takes some time (regular on the order
+of minutes, full rather hours).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>region_of_interest</strong> (<em>str</em><em> | </em><em>shapely.Polygon</em><em>, </em><em>optional</em>) – Can be any RGI
+code or a polygon in lat/lon (CRS EPSG:4326). If requesting o1
+regions, provide the long code, e.g., “01_alaska”. Defaults to None.</p></li>
+<li><p><strong>start_datetime</strong> (<em>str</em><em> | </em><em>pd.Timestamp</em><em>, </em><em>optional</em>) – Defaults to “2010”.</p></li>
+<li><p><strong>end_datetime</strong> (<em>str</em><em> | </em><em>pd.Timestamp</em><em>, </em><em>optional</em>) – Defaults to “2030”.</p></li>
+<li><p><strong>buffer_period_by</strong> (<em>relativedelta</em><em>, </em><em>optional</em>) – Extends the period to
+both sides. Handy if you use this function to query tracks for an
+aggregated product. Defaults to None.</p></li>
+<li><p><strong>buffer_region_by</strong> (<em>float</em><em>, </em><em>optional</em>) – Handy to also query tracks in the
+proximity that may return elevation estimates for your region of
+interest. Unit are meters here. CryoSat’s footprint is +- 7.5 km to
+both sides, anything above 30_000 does not make much sense. Defaults
+to None.</p></li>
+<li><p><strong>update</strong> (<em>str</em><em>, </em><em>optional</em>) – If you are interested in the latest tracks,
+update frequently with <cite>update=”regular”</cite>. If you believe tracks are
+missing for some reason, choose <cite>update=”full”</cite> (be aware this takes
+a while). Defaults to “no”.</p></li>
+<li><p><strong>n_threads</strong> (<em>int</em><em>, </em><em>optional</em>) – Number of parallel ftp connections. If you
+choose too many, ESA will refuse the connection. Defaults to 8.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – For invalid <cite>update</cite> arguments.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>CryoSat-2 tracks.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>gpd.GeoDataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.load_glacier_outlines">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">load_glacier_outlines</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">identifier</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">product</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'complexes'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">union</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">crs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">CRS</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">MultiPolygon</span></span></span><a class="headerlink" href="#cryoswath.misc.load_glacier_outlines" title="Link to this definition">¶</a></dt>
+<dd><p>Loads RGI v7 basin or complex outlines and meta data</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>identifier</strong> (<em>str</em><em> | </em><em>list</em><em>[</em><em>str</em><em>]</em>) – RGI id: either o1, o2, or
+basin/complex id.</p></li>
+<li><p><strong>product</strong> (<em>str</em><em>, </em><em>optional</em>) – Either “glaciers” or “complexes”. Defaults
+to “complexes”.</p></li>
+<li><p><strong>union</strong> (<em>bool</em><em>, </em><em>optional</em>) – For backward compatibility, if enabled (by
+default) only return union of all shapes. If disabled, return
+full GeoDataFrame. Defaults to True.</p></li>
+<li><p><strong>crs</strong> (<em>int</em><em> | </em><em>CRS</em><em>, </em><em>optional</em>) – Convenience option to reproject shape(s)
+to crs. Defaults to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If identifier was not understood.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><dl class="simple">
+<dt>Union of basin shapes. If <cite>union</cite> is disabled,</dt><dd><p>instead return geopandas.GeoDataFrame including the full data.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>shapely.MultiPolygon</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.load_o1region">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">load_o1region</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o1code</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">product</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'complexes'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">GeoDataFrame</span></span></span><a class="headerlink" href="#cryoswath.misc.load_o1region" title="Link to this definition">¶</a></dt>
+<dd><p>Loads RGI v7 basin or complex outlines and meta data</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>o1code</strong> (<em>str</em>) – starting with “01”..”20”</p></li>
+<li><p><strong>product</strong> (<em>str</em><em>, </em><em>optional</em>) – Either “glaciers” or “complexes”. Defaults to “complexes”.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>ValueError</strong> – If o1code can’t be recognized.</p></li>
+<li><p><strong>FileNotFoundError</strong> – If RGI data is missing.</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Queried RGI data with geometry column containing the outlines.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>gpd.GeoDataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.load_o2region">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">load_o2region</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o2code</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">product</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'complexes'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">GeoDataFrame</span></span></span><a class="headerlink" href="#cryoswath.misc.load_o2region" title="Link to this definition">¶</a></dt>
+<dd><p>Loads RGI v7 basin or complex outlines and meta data</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>o2code</strong> (<em>str</em>) – RGI o2 code.</p></li>
+<li><p><strong>product</strong> (<em>str</em><em>, </em><em>optional</em>) – Either “glaciers” or “complexes”. Defaults
+to “complexes”.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>Queried RGI data with geometry column containing</dt><dd><p>the outlines.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>gpd.GeoDataFrame</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.merge_l2_cache">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">merge_l2_cache</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">source_glob</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">destination_file_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exclude_endswith</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">['backup',</span> <span class="pre">'collection']</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#cryoswath.misc.merge_l2_cache" title="Link to this definition">¶</a></dt>
+<dd><p>Append cached l2 data from various hdf files into one.</p>
+<p>Tests whether data is present in destination; if not, copies the data.</p>
+<p>This function is very specifically for cached l2 data as created by
+<cite>l3.build_dataset</cite>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>source_glob</strong> (<em>str</em>) – Unix-like glob pattern to match source files
+in <cite>misc.tmp_path</cite> (default: data/tmp/).</p></li>
+<li><p><strong>destination_file_name</strong> (<em>str</em>) – … in <cite>misc.tmp_path</cite>.</p></li>
+<li><p><strong>exclude_endswith</strong> (<em>list</em><em>[</em><em>str</em><em>]</em><em>, </em><em>optional</em>) – Do not include files with
+the specified ending. Useful to exclude backups. Defaults to
+[“backup”, “collection”].</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.nan_unique">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">nan_unique</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">_SupportsArray</span><span class="p"><span class="pre">[</span></span><span class="pre">dtype</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">_NestedSequence</span><span class="p"><span class="pre">[</span></span><span class="pre">_SupportsArray</span><span class="p"><span class="pre">[</span></span><span class="pre">dtype</span><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bytes</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">_NestedSequence</span><span class="p"><span class="pre">[</span></span><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">complex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">bytes</span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span></span></span><a class="headerlink" href="#cryoswath.misc.nan_unique" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.repair_l2_cache">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">repair_l2_cache</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filepath</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">region_of_interest</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">MultiPolygon</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="headerlink" href="#cryoswath.misc.repair_l2_cache" title="Link to this definition">¶</a></dt>
+<dd><p>Attempts to repair corrupted l2 cache files.</p>
+<p>The caching logic is not 100% safe. To repair a cache, this function
+removes duplicates and sorts the data index.
+If the note names for some reason</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>filepath</strong> (<em>str</em>) – Path to l2 cache file.</p></li>
+<li><p><strong>region_of_interest</strong> (<em>shapely.Geometry</em><em>, </em><em>optional</em>) – EPSG:4326
+outline of considered region. If provided, removes chunks
+with no points inside projected bounding box of outline.</p></li>
+<li><p><strong>force</strong> (<em>bool</em>) – Disregard file size safety, e.g., if you
+expect less than 2/3 of the data to remain.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.request_workers">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">request_workers</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">task_func</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">callable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_workers</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">result_queue</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Queue</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Queue</span></span></span><a class="headerlink" href="#cryoswath.misc.request_workers" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.rgi_code_translator">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">rgi_code_translator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'full_name'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#cryoswath.misc.rgi_code_translator" title="Link to this definition">¶</a></dt>
+<dd><p>Translate o1 or o2 codes to region names</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>input</strong> (<em>str</em>) – RGI o1 or o2 codes.</p></li>
+<li><p><strong>out_type</strong> (<em>str</em><em>, </em><em>optional</em>) – Either “full_name” or “long_code”.
+Defaults to “full_name”.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If input is not understood.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Either full name or RGI “long_code”.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.rgi_o1region_translator">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">rgi_o1region_translator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'full_name'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#cryoswath.misc.rgi_o1region_translator" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.rgi_o2region_translator">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">rgi_o2region_translator</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">o1</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">o2</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'full_name'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#cryoswath.misc.rgi_o2region_translator" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.weighted_mean_excl_outliers">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">weighted_mean_excl_outliers</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataFrame</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Dataset</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'weights'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">values</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">deviation_factor</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_mask</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="headerlink" href="#cryoswath.misc.weighted_mean_excl_outliers" title="Link to this definition">¶</a></dt>
+<dd><p>Calculates the weighted average after excluding outliers.</p>
+<dl class="simple">
+<dt>Note: This function uses <cite>np.average</cite> which expects weights similar</dt><dd><p>to 1/variance - incontrast to <cite>np.lstsq</cite> and derivates, that
+expect 1/std and square the weights internally.</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>df</strong> (<em>DataFrame</em>) – DataFrame containing values and weights.</p></li>
+<li><p><strong>values</strong> (<em>1d-numpy array</em>) – Values to average or name of dataframe
+column to average.</p></li>
+<li><p><strong>weights</strong> (<em>1d-numpy array</em>) – Weights to apply to values or name
+of dataframe column to use.</p></li>
+<li><p><strong>deviation_factor</strong> (<em>int</em><em>, </em><em>optional</em>) – Factor to apply to standard
+deviation. Values further appart from average are excluded.
+Defaults to 5.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>Weighted average excluding outliers. if <cite>return_mask</cite>,</dt><dd><p>returns a boolean mask that is true where outliers were
+detected. The mask is same as input type.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>float</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.xycut">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">xycut</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">GeoDataFrame</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">x_chunk_meter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y_chunk_meter</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">60000</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">GeoDataFrame</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="headerlink" href="#cryoswath.misc.xycut" title="Link to this definition">¶</a></dt>
+<dd><p>Chunk point data in planar reference system</p>
+<p>This mainly is a helper function for <cite>l3.build_dataset()</cite> that takes
+many data points and chunks them based on their location.
+However, it may be helpful in other contexts.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p><dl class="simple">
+<dt>List of dicts of which each contains the x and y extents of</dt><dd><p>the current chunk and the GeoDataFrame or Series of the point
+data.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">cryoswath</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="cryoswath.l1b.html">cryoswath.l1b module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cryoswath.l2.html">cryoswath.l2 module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cryoswath.l3.html">cryoswath.l3 module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cryoswath.l4.html">cryoswath.l4 module</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">cryoswath.misc module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cryoswath.gis.html">cryoswath.gis module</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cryoswath.test_plots.html">cryoswath.test_plots package</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="cryoswath.l4.html" title="previous chapter">cryoswath.l4 module</a></li>
+      <li>Next: <a href="cryoswath.gis.html" title="next chapter">cryoswath.gis module</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, Jan Haacker.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.2.6</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+      |
+      <a href="_sources/cryoswath.misc.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
