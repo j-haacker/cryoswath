@@ -10,6 +10,7 @@ import rioxarray as rioxr
 import shapely
 from threading import Event, Thread
 import time
+from typing import Self
 import warnings
 import xarray as xr
 
@@ -323,7 +324,13 @@ class l1b_data(xr.Dataset):
                            xph_dists=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), dist_off_groundtrack.transpose("time_20_ku", "ns_20_ku", "phase_wrap_factor").values))
     __all__.append("locate_ambiguous_origin")
     
-    def ref_range(self):
+    def ref_range(self) -> xr.DataArray:
+        """Calculate distance to center of range window.
+
+        Returns:
+            xr.DataArray: Reference ranges.
+        """
+        # make property?
         corrections = self.mod_dry_tropo_cor_01 \
                       + self.mod_wet_tropo_cor_01 \
                       + self.iono_cor_gim_01 \
@@ -334,7 +341,12 @@ class l1b_data(xr.Dataset):
                + np.interp(self.time_20_ku, self.time_cor_01, corrections)
     __all__.append("ref_range")
     
-    def tag_groups(self):
+    def tag_groups(self) -> Self:
+        """Identifies and tags wafeform sample groups.
+
+        Returns:
+            Self: l1b_ds.
+        """
         phase_outlier = self.phase_outlier()
         ignore_mask = (self.exclude_mask + phase_outlier) != 0
         gap_separator = ignore_mask.rolling(ns_20_ku=3).sum() == 3
@@ -362,7 +374,27 @@ class l1b_data(xr.Dataset):
     def to_l2(self, out_vars: list|dict = None, *,
                     retain_vars: list|dict = None,
                     swath_or_poca: str = "swath",
-                    **kwargs):
+                    **kwargs) -> gpd.GeoDataFrame:
+        """Converts l1b data to l2 data (point elevations).
+
+        Args:
+            out_vars (list | dict, optional): Return values. If none provided,
+                returns time, x, y, height, reference elevation, and difference
+                wrt. reference. Provide a dictionary to assign custom names.
+                Defaults to None.
+            retain_vars (list | dict, optional): Additional to `out_vars`.
+                Defaults to None.
+            swath_or_poca (str, optional): Either "swath", "poca", or "both".
+                Decides what data is returned. Defaults to "swath".
+
+        Raises:
+            ValueError: If `swath_or_poca` cannot be interpreted.
+
+        Returns:
+            gpd.GeoDataFrame: Elevation estimates and requested variables. If
+            `swath_or_poca` is "both", a tuple with separate tables is
+            returned.
+        """
         if len(self.time_20_ku) == 0:
             if swath_or_poca == "both":
                 return gpd.GeoDataFrame(), gpd.GeoDataFrame()
@@ -414,7 +446,14 @@ class l1b_data(xr.Dataset):
         return l2_data
     __all__.append("to_l2")
 
-    def unwrap_phase_diff(self):
+    def unwrap_phase_diff(self) -> Self:
+        """Replaces phase difference by unwrapped version.
+
+        Unwrapping is done per group of waveform samples.
+
+        Returns:
+            Self: l1b_ds.
+        """
         def unwrap(ph_diff, group_ids):
             out = ph_diff
             for i in nan_unique(group_ids):
@@ -436,7 +475,19 @@ __all__.append("l1b_data")
 
 # helper functions ####################################################
     
-def append_exclude_mask(cs_l1b_ds):
+def append_exclude_mask(cs_l1b_ds: "l1b_data") -> "l1b_data":
+    """Adds mask indicating samples below threshold.
+
+    Waveform samples that don't fulfill power and/or coherence requirements
+    are flagged. The thresholds have to be included in the provided
+    dataset. By default, they are assigned on creation.
+
+    Args:
+        cs_l1b_ds (l1b_data): Input data.
+
+    Returns:
+        l1b_data: Data including mask.
+    """
     # for now require tuple. could be some auto recognition in future.
     assert(isinstance(cs_l1b_ds.power_threshold, tuple))
     # only signal-to-noise-ratio implemented
@@ -455,7 +506,15 @@ def append_exclude_mask(cs_l1b_ds):
 __all__.append("append_exclude_mask")
     
 
-def append_poca_and_swath_idxs(cs_l1b_ds):
+def append_poca_and_swath_idxs(cs_l1b_ds: "l1b_data") -> "l1b_data":
+    """Adds indices for estimated POCA and begin of swath.
+
+    Args:
+        cs_l1b_ds (l1b_data): Input data.
+
+    Returns:
+        l1b_data: Data including mask.
+    """
     if len(cs_l1b_ds.time_20_ku) == 0:
         return cs_l1b_ds.assign(swath_start=(("time_20_ku"), []),
                                 poca_idx=(("time_20_ku"), []),
@@ -534,6 +593,26 @@ def download_wrapper(region_of_interest: str|shapely.Polygon = None,
                    n_threads: int = 8,
                    #baseline: str = "latest",
                    ) -> int:
+    """Download ESA's L1b product.
+
+    Args:
+        region_of_interest (str | shapely.Polygon, optional): Provide a RGI
+            identifier or lon/lat polygon to subset downloaded data.
+            Defaults to None.
+        start_datetime (str | pd.Timestamp, optional): Defaults to "2010".
+        end_datetime (str | pd.Timestamp, optional): Defaults to "2035".
+        buffer_region_by (float, optional): Use a buffer in meter around
+            provided region (also RGI identifier). Defaults to None.
+        track_idx (pd.DatetimeIndex | str, optional): Download only tracks
+            at known times. Defaults to None.
+        stop_event (Event, optional): Define when to terminate threads.
+            Defaults to None.
+        n_threads (int, optional): Number of download threads. Defaults to 8.
+
+    Returns:
+        int: 0 on success, 1 on graceful exit after error, and 2 on being
+        aborted.
+    """
     if track_idx is None:
         start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
         track_idx = load_cs_ground_tracks(region_of_interest, start_datetime, end_datetime, buffer_region_by=buffer_region_by).index
