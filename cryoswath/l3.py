@@ -316,14 +316,14 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
             previously_processed_l3 = fill_missing_coords(tmp).rio.write_crs(crs)
             tmp.close()
             # save/backup result
-            tmp_path = os.path.join(data_path, "tmp", f"{region_id}_l3")
+            tmp_backup_path = os.path.join(tmp_path, f"{region_id}_l3")
             # try to write new data to file. if anything goes wrong, restore. is this sufficiently safe?
             try:
                 if os.path.isfile(outfilepath):
-                    shutil.move(outfilepath, tmp_path)
+                    shutil.move(outfilepath, tmp_backup_path)
                 previously_processed_l3.to_netcdf(outfilepath)
             except Exception as err:
-                shutil.move(tmp_path, outfilepath)
+                shutil.move(tmp_backup_path, outfilepath)
                 print("\n")
                 warnings.warn(
                     "Failed to write to netcdf! Restored previous state. Printing error"
@@ -343,8 +343,8 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
             else:
                 print(datetime.datetime.now())
                 print(f"processed and stored cell", chunk_name)
-                if os.path.isfile(tmp_path):
-                    os.remove(tmp_path)
+                if os.path.isfile(tmp_backup_path):
+                    os.remove(tmp_backup_path)
     return previously_processed_l3
 __all__.append("build_dataset")
 
