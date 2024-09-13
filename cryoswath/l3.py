@@ -300,8 +300,8 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
                 previously_processed_l3.close()
                 previously_processed_l3 = pd.concat([tmp, l3_data], axis=0)
                 del tmp
+                print(l3_data.head())
                 print("data count of combined data", len(previously_processed_l3.index))
-                print(previously_processed_l3.head())
                 # there may not be duplicates. if there are, there is a bug
                 duplicates = previously_processed_l3.index.duplicated(keep=False)
                 if any(duplicates):
