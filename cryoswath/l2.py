@@ -1,4 +1,3 @@
-from dask import dataframe as dd
 import geopandas as gpd
 import h5py
 import itertools
@@ -12,11 +11,11 @@ import re
 import shapely
 import shutil
 from tables import NaturalNameWarning
-from threading import Event, Thread
+# from threading import Event, Thread
 import warnings
 
 from .misc import *
-from . import gis, l1b
+from . import l1b
 
 __all__ = list()
 
@@ -24,12 +23,15 @@ __all__ = list()
 def from_id(track_idx: pd.DatetimeIndex|str, *,
             reprocess: bool|pd.Timestamp = True,
             save_or_return: str = "both",
-            cache: str = None,
+            cache_fullname: str = None,
             cores: int = len(os.sched_getaffinity(0)),
             **kwargs) -> tuple[gpd.GeoDataFrame]:
     # this function collects processed data and processes the remaining.
     # combining new and old data can show unexpected behavior if
     # settings changed.
+    # if you have the data cached by providing cache_fullname, make sure to
+    # fix CRS by passing `crs=xxxx`; otherwise crs is determined per track.
+    # tbi: throw error if crs not passed.
     # if ESA complains there were too many parallel ftp connections, reduce
     # the number of cores. 8 cores worked for me, 16 was too many
     if not isinstance(track_idx, pd.DatetimeIndex):
@@ -55,15 +57,15 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
         start_datetime, end_datetime = track_idx.sort_values()[[0,-1]]
         # ! below will not return data that is cached, even if save_or_return="both"
         # this is a flaw in the current logic. rework.
-        if not reprocess and cache is not None and save_or_return != "return":
-            if os.path.isfile(cache):
+        if not reprocess and cache_fullname is not None and save_or_return != "return":
+            if os.path.isfile(cache_fullname):
                 present_months = []
                 def collect_present_months(name, node):
                     nonlocal present_months
                     if isinstance(node, h5py.Dataset) or not name.split("/")[-1].startswith("t_"):
                         return None
                     present_months.append(pd.to_datetime(name.split("/")[-1], format="t_%Y-%m"))
-                with h5py.File(cache, "r") as h5:
+                with h5py.File(cache_fullname, "r") as h5:
                     h5.visititems(collect_present_months)
                 skip_months = pd.DatetimeIndex(present_months).unique().sort_values()
                 print(skip_months)
@@ -75,7 +77,7 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
         for current_month in pd.date_range(start_datetime.normalize()-pd.DateOffset(day=1),
                                            end_datetime, freq="MS"):
             if not reprocess\
-                    and cache is not None\
+                    and cache_fullname is not None\
                     and save_or_return != "return"\
                     and current_month.tz_localize(None) in skip_months:
                 print("Skipping cached month", current_month.strftime("%Y-%m"))
@@ -127,7 +129,7 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                             if "bbox" in kwargs:
                                 tmp[j] = tmp[j].clip(kwargs["bbox"])
                     collective_swath_poca_list[i] = tuple(tmp)
-            if cache is not None:
+            if cache_fullname is not None:
                 # when postprocessing, loading the data caching here takes a substatial
                 # amount of time. not sure, but maybe the format can be improved. there
                 # is parquet or the data could be saved per month using
@@ -139,16 +141,16 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                 # not to loose the cache.
                 # this implementation balances the chance loosing the current data with
                 # the cost of copying by backing up once per hour
-                if os.path.isfile(cache):
-                    if os.path.isfile(cache+"__backup"):
+                if os.path.isfile(cache_fullname):
+                    if os.path.isfile(cache_fullname+"__backup"):
                         # if backup older than 1 hour, renew
-                        if (pd.Timestamp.now()-pd.to_datetime(os.stat(cache+"__backup").st_mtime, unit="s"))\
+                        if (pd.Timestamp.now()-pd.to_datetime(os.stat(cache_fullname+"__backup").st_mtime, unit="s"))\
                                 > pd.to_timedelta(1, unit="h"):
-                            os.remove(cache+"__backup")
-                            shutil.copyfile(cache, cache+"__backup")
+                            os.remove(cache_fullname+"__backup")
+                            shutil.copyfile(cache_fullname, cache_fullname+"__backup")
                     # if no backup, make one
                     else:
-                        shutil.copyfile(cache, cache+"__backup")
+                        shutil.copyfile(cache_fullname, cache_fullname+"__backup")
                 for l2_type, i in zip(["swath", "poca"], [0, 1]):
                     l2_data = pd.concat([item[i] for item in collective_swath_poca_list])
                     if l2_data.empty:
@@ -180,16 +182,16 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                             # below hides warnings about a minus sign in node names. this can safely be ignored.
                             warnings.filterwarnings('ignore', category=NaturalNameWarning)
                             tmp.astype(dict(h_diff=np.float32, x=np.int32, y=np.int32))\
-                            .to_hdf(cache, key="/".join(
+                            .to_hdf(cache_fullname, key="/".join(
                                 [l2_type, f'x_{chunk["x_interval_start"]:.0f}_{chunk["x_interval_stop"]:.0f}',
                                           f'y_{chunk["y_interval_start"]:.0f}_{chunk["y_interval_stop"]:.0f}',
                                           current_month.strftime("t_%Y-%m")]
                                     ), mode="a", format="fixed")
                             warnings.filterwarnings('default', category=NaturalNameWarning)
                     except:
-                        if not os.path.isfile(cache):
+                        if not os.path.isfile(cache_fullname):
                             raise
-                        os.remove(cache)
+                        os.remove(cache_fullname)
                         warnings.warn(
                             "There was an error while caching l2 data. Since this can lead to "
                             + "missing data, the cache has been removed and it was attempted to "
@@ -197,7 +199,7 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                             + "__backup file in data/tmp. If there still is, please decide how to "
                             + "proceed yourself (you could remove all temporary files and have "
                             + "them produced freshly).")
-                        shutil.move(cache+"__backup", cache)
+                        shutil.move(cache_fullname+"__backup", cache_fullname)
                         raise
                     # tidying up the backup was moved to parent process
                     # else:
@@ -206,6 +208,7 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
             if save_or_return != "save":
                     swath_list.append(pd.concat([item[0] for item in collective_swath_poca_list]))
                     poca_list.append(pd.concat([item[1] for item in collective_swath_poca_list]))
+            del collective_swath_poca_list
             print("done processing", current_month)
         if save_or_return != "save":
             if swath_list == []:

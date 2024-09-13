@@ -124,7 +124,8 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
                   spatial_res_meter: float = 500,
                   agg_func_and_meta: tuple[callable, dict] = (med_iqr_cnt,
                                                               {"_median": "f8", "_iqr": "f8", "_count": "i8"}),
-                  cache_extra: str = "",
+                  cache_filename: str = None,
+                  cache_filename_extra: str = None,
                   crs: CRS|int = None,
                   reprocess: bool = False,
                   **l2_from_id_kwargs):
@@ -167,10 +168,13 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     if isinstance(region_of_interest, str):
         region_id = region_of_interest
         region_of_interest = load_glacier_outlines(region_id)
-        cache_path = os.path.join(data_path, "tmp", region_id+cache_extra)
     else:
         region_id = "_".join([f"{region_of_interest.centroid.x:.0f}", f"{region_of_interest.centroid.y:.0f}"])
-        cache_path = os.path.join(data_path, "tmp", region_id+cache_extra)
+    if cache_filename is None:
+        cache_filename = region_id
+    if cache_filename_extra is not None:
+        cache_filename += "_"+cache_filename_extra
+    cache_fullname = os.path.join(tmp_path, cache_filename)
     if crs is None:
         crs = find_planar_crs(shp=region_of_interest)
     else:
@@ -186,18 +190,18 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     bbox = gpd.GeoSeries(l2.gis.buffer_4326_shp(region_of_interest, 3_000), crs=4326).to_crs(crs)
 
     # l2 backs up the cache when writing to it. however, there should not be a backup, yet. if there is, throw an error
-    if os.path.isfile(cache_path+"__backup"):
-        raise Exception(f"Backup exists unexpectedly at {cache_path+'__backup'}. This may point to a running process. If this is a relict, remove it manually.")
+    if os.path.isfile(cache_fullname+"__backup"):
+        raise Exception(f"Backup exists unexpectedly at {cache_fullname+'__backup'}. This may point to a running process. If this is a relict, remove it manually.")
     try:
-        l2.from_id(cs_tracks.index, reprocess=reprocess, save_or_return="save", cache=cache_path, crs=crs, bbox=bbox,
-                   max_elev_diff=max_elev_diff, **filter_kwargs(l2.from_id, l2_from_id_kwargs,
-                                                                blacklist=["cache", "max_elev_diff", "save_or_return",
-                                                                           "reprocess"]))
+        l2.from_id(cs_tracks.index, reprocess=reprocess, save_or_return="save", cache_fullname=cache_fullname, crs=crs,
+                   bbox=bbox, max_elev_diff=max_elev_diff,
+                   **filter_kwargs(l2.from_id, l2_from_id_kwargs,
+                                   blacklist=["cache", "max_elev_diff", "save_or_return", "reprocess"]))
     finally:
         # remove l2's cache backup. it is not needed as no more writing takes
         # place but it occupies some 10 Gb disk space.
-        if os.path.isfile(cache_path+"__backup"):
-            os.remove(cache_path+"__backup")
+        if os.path.isfile(cache_fullname+"__backup"):
+            os.remove(cache_fullname+"__backup")
     outfilepath = build_path(region_id, timestep_months, spatial_res_meter)
     if not reprocess and os.path.isfile(outfilepath):
         with xr.open_dataset(outfilepath, decode_coords="all") as ds:
@@ -226,7 +230,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
                 print("cell", chunk_name, "will be skipped. data is present")
             else:
                 node_list.append(chunk_name)
-    with h5py.File(cache_path, "r") as h5:
+    with h5py.File(cache_fullname, "r") as h5:
         if l2_type == "swath":
             h5["swath"].visititems(collect_chunk_names)
         elif l2_type == "poca":
@@ -240,9 +244,9 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     # implementation should save intermediate results if interupted.
     for chunk_name in node_list:
         print("-----\n\nnext chunk:", chunk_name)
-        with h5py.File(cache_path, "r") as h5:
+        with h5py.File(cache_fullname, "r") as h5:
             period_list = list(h5["/".join(["swath"] + chunk_name)].keys())
-        l2_df = pd.concat([pd.read_hdf(cache_path, "/".join(["swath"] + chunk_name + [period]), mode="r", ) for period in sorted(period_list)], axis=0)
+        l2_df = pd.concat([pd.read_hdf(cache_fullname, "/".join(["swath"] + chunk_name + [period]), mode="r", ) for period in sorted(period_list)], axis=0)
         # one could drop some of the data before gridding. however, excluding
         # off-glacier data is expensive and filtering large differences to the
         # DEM can hide issues while statistics like the median and the IQR
