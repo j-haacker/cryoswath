@@ -211,9 +211,9 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     def collect_chunk_names(name, node):
         nonlocal node_list
         name_parts = name.split("/")
-        if not isinstance(node, h5py.Group) or len(name_parts) < 2 or not name_parts[-2].startswith("x_"):
+        if not isinstance(node, h5py.Group) or len(name_parts) != 3 or not name_parts[0].startswith("x_"):
             return
-        chunk_name = name_parts[-2:]
+        chunk_name = name_parts[:2]
         if chunk_name not in node_list:
             x_range, y_range = chunk_name
             x0, x1 = [int(item) for item in x_range.split("_")[-2:]]
