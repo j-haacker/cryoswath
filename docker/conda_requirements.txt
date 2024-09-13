@@ -1,0 +1,17 @@
+defusedxml
+geopandas
+h5py
+netcdf4
+numpy
+pandas
+pyarrow
+pyproj
+python-dateutil
+rasterio
+rioxarray
+scikit-learn
+scipy
+shapely
+pytables
+tqdm
+xarray=2024.9.0=pyhd8ed1ab_0

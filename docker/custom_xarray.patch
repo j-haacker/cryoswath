@@ -1,0 +1,4 @@
+488c488
+<         data *= scale_factor
+---
+>         data = data * scale_factor
