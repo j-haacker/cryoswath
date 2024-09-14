@@ -1,5 +1,10 @@
 # cryoswath
 
+![GitHub Tag](https://img.shields.io/github/v/tag/j-haacker/cryoswath)
+![GitHub top language](https://img.shields.io/github/languages/top/j-haacker/cryoswath)
+![GitHub License](https://img.shields.io/github/license/j-haacker/cryoswath)
+
+
 cryoswath is a python package containing processing pipelines, a tool
 library, and some pre-assemble data to retrieve and study CryoSat-2 data
 
@@ -26,7 +31,7 @@ for some inspiration how to start off.
 ### 🐳 Docker
 
 1. clone repo
-2. `docker run -d -it -v $(pwd):/altimetry_project cryoswath/cryoswath:nightly`
+2. `docker run -d -it -v <base dir>:/altimetry_project cryoswath/cryoswath:nightly`
 3. connect with your favorite IDE or `docker exec -it <container hash> sh`
 
 ### 🐍 conda
