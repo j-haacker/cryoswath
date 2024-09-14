@@ -12,7 +12,7 @@ extent. Other branches are for development.
 Check the [preliminary tutorial](https://github.com/j-haacker/cryoswath/blob/main/scripts/tutorial.ipynb)
 for some inspiration how to start off.
 
-## 🚀 features
+## ✨ features
 
 - find all CryoSat-2 tracks passing over your region of interest
 - download L1b data from ESA
@@ -20,6 +20,24 @@ for some inspiration how to start off.
 - aggregate point data to gridded data
 - fill data gaps using tested methods
 - calculate change rates
+
+## 🚀 getting started
+
+### 🐳 Docker
+
+1. clone repo
+2. `docker run -d -it -v $(pwd):/altimetry_project cryoswath/cryoswath:nightly`
+3. connect with your favorite IDE or `docker exec -it <container hash> sh`
+
+### 🐍 conda
+
+1. clone repo
+2. `conda create --name env_name --file <base dir>/docker/conda_requirements.txt`
+3. `conda activate env_name`
+4. `conda install patch`
+5. `find -name variables.py -path */env_name/*/xarray/coding/* -exec patch {} <base dir>/docker/custom_xarray.patch \;`
+
+(Steps 4+5 are necessary to change `*=` to `x=x*` in the xarray code.)
 
 ## 📖 documentation
 
