@@ -28,13 +28,13 @@ for some inspiration how to start off.
 
 ## 🚀 getting started
 
-### 🐳 Docker
+### with Docker 🐳
 
 1. clone repo
 2. `docker run -d -it -v <base dir>:/altimetry_project cryoswath/cryoswath:nightly`
 3. connect with your favorite IDE or `docker exec -it <container hash> sh`
 
-### 🐍 conda
+### with conda 🐍
 
 1. clone repo
 2. `conda create --name env_name --file <base dir>/docker/conda_requirements.txt`
