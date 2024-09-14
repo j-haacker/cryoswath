@@ -57,7 +57,7 @@ cryoswath builds on a number of other packages. See
 ## 🐛 known issues
 
 - ! compatibility issues with xarray >= v2024.3.0  
-    -> downgrade to 2024.1.1
+    -> downgrade to 2024.1.1  
     -> apply patch as described in getting started -> conda -> steps 4+5
 - projected rgi basins sometimes "invalid"
     -> add `.make_valid()` if it is missing somewhere
