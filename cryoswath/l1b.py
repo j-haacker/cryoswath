@@ -64,7 +64,9 @@ class l1b_data(xr.Dataset):
         tmp = tmp.assign(azimuth=("time_20_ku", np.poly1d(poly3fit_params)(np.arange(len(tmp.time_20_ku)-.5))%360))
         # waveform selection is meant to be versatile. however the handling seems fragile
         if waveform_selection is not None:
-            if not isinstance(waveform_selection, slice) and not isinstance(waveform_selection, list):
+            if not isinstance(waveform_selection, slice) \
+            and not isinstance(waveform_selection, list) \
+            and not isinstance(waveform_selection, pd.Index):
                 waveform_selection = [waveform_selection]
             if (isinstance(waveform_selection, slice) and isinstance(waveform_selection.start, numbers.Integral)) \
                     or isinstance(waveform_selection[0], numbers.Integral):
@@ -72,7 +74,7 @@ class l1b_data(xr.Dataset):
             else:
                 # for compatibility with lower precision timestamps, use backfill or
                 # nearest. I prefer nearest because it should also work in cases where
-                # the timestmap was rounded instead of floored. for cryosat it should be
+                # the timestamp was rounded instead of floored. for cryosat it should be
                 # safe to allow a mismatch of up to +-25 milliseconds (20 Hz).
                 tmp = tmp.sel(time_20_ku=waveform_selection, method="nearest",
                               tolerance=np.timedelta64(25, "ms"))
