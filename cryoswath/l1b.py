@@ -306,11 +306,7 @@ class l1b_data(xr.Dataset):
                 - np.deg2rad(self.off_nadir_roll_angle_str_20_ku)
         # Calculate distance: echo origin <--> major axis (from scalar product)
         r_x = np.sqrt( range_to_scat**2 + r_cs2**2 - (2*range_to_scat*r_cs2*np.cos(theta)) )
-        # below has been simplified from more transparent:
-        # self["xph_elevs"] = r_x - r_N
-        # dist_off_groundtrack = r_N/(r_N+self["xph_elevs"]) \
-        #                        * r_N*np.arctan(range_to_scat*np.sin(theta)/(r_cs2-range_to_scat*np.cos(theta)))
-        dist_off_groundtrack = r_N/r_x  * r_N*np.arctan(range_to_scat*np.sin(theta)/(r_cs2-range_to_scat*np.cos(theta)))
+        dist_off_groundtrack = r_N*np.arctan(range_to_scat*np.sin(theta)/(r_cs2-range_to_scat*np.cos(theta)))
         lons, lats = WGS84_ellpsoid.fwd(lons=self.lon_20_ku.expand_dims({"ns_20_ku": self.ns_20_ku.size,
                                                                    "phase_wrap_factor": self.phase_wrap_factor.size}, [-2, -1]),
                                   lats=self.lat_20_ku.expand_dims({"ns_20_ku": self.ns_20_ku.size,
