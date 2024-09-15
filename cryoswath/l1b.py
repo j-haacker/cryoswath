@@ -554,9 +554,25 @@ def append_poca_and_swath_idxs(cs_l1b_ds: "l1b_data") -> "l1b_data":
 __all__.append("append_poca_and_swath_idxs")
 
 
-def build_flag_mask(cs_l1b_flag: xr.DataArray, black_list: list = [], white_list: str = "",
-                    mode: str = "black_list"):
-    if "flag_masks" in cs_l1b_flag.attrs and black_list != [] and mode == "black_list":
+def build_flag_mask(cs_l1b_flag: xr.DataArray, flag_val_list: list) -> xr.DataArray:
+    """Function returns a waveform mask based on flag values.
+
+    This function can handle two types of flags: those that take the form
+    of a checklist with multiple allowed ticks, and those that indicate
+    one of more possible selections.
+
+    It is designed for CryoSat-2 SARIn L1b Baseline D or E data and
+    relies on an attribute "flag_masks" or "flag_values". For CRISTAL or
+    if the attributes change, this function needs an update.
+
+    Args:
+        cs_l1b_flag (xr.DataArray): L1bData flag variable.
+        flag_val_list (list, optional): List of flag values to mask.
+
+    Returns:
+        xr.DataArray: Mask that is True where flag matched provided list.
+    """
+    if "flag_masks" in cs_l1b_flag.attrs:
         flag_dictionary = pd.Series(data=cs_l1b_flag.attrs["flag_meanings"].split(" "),
                                     index=np.log2(np.abs(cs_l1b_flag.attrs["flag_masks"].astype("int64")
                                                         )).astype("int")).sort_index()
@@ -564,19 +580,19 @@ def build_flag_mask(cs_l1b_flag: xr.DataArray, black_list: list = [], white_list
             for i, b in enumerate(reversed(bin(int_code)[2:])):
                 if b == "0": continue
                 try:
-                    if flag_dictionary.loc[i] in black_list:
+                    if flag_dictionary.loc[i] in flag_val_list:
                         return True
                 except KeyError:
-                    raise("Flag not found in attributes! Pointing to a bug or an issue in the data.")
+                    print("Flag not found in attributes! Pointing to a bug or an issue in the data.")
+                    raise
             return False
-    # ! below needs a revision: what should be returned?
-    elif "flag_values" in cs_l1b_flag.attrs and white_list != "" and mode == "white_list":
+    elif "flag_values" in cs_l1b_flag.attrs:
         flag_dictionary = pd.Series(data=cs_l1b_flag.attrs["flag_meanings"].split(" "),
                                     index=cs_l1b_flag.attrs["flag_values"])
         def flag_func(int_code: int):
-            return flag_dictionary.loc[int_code]
+            return flag_dictionary.loc[int_code] in flag_val_list
     else:
-        raise(NotImplementedError)
+        raise NotImplementedError
     return xr.apply_ufunc(np.vectorize(flag_func), cs_l1b_flag.astype(int), dask="allowed")
 __all__.append("build_flag_mask")
 
