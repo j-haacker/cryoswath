@@ -24,16 +24,58 @@ __all__ = list()
 
 # requires implicitly rasterio(?), flox(?), dask(?)
 
-class l1b_data(xr.Dataset):
+class L1bData(xr.Dataset):
+    """Class to wrap functions and properties for L1b data.
+
+    Args to init:
+        l1b_filename (str): File to read data from. waveform_selection
+        (int | pd.Timestamp | list[int |
+            pd.Timestamp] | slice, optional): Waveforms to retrieve data
+            from. If none provided, retrieve all data. Defaults to None.
+        drop_waveforms_by_flag (dict[str, list], optional):
+            Exclude waveform based on flags. Defaults to
+            {"flag_mcd_20_ku", [ 'block_degraded', 'blank_block',
+            'datation_degraded', 'orbit_prop_error', 'echo_saturated',
+            'other_echo_error', 'sarin_rx1_error', 'sarin_rx2_error',
+            'window_delay_error', 'agc_error', 'trk_echo_error',
+            'echo_rx1_error', 'echo_rx2_error', 'npm_error',
+            'power_scale_error']}.
+        mask_coherence_gt1 (bool, optional): Defaults to True.
+        drop_outside (float, optional): Exclude waveforms where nadir is
+            a chosen distance in meters outside of any RGI glacier. If
+            None, no waveforms are excluded. Defaults to 30_000.
+        coherence_threshold (float, optional): Exclude waveform samples
+            with a lower coherence. This choice also affects the
+            grouping, start sample for swath processing per waveform,
+            and the POCA retrieval. Defaults to 0.6.
+        power_threshold (tuple, optional): Similar to the coherence
+            threshold, but does not affect swath start or POCA
+            retrieval. Defaults to ("snr", 10).
+    """
     # for now, only CryoSat-2 implemented
 
     __all__ = list()
 
     def __init__(self, l1b_filename: str, *,
                  waveform_selection: int|pd.Timestamp|list[int|pd.Timestamp]|slice = None,
-                 drop_bad_waveforms: bool = True,
+                 drop_waveforms_by_flag: dict[str, list] = {"flag_mcd_20_ku": [
+                    'block_degraded',
+                    'blank_block',
+                    'datation_degraded',
+                    'orbit_prop_error',
+                    'echo_saturated',
+                    'other_echo_error',
+                    'sarin_rx1_error',
+                    'sarin_rx2_error',
+                    'window_delay_error',
+                    'agc_error',
+                    'trk_echo_error',
+                    'echo_rx1_error',
+                    'echo_rx2_error',
+                    'npm_error',
+                    'power_scale_error']},
                  mask_coherence_gt1: bool = True,
-                 drop_non_glacier_areas: bool = True,
+                 drop_outside: float = 30_000,
                  coherence_threshold: float = 0.6,
                  power_threshold: tuple = ("snr", 10),
                  ) -> None:
@@ -83,28 +125,13 @@ class l1b_data(xr.Dataset):
         tmp["power_waveform_20_ku"] = tmp.pwr_waveform_20_ku \
                                        * tmp.echo_scale_factor_20_ku \
                                        * 2**tmp.echo_scale_pwr_20_ku
-        if drop_bad_waveforms:
+        if drop_waveforms_by_flag:
             # see available flags using data.flag.attrs["flag_meanings"]
             # print("drop bad. cur buf:", buffer)
-            tmp = drop_waveform(tmp, build_flag_mask(tmp.flag_mcd_20_ku, [
-                'block_degraded',
-                'blank_block',
-                'datation_degraded',
-                'orbit_prop_error',
-                'echo_saturated',
-                'other_echo_error',
-                'sarin_rx1_error',
-                'sarin_rx2_error',
-                'window_delay_error',
-                'agc_error',
-                'trk_echo_error',
-                'echo_rx1_error',
-                'echo_rx2_error',
-                'npm_error',
-                'power_scale_error',
-            ]))
+            for flag_var, flag_val_list in drop_waveforms_by_flag.items():
+                tmp = drop_waveform(tmp, build_flag_mask(tmp[flag_var], flag_val_list))
         # tbi: maybe add option to pass area of interest instead of the boolean
-        if drop_non_glacier_areas:
+        if drop_outside is not None:
             # ! needs to be tidied up:
             # (also: simplify needed?)
             planar_crs = find_planar_crs(lon=tmp.lon_20_ku, lat=tmp.lat_20_ku)
@@ -125,12 +152,12 @@ class l1b_data(xr.Dataset):
                         # 05-11--05-15 (added in commit 2265523)
                         for grnlnd_part in subdivide_region(load_o2region("05-01"), lat_bin_width_degree=4.5,
                                                             lon_bin_width_degree=4.5):
-                            if buffer_4326_shp(grnlnd_part.union_all(method="coverage").envelope, 30_000)\
+                            if buffer_4326_shp(grnlnd_part.union_all(method="coverage").envelope, drop_outside)\
                                     .intersects(ground_track_points_4326.union_all(method="unary")):
                                 o2region_complexes.append(grnlnd_part)
                 # below, using geopandas as shapely wrapper for readability
                 buffered_complexes = gpd.GeoSeries(
-                    buffer_4326_shp(pd.concat(o2region_complexes).union_all(method="coverage"), 30_000), crs=4326
+                    buffer_4326_shp(pd.concat(o2region_complexes).union_all(method="coverage"), drop_outside), crs=4326
                     ).to_crs(planar_crs).clip_by_rect(*ground_track_points_4326.to_crs(planar_crs).total_bounds)\
                      .to_crs(4326).make_valid()
                 if all(buffered_complexes.is_empty):
@@ -223,7 +250,7 @@ class l1b_data(xr.Dataset):
     __all__.append("append_smoothed_complex_phase")
     
     @classmethod
-    def from_id(cls, track_id: str|pd.Timestamp, **kwargs) -> "l1b_data":
+    def from_id(cls, track_id: str|pd.Timestamp, **kwargs) -> Self:
         track_id = pd.to_datetime(track_id)
         # edge cases with exactly 0 nanoseconds may fail. however, since this is
         # only relevant for detail inspection, edge cases are ignored
@@ -468,12 +495,12 @@ class l1b_data(xr.Dataset):
 
     __all__ = sorted(__all__)
 
-__all__.append("l1b_data")
+__all__.append("L1bData")
 
 
 # helper functions ####################################################
     
-def append_exclude_mask(cs_l1b_ds: "l1b_data") -> "l1b_data":
+def append_exclude_mask(cs_l1b_ds: "L1bData") -> "L1bData":
     """Adds mask indicating samples below threshold.
 
     Waveform samples that don't fulfill power and/or coherence requirements
@@ -504,7 +531,7 @@ def append_exclude_mask(cs_l1b_ds: "l1b_data") -> "l1b_data":
 __all__.append("append_exclude_mask")
     
 
-def append_poca_and_swath_idxs(cs_l1b_ds: "l1b_data") -> "l1b_data":
+def append_poca_and_swath_idxs(cs_l1b_ds: "L1bData") -> "L1bData":
     """Adds indices for estimated POCA and begin of swath.
 
     Args:

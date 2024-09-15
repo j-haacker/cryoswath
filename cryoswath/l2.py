@@ -229,7 +229,7 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
 __all__.append("from_id")
 
 
-def from_processed_l1b(l1b_data: l1b.l1b_data = None,
+def from_processed_l1b(l1b_data: l1b.L1bData = None,
                        max_elev_diff: float = None,
                        **gdf_kwargs) -> gpd.GeoDataFrame:
     # kwargs: crs, max_elev_diff, input to GeoDataFrame
@@ -361,11 +361,11 @@ def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwar
                 cs_full_file_names = kwargs.pop("cs_full_file_names")
             else:
                 cs_full_file_names = load_cs_full_file_names(update="no")
-        l1b_kwargs = filter_kwargs(l1b.l1b_data, kwargs)
-        to_l2_kwargs = filter_kwargs(l1b.l1b_data.to_l2, kwargs, blacklist=["swath_or_poca"],
+        l1b_kwargs = filter_kwargs(l1b.L1bData, kwargs)
+        to_l2_kwargs = filter_kwargs(l1b.L1bData.to_l2, kwargs, blacklist=["swath_or_poca"],
                                      whitelist=["crs", "max_elev_diff"])
         try:
-            tmp = l1b.l1b_data.from_id(cs_time_to_id(idx), **l1b_kwargs)
+            tmp = l1b.L1bData.from_id(cs_time_to_id(idx), **l1b_kwargs)
             swath_poca_tuple = tmp.to_l2(swath_or_poca="both", **to_l2_kwargs)
             tmp.close()
         except Exception as err:
