@@ -463,9 +463,10 @@ def fill_voids(ds: xr.Dataset,
         ds = ds.reindex_like(ref_elev_da, method=None, copy=False)
         ds[elev] = ref_elev_da
     # if there are still missing data, temporally interpolate (gaps shorter than 1 year)
-    ds[main_var] = ds[main_var].interpolate_na(dim="time", method="linear", max_gap=pd.Timedelta(days=367))
+    if "time" in ds.dims:
+        ds[main_var] = ds[main_var].interpolate_na(dim="time", method="linear", max_gap=pd.Timedelta(days=367))
     # if there are still missing data, interpolate region wide ("global hypsometric interpolation")
-    ds = interpolate_hypsometrically(ds.rio.clip(basin_shapes.make_valid()).stack({"stacked_x_y": ["x", "y"]}).dropna("stacked_x_y", how="all"), main_var=main_var, elev=elev, error=error, outlier_limit=2, outlier_replace=False, outlier_iterations=1)
+    ds = interpolate_hypsometrically(ds.rio.clip(basin_shapes.make_valid()).stack({"stacked_x_y": ["x", "y"]}).dropna("stacked_x_y", how="all"), main_var=main_var, elev=elev, error=error, outlier_replace=False)
     ds = fill_missing_coords(ds.unstack("stacked_x_y").sortby("x").sortby("y"))
     return ds
 __all__.append("fill_voids")
