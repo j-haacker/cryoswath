@@ -15,7 +15,7 @@ import xarray as xr
 
 from . import l2
 from .misc import *
-from .gis import ensure_pyproj_crs, find_planar_crs
+from .gis import buffer_4326_shp, ensure_pyproj_crs, find_planar_crs
 
 __all__ = list()
     
@@ -187,7 +187,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     # to retain data in the suroundings - this is merely needed for the
     # implicit `simplify`` which would come at the cost of data if not
     # buffered
-    bbox = gpd.GeoSeries(l2.gis.buffer_4326_shp(region_of_interest, 3_000), crs=4326).to_crs(crs)
+    bbox = gpd.GeoSeries(buffer_4326_shp(region_of_interest, 3_000), crs=4326).to_crs(crs)
 
     # l2 backs up the cache when writing to it. however, there should not be a backup, yet. if there is, throw an error
     if os.path.isfile(cache_fullname+"__backup"):
