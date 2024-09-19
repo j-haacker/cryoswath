@@ -115,7 +115,7 @@ def relative_change(l3_data: xr.Dataset,
     # ! needs to be tested
 
     if isinstance(basin_shapes, str):
-        basin_shapes = gpd.GeoSeries(load_glacier_outlines(basin_shapes))
+        basin_shapes = gpd.GeoSeries(load_glacier_outlines(basin_shapes, "glaciers", False))
     if glac_ref_year < 2010:
         glac_ref_year += 2000
     # roughly filter data

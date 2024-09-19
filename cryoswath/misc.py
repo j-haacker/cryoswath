@@ -843,7 +843,7 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
     if region_of_interest is not None:
         if isinstance(region_of_interest, str):
             # union=False neccessary for Greenland and large regions
-            region_of_interest = load_glacier_outlines(region_of_interest, union=False).geometry.values
+            region_of_interest = load_glacier_outlines(region_of_interest, "glaciers", union=False).geometry.values
         if buffer_region_by is not None:
             region_of_interest = gis.buffer_4326_shp(region_of_interest, buffer_region_by)
         else:
