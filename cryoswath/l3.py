@@ -167,7 +167,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
           "processing L1b files if not available...")
     if isinstance(region_of_interest, str):
         region_id = region_of_interest
-        region_of_interest = load_glacier_outlines(region_id)
+        region_of_interest = load_glacier_outlines(region_id, "glaciers")
     else:
         region_id = "_".join([f"{region_of_interest.centroid.x:.0f}", f"{region_of_interest.centroid.y:.0f}"])
     if cache_filename is None:
@@ -211,7 +211,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     def collect_chunk_names(name, node):
         nonlocal node_list
         name_parts = name.split("/")
-        if not isinstance(node, h5py.Group) or len(name_parts) != 3 or not name_parts[0].startswith("x_"):
+        if not isinstance(node, h5py.Group) or len(name_parts) < 2 or not name_parts[-2].startswith("x_"):
             return
         chunk_name = name_parts[:2]
         if chunk_name not in node_list:
