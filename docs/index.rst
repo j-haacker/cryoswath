@@ -6,10 +6,18 @@
 Welcome to cryoswath's documentation!
 =====================================
 
+Find the associated GitHub repository at https://github.com/j-haacker/cryoswath.
+To set up a working/testing environment, follow the steps discribed in :doc:`prerequisites`.
+See the quickstart guide in :doc:`Getting started <getting_started>`, if needed.
+
 .. toctree::
    :maxdepth: 1
    :caption: Contents:
 
+   prerequisites
+   getting_started
+   tutorials
+   tests
    cryoswath.l1b
    cryoswath.l2
    cryoswath.l3
@@ -17,11 +25,3 @@ Welcome to cryoswath's documentation!
    cryoswath.misc
    cryoswath.gis
    cryoswath.test_plots
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`

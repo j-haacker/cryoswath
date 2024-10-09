@@ -35,8 +35,20 @@ release = '0.1.3-740684d'
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
-    'sphinx.ext.githubpages'
+    'sphinx.ext.githubpages',
+    'sphinx.ext.linkcode',
+    # 'myst_parser'
 ]
+
+# for extension linkcode to work
+def linkcode_resolve(domain, info):
+    if domain != 'py':
+        return None
+    if not info['module']:
+        return None
+    filename = info['module'].replace('.', '/')
+    print(info, filename)
+    return "https://github.com/j-haacker/cryoswath/blob/main/%s.py" % filename
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
