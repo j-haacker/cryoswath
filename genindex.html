@@ -15,7 +15,7 @@
         <script src="_static/jquery.js?v=5d32c60e"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
         <script src="_static/documentation_options.js?v=0589f067"></script>
-        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/doctools.js?v=9a2dae69"></script>
         <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="#" />
@@ -43,6 +43,10 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul>
+<li class="toctree-l1"><a class="reference internal" href="prerequisites.html">Prerequisites</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tests.html">Tests</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cryoswath.l1b.html">cryoswath.l1b module</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cryoswath.l2.html">cryoswath.l2 module</a></li>
 <li class="toctree-l1"><a class="reference internal" href="cryoswath.l3.html">cryoswath.l3 module</a></li>
@@ -104,17 +108,17 @@
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="cryoswath.misc.html#cryoswath.misc.binary_chache.add">add() (cryoswath.misc.binary_chache method)</a>
 </li>
-      <li><a href="cryoswath.l1b.html#cryoswath.l1b.l1b_data.append_ambiguous_reference_elevation">append_ambiguous_reference_elevation() (cryoswath.l1b.l1b_data method)</a>
+      <li><a href="cryoswath.l1b.html#cryoswath.l1b.L1bData.append_ambiguous_reference_elevation">append_ambiguous_reference_elevation() (cryoswath.l1b.L1bData method)</a>
 </li>
       <li><a href="cryoswath.l3.html#cryoswath.l3.append_basin_group">append_basin_group() (in module cryoswath.l3)</a>
 </li>
       <li><a href="cryoswath.l3.html#cryoswath.l3.append_basin_id">append_basin_id() (in module cryoswath.l3)</a>
 </li>
-      <li><a href="cryoswath.l1b.html#cryoswath.l1b.l1b_data.append_best_fit_phase_index">append_best_fit_phase_index() (cryoswath.l1b.l1b_data method)</a>
+      <li><a href="cryoswath.l1b.html#cryoswath.l1b.L1bData.append_best_fit_phase_index">append_best_fit_phase_index() (cryoswath.l1b.L1bData method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="cryoswath.l1b.html#cryoswath.l1b.l1b_data.append_elev_diff_to_ref">append_elev_diff_to_ref() (cryoswath.l1b.l1b_data method)</a>
+      <li><a href="cryoswath.l1b.html#cryoswath.l1b.L1bData.append_elev_diff_to_ref">append_elev_diff_to_ref() (cryoswath.l1b.L1bData method)</a>
 </li>
       <li><a href="cryoswath.l3.html#cryoswath.l3.append_elevation_reference">append_elevation_reference() (in module cryoswath.l3)</a>
 </li>
@@ -122,7 +126,7 @@
 </li>
       <li><a href="cryoswath.l1b.html#cryoswath.l1b.append_poca_and_swath_idxs">append_poca_and_swath_idxs() (in module cryoswath.l1b)</a>
 </li>
-      <li><a href="cryoswath.l1b.html#cryoswath.l1b.l1b_data.append_smoothed_complex_phase">append_smoothed_complex_phase() (cryoswath.l1b.l1b_data method)</a>
+      <li><a href="cryoswath.l1b.html#cryoswath.l1b.L1bData.append_smoothed_complex_phase">append_smoothed_complex_phase() (cryoswath.l1b.L1bData method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -152,8 +156,6 @@
 </li>
       <li><a href="cryoswath.misc.html#cryoswath.misc.convert_all_esri_to_feather">convert_all_esri_to_feather() (in module cryoswath.misc)</a>
 </li>
-      <li><a href="cryoswath.test_plots.html#cryoswath.test_plots.maps.coverage">coverage() (in module cryoswath.test_plots.maps)</a>
-</li>
       <li>
     cryoswath.gis
 
@@ -182,6 +184,8 @@
         <li><a href="cryoswath.l3.html#module-cryoswath.l3">module</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     cryoswath.l4
 
@@ -189,8 +193,6 @@
         <li><a href="cryoswath.l4.html#module-cryoswath.l4">module</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     cryoswath.misc
 
@@ -203,20 +205,6 @@
 
       <ul>
         <li><a href="cryoswath.test_plots.html#module-cryoswath.test_plots">module</a>
-</li>
-      </ul></li>
-      <li>
-    cryoswath.test_plots.maps
-
-      <ul>
-        <li><a href="cryoswath.test_plots.html#module-cryoswath.test_plots.maps">module</a>
-</li>
-      </ul></li>
-      <li>
-    cryoswath.test_plots.timeseries
-
-      <ul>
-        <li><a href="cryoswath.test_plots.html#module-cryoswath.test_plots.timeseries">module</a>
 </li>
       </ul></li>
       <li>
@@ -258,8 +246,6 @@
 <h2 id="E">E</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="cryoswath.test_plots.html#cryoswath.test_plots.timeseries.elevation_change">elevation_change() (in module cryoswath.test_plots.timeseries)</a>
-</li>
       <li><a href="cryoswath.gis.html#cryoswath.gis.ensure_pyproj_crs">ensure_pyproj_crs() (in module cryoswath.gis)</a>
 </li>
   </ul></td>
@@ -292,7 +278,7 @@
 </li>
       <li><a href="cryoswath.misc.html#cryoswath.misc.flag_translator">flag_translator() (in module cryoswath.misc)</a>
 </li>
-      <li><a href="cryoswath.l1b.html#cryoswath.l1b.l1b_data.from_id">from_id() (cryoswath.l1b.l1b_data class method)</a>
+      <li><a href="cryoswath.l1b.html#cryoswath.l1b.L1bData.from_id">from_id() (cryoswath.l1b.L1bData class method)</a>
 
       <ul>
         <li><a href="cryoswath.l2.html#cryoswath.l2.from_id">(in module cryoswath.l2)</a>
@@ -316,7 +302,7 @@
 </li>
       <li><a href="cryoswath.gis.html#cryoswath.gis.get_lon_origin">get_lon_origin() (in module cryoswath.gis)</a>
 </li>
-      <li><a href="cryoswath.l1b.html#cryoswath.l1b.l1b_data.get_rgi_o2">get_rgi_o2() (cryoswath.l1b.l1b_data method)</a>
+      <li><a href="cryoswath.l1b.html#cryoswath.l1b.L1bData.get_rgi_o2">get_rgi_o2() (cryoswath.l1b.L1bData method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -336,7 +322,7 @@
 <h2 id="L">L</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="cryoswath.l1b.html#cryoswath.l1b.l1b_data">l1b_data (class in cryoswath.l1b)</a>
+      <li><a href="cryoswath.l1b.html#cryoswath.l1b.L1bData">L1bData (class in cryoswath.l1b)</a>
 </li>
       <li><a href="cryoswath.l2.html#cryoswath.l2.limit_filter">limit_filter() (in module cryoswath.l2)</a>
 </li>
@@ -354,7 +340,7 @@
 </li>
       <li><a href="cryoswath.misc.html#cryoswath.misc.load_o2region">load_o2region() (in module cryoswath.misc)</a>
 </li>
-      <li><a href="cryoswath.l1b.html#cryoswath.l1b.l1b_data.locate_ambiguous_origin">locate_ambiguous_origin() (cryoswath.l1b.l1b_data method)</a>
+      <li><a href="cryoswath.l1b.html#cryoswath.l1b.L1bData.locate_ambiguous_origin">locate_ambiguous_origin() (cryoswath.l1b.L1bData method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -384,10 +370,6 @@
 </li>
         <li><a href="cryoswath.test_plots.html#module-cryoswath.test_plots">cryoswath.test_plots</a>
 </li>
-        <li><a href="cryoswath.test_plots.html#module-cryoswath.test_plots.maps">cryoswath.test_plots.maps</a>
-</li>
-        <li><a href="cryoswath.test_plots.html#module-cryoswath.test_plots.timeseries">cryoswath.test_plots.timeseries</a>
-</li>
         <li><a href="cryoswath.test_plots.html#module-cryoswath.test_plots.waveform">cryoswath.test_plots.waveform</a>
 </li>
       </ul></li>
@@ -405,9 +387,9 @@
 <h2 id="P">P</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="cryoswath.l1b.html#cryoswath.l1b.l1b_data.phase_jump">phase_jump() (cryoswath.l1b.l1b_data method)</a>
+      <li><a href="cryoswath.l1b.html#cryoswath.l1b.L1bData.phase_jump">phase_jump() (cryoswath.l1b.L1bData method)</a>
 </li>
-      <li><a href="cryoswath.l1b.html#cryoswath.l1b.l1b_data.phase_outlier">phase_outlier() (cryoswath.l1b.l1b_data method)</a>
+      <li><a href="cryoswath.l1b.html#cryoswath.l1b.L1bData.phase_outlier">phase_outlier() (cryoswath.l1b.L1bData method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
@@ -421,7 +403,7 @@
 <h2 id="R">R</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="cryoswath.l1b.html#cryoswath.l1b.l1b_data.ref_range">ref_range() (cryoswath.l1b.l1b_data method)</a>
+      <li><a href="cryoswath.l1b.html#cryoswath.l1b.L1bData.ref_range">ref_range() (cryoswath.l1b.L1bData method)</a>
 </li>
       <li><a href="cryoswath.l4.html#cryoswath.l4.relative_change">relative_change() (in module cryoswath.l4)</a>
 </li>
@@ -455,11 +437,11 @@
 <h2 id="T">T</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="cryoswath.l1b.html#cryoswath.l1b.l1b_data.tag_groups">tag_groups() (cryoswath.l1b.l1b_data method)</a>
+      <li><a href="cryoswath.l1b.html#cryoswath.l1b.L1bData.tag_groups">tag_groups() (cryoswath.l1b.L1bData method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="cryoswath.l1b.html#cryoswath.l1b.l1b_data.to_l2">to_l2() (cryoswath.l1b.l1b_data method)</a>
+      <li><a href="cryoswath.l1b.html#cryoswath.l1b.L1bData.to_l2">to_l2() (cryoswath.l1b.L1bData method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -467,7 +449,7 @@
 <h2 id="U">U</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="cryoswath.l1b.html#cryoswath.l1b.l1b_data.unwrap_phase_diff">unwrap_phase_diff() (cryoswath.l1b.l1b_data method)</a>
+      <li><a href="cryoswath.l1b.html#cryoswath.l1b.L1bData.unwrap_phase_diff">unwrap_phase_diff() (cryoswath.l1b.L1bData method)</a>
 </li>
   </ul></td>
 </tr></table>

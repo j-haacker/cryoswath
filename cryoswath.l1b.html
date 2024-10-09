@@ -16,13 +16,13 @@
         <script src="_static/jquery.js?v=5d32c60e"></script>
         <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
         <script src="_static/documentation_options.js?v=0589f067"></script>
-        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/doctools.js?v=9a2dae69"></script>
         <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="cryoswath.l2 module" href="cryoswath.l2.html" />
-    <link rel="prev" title="Welcome to cryoswath’s documentation!" href="index.html" /> 
+    <link rel="prev" title="Tests" href="tests.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -46,7 +46,27 @@
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
 <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="prerequisites.html">Prerequisites</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorials.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tests.html">Tests</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">cryoswath.l1b module</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#cryoswath.l1b.L1bData"><code class="docutils literal notranslate"><span class="pre">L1bData</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.L1bData.append_ambiguous_reference_elevation"><code class="docutils literal notranslate"><span class="pre">L1bData.append_ambiguous_reference_elevation()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.L1bData.append_best_fit_phase_index"><code class="docutils literal notranslate"><span class="pre">L1bData.append_best_fit_phase_index()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.L1bData.append_elev_diff_to_ref"><code class="docutils literal notranslate"><span class="pre">L1bData.append_elev_diff_to_ref()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.L1bData.append_smoothed_complex_phase"><code class="docutils literal notranslate"><span class="pre">L1bData.append_smoothed_complex_phase()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.L1bData.from_id"><code class="docutils literal notranslate"><span class="pre">L1bData.from_id()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.L1bData.get_rgi_o2"><code class="docutils literal notranslate"><span class="pre">L1bData.get_rgi_o2()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.L1bData.locate_ambiguous_origin"><code class="docutils literal notranslate"><span class="pre">L1bData.locate_ambiguous_origin()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.L1bData.phase_jump"><code class="docutils literal notranslate"><span class="pre">L1bData.phase_jump()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.L1bData.phase_outlier"><code class="docutils literal notranslate"><span class="pre">L1bData.phase_outlier()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.L1bData.ref_range"><code class="docutils literal notranslate"><span class="pre">L1bData.ref_range()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.L1bData.tag_groups"><code class="docutils literal notranslate"><span class="pre">L1bData.tag_groups()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.L1bData.to_l2"><code class="docutils literal notranslate"><span class="pre">L1bData.to_l2()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.L1bData.unwrap_phase_diff"><code class="docutils literal notranslate"><span class="pre">L1bData.unwrap_phase_diff()</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.l1b.append_exclude_mask"><code class="docutils literal notranslate"><span class="pre">append_exclude_mask()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.l1b.append_poca_and_swath_idxs"><code class="docutils literal notranslate"><span class="pre">append_poca_and_swath_idxs()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.l1b.build_flag_mask"><code class="docutils literal notranslate"><span class="pre">build_flag_mask()</span></code></a></li>
@@ -54,22 +74,6 @@
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.l1b.download_single_file"><code class="docutils literal notranslate"><span class="pre">download_single_file()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.l1b.download_wrapper"><code class="docutils literal notranslate"><span class="pre">download_wrapper()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.l1b.drop_waveform"><code class="docutils literal notranslate"><span class="pre">drop_waveform()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#cryoswath.l1b.l1b_data"><code class="docutils literal notranslate"><span class="pre">l1b_data</span></code></a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.l1b_data.append_ambiguous_reference_elevation"><code class="docutils literal notranslate"><span class="pre">l1b_data.append_ambiguous_reference_elevation()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.l1b_data.append_best_fit_phase_index"><code class="docutils literal notranslate"><span class="pre">l1b_data.append_best_fit_phase_index()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.l1b_data.append_elev_diff_to_ref"><code class="docutils literal notranslate"><span class="pre">l1b_data.append_elev_diff_to_ref()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.l1b_data.append_smoothed_complex_phase"><code class="docutils literal notranslate"><span class="pre">l1b_data.append_smoothed_complex_phase()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.l1b_data.from_id"><code class="docutils literal notranslate"><span class="pre">l1b_data.from_id()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.l1b_data.get_rgi_o2"><code class="docutils literal notranslate"><span class="pre">l1b_data.get_rgi_o2()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.l1b_data.locate_ambiguous_origin"><code class="docutils literal notranslate"><span class="pre">l1b_data.locate_ambiguous_origin()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.l1b_data.phase_jump"><code class="docutils literal notranslate"><span class="pre">l1b_data.phase_jump()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.l1b_data.phase_outlier"><code class="docutils literal notranslate"><span class="pre">l1b_data.phase_outlier()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.l1b_data.ref_range"><code class="docutils literal notranslate"><span class="pre">l1b_data.ref_range()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.l1b_data.tag_groups"><code class="docutils literal notranslate"><span class="pre">l1b_data.tag_groups()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.l1b_data.to_l2"><code class="docutils literal notranslate"><span class="pre">l1b_data.to_l2()</span></code></a></li>
-<li class="toctree-l3"><a class="reference internal" href="#cryoswath.l1b.l1b_data.unwrap_phase_diff"><code class="docutils literal notranslate"><span class="pre">l1b_data.unwrap_phase_diff()</span></code></a></li>
-</ul>
-</li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="cryoswath.l2.html">cryoswath.l2 module</a></li>
@@ -106,85 +110,73 @@
              
   <section id="module-cryoswath.l1b">
 <span id="cryoswath-l1b-module"></span><h1>cryoswath.l1b module<a class="headerlink" href="#module-cryoswath.l1b" title="Link to this heading"></a></h1>
-<dl class="py function">
-<dt class="sig sig-object py" id="cryoswath.l1b.append_exclude_mask">
-<span class="sig-prename descclassname"><span class="pre">cryoswath.l1b.</span></span><span class="sig-name descname"><span class="pre">append_exclude_mask</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cs_l1b_ds</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.append_exclude_mask" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="cryoswath.l1b.append_poca_and_swath_idxs">
-<span class="sig-prename descclassname"><span class="pre">cryoswath.l1b.</span></span><span class="sig-name descname"><span class="pre">append_poca_and_swath_idxs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cs_l1b_ds</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.append_poca_and_swath_idxs" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="cryoswath.l1b.build_flag_mask">
-<span class="sig-prename descclassname"><span class="pre">cryoswath.l1b.</span></span><span class="sig-name descname"><span class="pre">build_flag_mask</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cs_l1b_flag</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataArray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">black_list</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">white_list</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'black_list'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.build_flag_mask" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="cryoswath.l1b.download_files">
-<span class="sig-prename descclassname"><span class="pre">cryoswath.l1b.</span></span><span class="sig-name descname"><span class="pre">download_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">track_idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DatetimeIndex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.download_files" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="cryoswath.l1b.download_single_file">
-<span class="sig-prename descclassname"><span class="pre">cryoswath.l1b.</span></span><span class="sig-name descname"><span class="pre">download_single_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">track_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#cryoswath.l1b.download_single_file" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="cryoswath.l1b.download_wrapper">
-<span class="sig-prename descclassname"><span class="pre">cryoswath.l1b.</span></span><span class="sig-name descname"><span class="pre">download_wrapper</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">region_of_interest</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Polygon</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start_datetime</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Timestamp</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'2010'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end_datetime</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Timestamp</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'2035'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">buffer_region_by</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">track_idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DatetimeIndex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_threads</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">8</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="headerlink" href="#cryoswath.l1b.download_wrapper" title="Link to this definition"></a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="cryoswath.l1b.drop_waveform">
-<span class="sig-prename descclassname"><span class="pre">cryoswath.l1b.</span></span><span class="sig-name descname"><span class="pre">drop_waveform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cs_l1b_ds</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_20_ku_mask</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.drop_waveform" title="Link to this definition"></a></dt>
-<dd><p>Use mask along time dim to drop waveforms.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>time_20_ku_mask</strong> (<em>1-dim bool</em>) – Mask: drop where True.</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Input dataset without marked waveforms.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>xr.Dataset or DataArray</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="cryoswath.l1b.L1bData">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">cryoswath.l1b.</span></span><span class="sig-name descname"><span class="pre">L1bData</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">l1b_filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">waveform_selection</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Timestamp</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Timestamp</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">slice</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">drop_waveforms_by_flag</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">{'flag_mcd_20_ku':</span> <span class="pre">['block_degraded',</span> <span class="pre">'blank_block',</span> <span class="pre">'datation_degraded',</span> <span class="pre">'orbit_prop_error',</span> <span class="pre">'echo_saturated',</span> <span class="pre">'other_echo_error',</span> <span class="pre">'sarin_rx1_error',</span> <span class="pre">'sarin_rx2_error',</span> <span class="pre">'window_delay_error',</span> <span class="pre">'agc_error',</span> <span class="pre">'trk_echo_error',</span> <span class="pre">'echo_rx1_error',</span> <span class="pre">'echo_rx2_error',</span> <span class="pre">'npm_error',</span> <span class="pre">'power_scale_error']}</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_coherence_gt1</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">drop_outside</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">30000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coherence_threshold</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.6</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">power_threshold</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">('snr',</span> <span class="pre">10)</span></span></em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Dataset</span></code></p>
+<p>Class to wrap functions and properties for L1b data.</p>
+<dl>
+<dt>Args to init:</dt><dd><p>l1b_filename (str): File to read data from. waveform_selection
+(int | pd.Timestamp | list[int |</p>
+<blockquote>
+<div><p>pd.Timestamp] | slice, optional): Waveforms to retrieve data
+from. If none provided, retrieve all data. Defaults to None.</p>
+</div></blockquote>
+<dl class="simple">
+<dt>drop_waveforms_by_flag (dict[str, list], optional):</dt><dd><p>Exclude waveform based on flags. Defaults to
+{“flag_mcd_20_ku”, [ ‘block_degraded’, ‘blank_block’,
+‘datation_degraded’, ‘orbit_prop_error’, ‘echo_saturated’,
+‘other_echo_error’, ‘sarin_rx1_error’, ‘sarin_rx2_error’,
+‘window_delay_error’, ‘agc_error’, ‘trk_echo_error’,
+‘echo_rx1_error’, ‘echo_rx2_error’, ‘npm_error’,
+‘power_scale_error’]}.</p>
 </dd>
 </dl>
-</dd></dl>
-
-<dl class="py class">
-<dt class="sig sig-object py" id="cryoswath.l1b.l1b_data">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">cryoswath.l1b.</span></span><span class="sig-name descname"><span class="pre">l1b_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">l1b_filename</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">waveform_selection</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Timestamp</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Timestamp</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">slice</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">drop_bad_waveforms</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_coherence_gt1</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">drop_non_glacier_areas</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">coherence_threshold</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.6</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">power_threshold</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">('snr',</span> <span class="pre">10)</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.l1b_data" title="Link to this definition"></a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">Dataset</span></code></p>
+<p>mask_coherence_gt1 (bool, optional): Defaults to True.
+drop_outside (float, optional): Exclude waveforms where nadir is</p>
+<blockquote>
+<div><p>a chosen distance in meters outside of any RGI glacier. If
+None, no waveforms are excluded. Defaults to 30_000.</p>
+</div></blockquote>
+<dl class="simple">
+<dt>coherence_threshold (float, optional): Exclude waveform samples</dt><dd><p>with a lower coherence. This choice also affects the
+grouping, start sample for swath processing per waveform,
+and the POCA retrieval. Defaults to 0.6.</p>
+</dd>
+<dt>power_threshold (tuple, optional): Similar to the coherence</dt><dd><p>threshold, but does not affect swath start or POCA
+retrieval. Defaults to (“snr”, 10).</p>
+</dd>
+</dl>
+</dd>
+</dl>
 <dl class="py method">
-<dt class="sig sig-object py" id="cryoswath.l1b.l1b_data.append_ambiguous_reference_elevation">
-<span class="sig-name descname"><span class="pre">append_ambiguous_reference_elevation</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.l1b_data.append_ambiguous_reference_elevation" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="cryoswath.l1b.L1bData.append_ambiguous_reference_elevation">
+<span class="sig-name descname"><span class="pre">append_ambiguous_reference_elevation</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.append_ambiguous_reference_elevation" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="cryoswath.l1b.l1b_data.append_best_fit_phase_index">
-<span class="sig-name descname"><span class="pre">append_best_fit_phase_index</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.l1b_data.append_best_fit_phase_index" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="cryoswath.l1b.L1bData.append_best_fit_phase_index">
+<span class="sig-name descname"><span class="pre">append_best_fit_phase_index</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.append_best_fit_phase_index" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="cryoswath.l1b.l1b_data.append_elev_diff_to_ref">
-<span class="sig-name descname"><span class="pre">append_elev_diff_to_ref</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.l1b_data.append_elev_diff_to_ref" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="cryoswath.l1b.L1bData.append_elev_diff_to_ref">
+<span class="sig-name descname"><span class="pre">append_elev_diff_to_ref</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.append_elev_diff_to_ref" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="cryoswath.l1b.l1b_data.append_smoothed_complex_phase">
-<span class="sig-name descname"><span class="pre">append_smoothed_complex_phase</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.l1b_data.append_smoothed_complex_phase" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="cryoswath.l1b.L1bData.append_smoothed_complex_phase">
+<span class="sig-name descname"><span class="pre">append_smoothed_complex_phase</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.append_smoothed_complex_phase" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="cryoswath.l1b.l1b_data.from_id">
-<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">track_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Timestamp</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#cryoswath.l1b.l1b_data" title="cryoswath.l1b.l1b_data"><span class="pre">l1b_data</span></a></span></span><a class="headerlink" href="#cryoswath.l1b.l1b_data.from_id" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="cryoswath.l1b.L1bData.from_id">
+<em class="property"><span class="pre">classmethod</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">from_id</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">track_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Timestamp</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Self</span></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.from_id" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="cryoswath.l1b.l1b_data.get_rgi_o2">
-<span class="sig-name descname"><span class="pre">get_rgi_o2</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="headerlink" href="#cryoswath.l1b.l1b_data.get_rgi_o2" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="cryoswath.l1b.L1bData.get_rgi_o2">
+<span class="sig-name descname"><span class="pre">get_rgi_o2</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.get_rgi_o2" title="Link to this definition"></a></dt>
 <dd><p>Finds RGIv7 o2 region that contains the track’s central lat,
 lon.</p>
 <dl class="field-list simple">
@@ -198,8 +190,8 @@ lon.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="cryoswath.l1b.l1b_data.locate_ambiguous_origin">
-<span class="sig-name descname"><span class="pre">locate_ambiguous_origin</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.l1b_data.locate_ambiguous_origin" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="cryoswath.l1b.L1bData.locate_ambiguous_origin">
+<span class="sig-name descname"><span class="pre">locate_ambiguous_origin</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.locate_ambiguous_origin" title="Link to this definition"></a></dt>
 <dd><p>Calculates all “possible” echo origins.</p>
 <p>Adds for the 7 look angles <cite>xph_thetas</cite> the variables xph_lats,
 xph_lons, xph_elevs, and xph_dists.</p>
@@ -214,35 +206,210 @@ xph_lons, xph_elevs, and xph_dists.</p>
 </dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="cryoswath.l1b.l1b_data.phase_jump">
-<span class="sig-name descname"><span class="pre">phase_jump</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.l1b_data.phase_jump" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="cryoswath.l1b.L1bData.phase_jump">
+<span class="sig-name descname"><span class="pre">phase_jump</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.phase_jump" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="cryoswath.l1b.l1b_data.phase_outlier">
-<span class="sig-name descname"><span class="pre">phase_outlier</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.l1b_data.phase_outlier" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="cryoswath.l1b.L1bData.phase_outlier">
+<span class="sig-name descname"><span class="pre">phase_outlier</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">tol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.phase_outlier" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="cryoswath.l1b.l1b_data.ref_range">
-<span class="sig-name descname"><span class="pre">ref_range</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.l1b_data.ref_range" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dt class="sig sig-object py" id="cryoswath.l1b.L1bData.ref_range">
+<span class="sig-name descname"><span class="pre">ref_range</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataArray</span></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.ref_range" title="Link to this definition"></a></dt>
+<dd><p>Calculate distance to center of range window.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Reference ranges.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>xr.DataArray</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="cryoswath.l1b.l1b_data.tag_groups">
-<span class="sig-name descname"><span class="pre">tag_groups</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.l1b_data.tag_groups" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dt class="sig sig-object py" id="cryoswath.l1b.L1bData.tag_groups">
+<span class="sig-name descname"><span class="pre">tag_groups</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Self</span></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.tag_groups" title="Link to this definition"></a></dt>
+<dd><p>Identifies and tags wafeform sample groups.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>l1b_ds.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>Self</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="cryoswath.l1b.l1b_data.to_l2">
-<span class="sig-name descname"><span class="pre">to_l2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">out_vars</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retain_vars</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">swath_or_poca</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'swath'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.l1b_data.to_l2" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<dt class="sig sig-object py" id="cryoswath.l1b.L1bData.to_l2">
+<span class="sig-name descname"><span class="pre">to_l2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">out_vars</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retain_vars</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">swath_or_poca</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'swath'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">GeoDataFrame</span></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.to_l2" title="Link to this definition"></a></dt>
+<dd><p>Converts l1b data to l2 data (point elevations).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>out_vars</strong> (<em>list</em><em> | </em><em>dict</em><em>, </em><em>optional</em>) – Return values. If none provided,
+returns time, x, y, height, reference elevation, and difference
+wrt. reference. Provide a dictionary to assign custom names.
+Defaults to None.</p></li>
+<li><p><strong>retain_vars</strong> (<em>list</em><em> | </em><em>dict</em><em>, </em><em>optional</em>) – Additional to <cite>out_vars</cite>.
+Defaults to None.</p></li>
+<li><p><strong>swath_or_poca</strong> (<em>str</em><em>, </em><em>optional</em>) – Either “swath”, “poca”, or “both”.
+Decides what data is returned. Defaults to “swath”.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>ValueError</strong> – If <cite>swath_or_poca</cite> cannot be interpreted.</p>
+</dd>
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Elevation estimates and requested variables. If
+<cite>swath_or_poca</cite> is “both”, a tuple with separate tables is
+returned.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>gpd.GeoDataFrame</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
-<dt class="sig sig-object py" id="cryoswath.l1b.l1b_data.unwrap_phase_diff">
-<span class="sig-name descname"><span class="pre">unwrap_phase_diff</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#cryoswath.l1b.l1b_data.unwrap_phase_diff" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py" id="cryoswath.l1b.L1bData.unwrap_phase_diff">
+<span class="sig-name descname"><span class="pre">unwrap_phase_diff</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Self</span></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.unwrap_phase_diff" title="Link to this definition"></a></dt>
+<dd><p>Replaces phase difference by unwrapped version.</p>
+<p>Unwrapping is done per group of waveform samples.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns<span class="colon">:</span></dt>
+<dd class="field-odd"><p>l1b_ds.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p>Self</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.l1b.append_exclude_mask">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.l1b.</span></span><span class="sig-name descname"><span class="pre">append_exclude_mask</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cs_l1b_ds</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#cryoswath.l1b.L1bData" title="cryoswath.l1b.L1bData"><span class="pre">L1bData</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#cryoswath.l1b.L1bData" title="cryoswath.l1b.L1bData"><span class="pre">L1bData</span></a></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.append_exclude_mask" title="Link to this definition"></a></dt>
+<dd><p>Adds mask indicating samples below threshold.</p>
+<p>Waveform samples that don’t fulfill power and/or coherence requirements
+are flagged. The thresholds have to be included in the provided
+dataset. By default, they are assigned on creation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>cs_l1b_ds</strong> (<em>l1b_data</em>) – Input data.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Data including mask.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>l1b_data</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.l1b.append_poca_and_swath_idxs">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.l1b.</span></span><span class="sig-name descname"><span class="pre">append_poca_and_swath_idxs</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cs_l1b_ds</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#cryoswath.l1b.L1bData" title="cryoswath.l1b.L1bData"><span class="pre">L1bData</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#cryoswath.l1b.L1bData" title="cryoswath.l1b.L1bData"><span class="pre">L1bData</span></a></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.append_poca_and_swath_idxs" title="Link to this definition"></a></dt>
+<dd><p>Adds indices for estimated POCA and begin of swath.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>cs_l1b_ds</strong> (<em>l1b_data</em>) – Input data.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Data including mask.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>l1b_data</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.l1b.build_flag_mask">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.l1b.</span></span><span class="sig-name descname"><span class="pre">build_flag_mask</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cs_l1b_flag</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataArray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">flag_val_list</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DataArray</span></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.build_flag_mask" title="Link to this definition"></a></dt>
+<dd><p>Function returns a waveform mask based on flag values.</p>
+<p>This function can handle two types of flags: those that take the form
+of a checklist with multiple allowed ticks, and those that indicate
+one of more possible selections.</p>
+<p>It is designed for CryoSat-2 SARIn L1b Baseline D or E data and
+relies on an attribute “flag_masks” or “flag_values”. For CRISTAL or
+if the attributes change, this function needs an update.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cs_l1b_flag</strong> (<em>xr.DataArray</em>) – L1bData flag variable.</p></li>
+<li><p><strong>flag_val_list</strong> (<em>list</em><em>, </em><em>optional</em>) – List of flag values to mask.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Mask that is True where flag matched provided list.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xr.DataArray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.l1b.download_files">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.l1b.</span></span><span class="sig-name descname"><span class="pre">download_files</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">track_idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DatetimeIndex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.download_files" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.l1b.download_single_file">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.l1b.</span></span><span class="sig-name descname"><span class="pre">download_single_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">track_id</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">str</span></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.download_single_file" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.l1b.download_wrapper">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.l1b.</span></span><span class="sig-name descname"><span class="pre">download_wrapper</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">region_of_interest</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Polygon</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">start_datetime</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Timestamp</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'2010'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">end_datetime</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Timestamp</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'2035'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">buffer_region_by</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">track_idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DatetimeIndex</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">stop_event</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Event</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_threads</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">8</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">int</span></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.download_wrapper" title="Link to this definition"></a></dt>
+<dd><p>Download ESA’s L1b product.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>region_of_interest</strong> (<em>str</em><em> | </em><em>shapely.Polygon</em><em>, </em><em>optional</em>) – Provide a RGI
+identifier or lon/lat polygon to subset downloaded data.
+Defaults to None.</p></li>
+<li><p><strong>start_datetime</strong> (<em>str</em><em> | </em><em>pd.Timestamp</em><em>, </em><em>optional</em>) – Defaults to “2010”.</p></li>
+<li><p><strong>end_datetime</strong> (<em>str</em><em> | </em><em>pd.Timestamp</em><em>, </em><em>optional</em>) – Defaults to “2035”.</p></li>
+<li><p><strong>buffer_region_by</strong> (<em>float</em><em>, </em><em>optional</em>) – Use a buffer in meter around
+provided region (also RGI identifier). Defaults to None.</p></li>
+<li><p><strong>track_idx</strong> (<em>pd.DatetimeIndex</em><em> | </em><em>str</em><em>, </em><em>optional</em>) – Download only tracks
+at known times. Defaults to None.</p></li>
+<li><p><strong>stop_event</strong> (<em>Event</em><em>, </em><em>optional</em>) – Define when to terminate threads.
+Defaults to None.</p></li>
+<li><p><strong>n_threads</strong> (<em>int</em><em>, </em><em>optional</em>) – Number of download threads. Defaults to 8.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>0 on success, 1 on graceful exit after error, and 2 on being
+aborted.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>int</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.l1b.drop_waveform">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.l1b.</span></span><span class="sig-name descname"><span class="pre">drop_waveform</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cs_l1b_ds</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">time_20_ku_mask</span></span></em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.drop_waveform" title="Link to this definition"></a></dt>
+<dd><p>Use mask along time dim to drop waveforms.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>time_20_ku_mask</strong> (<em>1-dim bool</em>) – Mask: drop where True.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Input dataset without marked waveforms.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xr.Dataset or DataArray</p>
+</dd>
+</dl>
 </dd></dl>
 
 </section>
@@ -251,7 +418,7 @@ xph_lons, xph_elevs, and xph_dists.</p>
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="index.html" class="btn btn-neutral float-left" title="Welcome to cryoswath’s documentation!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="tests.html" class="btn btn-neutral float-left" title="Tests" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="cryoswath.l2.html" class="btn btn-neutral float-right" title="cryoswath.l2 module" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
