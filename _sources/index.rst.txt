@@ -10,7 +10,6 @@ Find the associated GitHub repository at https://github.com/j-haacker/cryoswath.
 To set up a working/testing environment, follow the steps discribed in :doc:`prerequisites`.
 See the quickstart guide in :doc:`Getting started <getting_started>`, if needed.
 
-
 .. toctree::
    :maxdepth: 1
    :caption: Contents:
