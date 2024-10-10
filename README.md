@@ -14,10 +14,6 @@ Currently, it is in the beta phase. `main` contains those parts that I
 believe to work if used as intended and that tested to some
 extent. Other branches are for development.
 
-Check the
-[preliminary tutorial](https://github.com/j-haacker/cryoswath/blob/main/scripts/tutorial.ipynb)
-for some inspiration how to start off.
-
 ## ✨ features
 
 - find all CryoSat-2 tracks passing over your region of interest
