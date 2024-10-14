@@ -4,9 +4,13 @@
 ![GitHub top language](https://img.shields.io/github/languages/top/j-haacker/cryoswath)
 ![GitHub License](https://img.shields.io/github/license/j-haacker/cryoswath)
 
-
 cryoswath is a python package containing processing pipelines, a tool
-library, and some pre-assemble data to retrieve and study CryoSat-2 data
+library, and some pre-assembled data to retrieve and study CryoSat-2
+data.
+
+Adaptability lies at its core. The user can access many options simply
+by passing arguments to functions; everything else can be customized
+changing the concerned function or adding a new one.
 
 ## 🌱 state
 
