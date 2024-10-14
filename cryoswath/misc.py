@@ -931,10 +931,10 @@ def load_o2region(o2code: str, product: str = "complexes") -> gpd.GeoDataFrame:
 
 
 def load_basins(rgi_ids: list[str]) -> gpd.GeoDataFrame:
-    """Loads RGI v7 basin or complex outlines and meta data
+    """Loads RGI v7 basin ~or complex~ outlines and meta data
 
     Args:
-        rgi_ids (list[str]): RGI basin ids.
+        rgi_ids (list[str]): RGI basin ids, all within the same RGI o1 region.
 
     Returns:
         gpd.GeoDataFrame: Queried RGI data with geometry column containing
