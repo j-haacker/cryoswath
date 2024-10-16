@@ -48,7 +48,7 @@ small patch.
 3. `conda install patch`
 4. `find -name variables.py -path */env_name/*/xarray/coding/* -exec patch {} <base dir>/docker/custom_xarray.patch \;` (the patch works for `xarray=2024.9.0`)
 
-(Steps 4+5 are necessary to change `*=` to `x=x*` in the xarray code.)
+(The last two steps are necessary to change `*=` to `x=x*` in the xarray code.)
 
 ## 📖 documentation
 
