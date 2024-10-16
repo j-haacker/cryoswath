@@ -208,7 +208,25 @@ class L1bData(xr.Dataset):
         return self
     __all__.append("append_ambiguous_reference_elevation")
 
-    def append_best_fit_phase_index(self):
+    def append_best_fit_phase_index(self, best_column: callable = None) -> Self:
+        """Resolve phase difference ambiguity
+
+        The phase difference is ambiguous and only know except for a multiple
+        of 2 pi. This method finds the best fitting factor of 2 pi wrt. a
+        digital elevation model (DEM). By default, the summed distance to the
+        DEM per group is minimized.
+
+        Args:
+            best_column (callable, optional): Function that takes a k*n matrix of
+                difference to the DEM as first argument, where k are the number
+                of group members (waveform samples) and n the number of possible
+                wrapping factors. The function needs to return the chosen index
+                along the second axis. Visit the source code to get a template
+                for an excepted function. Defaults to None.
+
+        Returns:
+            L1bData
+        """
         # ! Implement opt-out or/and grouping alternatives
         if not "group_id" in self.data_vars:
             self = self.tag_groups()
@@ -221,13 +239,16 @@ class L1bData(xr.Dataset):
             self = self.append_elev_diff_to_ref()
         self = self.assign(ph_idx=(("time_20_ku", "ns_20_ku"),
                                    np.empty((len(self.time_20_ku), len(self.ns_20_ku)), dtype="int")))
-        def min_abs_idx(elev_diff, group_ids):
+        if best_column is None:
+            def best_column(elev_diff):
+                return np.argmin(np.abs(np.sum(elev_diff, axis=0)))
+        def find_group_ph_idx(elev_diff, group_ids):
             out = np.zeros_like(group_ids)
             for i in nan_unique(group_ids):
                 mask = group_ids == i
-                out[mask] = np.argmin(np.abs(np.sum(elev_diff[mask,:], axis=0)))-3
+                out[mask] = best_column(elev_diff[mask,:])-len(self.phase_wrap_factor)//2
             return out
-        self["ph_idx"] = xr.apply_ufunc(min_abs_idx, 
+        self["ph_idx"] = xr.apply_ufunc(find_group_ph_idx, 
                                         self.xph_elev_diffs, 
                                         self.group_id,
                                         input_core_dims=[["ns_20_ku", "phase_wrap_factor"], ["ns_20_ku"]],
@@ -399,6 +420,7 @@ class L1bData(xr.Dataset):
     def to_l2(self, out_vars: list|dict = None, *,
                     retain_vars: list|dict = None,
                     swath_or_poca: str = "swath",
+                    group_best_column_func: callable = None,
                     **kwargs) -> gpd.GeoDataFrame:
         """Converts l1b data to l2 data (point elevations).
 
@@ -411,6 +433,9 @@ class L1bData(xr.Dataset):
                 Defaults to None.
             swath_or_poca (str, optional): Either "swath", "poca", or "both".
                 Decides what data is returned. Defaults to "swath".
+            group_best_column_func (callable, optional): Optimization function to
+                resolve phase difference ambiguity. View
+                :func:`append_best_fit_phase_index` for details.
 
         Raises:
             ValueError: If `swath_or_poca` cannot be interpreted.
@@ -434,7 +459,7 @@ class L1bData(xr.Dataset):
                             xph_elev_diffs="h_diff")
         # implicitly test whether data was processed. if not, do so
         if not "ph_idx" in self.data_vars:
-            self = self.append_best_fit_phase_index()
+            self = self.append_best_fit_phase_index(group_best_column_func)
         if isinstance(out_vars, dict):
             self = self.drop_vars(list(out_vars.values()), errors="ignore")
             self = self.rename_vars(out_vars)
