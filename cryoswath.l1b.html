@@ -156,8 +156,26 @@ retrieval. Defaults to (“snr”, 10).</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="cryoswath.l1b.L1bData.append_best_fit_phase_index">
-<span class="sig-name descname"><span class="pre">append_best_fit_phase_index</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.append_best_fit_phase_index" title="Link to this definition"></a></dt>
-<dd></dd></dl>
+<span class="sig-name descname"><span class="pre">append_best_fit_phase_index</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">best_column</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">callable</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Self</span></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.append_best_fit_phase_index" title="Link to this definition"></a></dt>
+<dd><p>Resolve phase difference ambiguity</p>
+<p>The phase difference is ambiguous and only know except for a multiple
+of 2 pi. This method finds the best fitting factor of 2 pi wrt. a
+digital elevation model (DEM). By default, the summed distance to the
+DEM per group is minimized.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>best_column</strong> (<em>callable</em><em>, </em><em>optional</em>) – Function that takes a k*n matrix of
+difference to the DEM as first argument, where k are the number
+of group members (waveform samples) and n the number of possible
+wrapping factors. The function needs to return the chosen index
+along the second axis. Visit the source code to get a template
+for an excepted function. Defaults to None.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>L1bData</p>
+</dd>
+</dl>
+</dd></dl>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="cryoswath.l1b.L1bData.append_elev_diff_to_ref">
@@ -245,7 +263,7 @@ xph_lons, xph_elevs, and xph_dists.</p>
 
 <dl class="py method">
 <dt class="sig sig-object py" id="cryoswath.l1b.L1bData.to_l2">
-<span class="sig-name descname"><span class="pre">to_l2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">out_vars</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retain_vars</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">swath_or_poca</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'swath'</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">GeoDataFrame</span></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.to_l2" title="Link to this definition"></a></dt>
+<span class="sig-name descname"><span class="pre">to_l2</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">out_vars</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">retain_vars</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">dict</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">swath_or_poca</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'swath'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">group_best_column_func</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">callable</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">GeoDataFrame</span></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/l1b.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.l1b.L1bData.to_l2" title="Link to this definition"></a></dt>
 <dd><p>Converts l1b data to l2 data (point elevations).</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
@@ -258,6 +276,9 @@ Defaults to None.</p></li>
 Defaults to None.</p></li>
 <li><p><strong>swath_or_poca</strong> (<em>str</em><em>, </em><em>optional</em>) – Either “swath”, “poca”, or “both”.
 Decides what data is returned. Defaults to “swath”.</p></li>
+<li><p><strong>group_best_column_func</strong> (<em>callable</em><em>, </em><em>optional</em>) – Optimization function to
+resolve phase difference ambiguity. View
+<a class="reference internal" href="#cryoswath.l1b.L1bData.append_best_fit_phase_index" title="cryoswath.l1b.L1bData.append_best_fit_phase_index"><code class="xref py py-func docutils literal notranslate"><span class="pre">append_best_fit_phase_index()</span></code></a> for details.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Raises<span class="colon">:</span></dt>
