@@ -468,6 +468,7 @@ def interpolate_hypsometrically(ds: xr.Dataset,
                                 elev: str = "ref_elev",
                                 weights: str = "weights",
                                 outlier_replace: bool = False,
+                                return_coeffs: bool = False,
                                 ) -> xr.Dataset:
     """Fills data gaps by hypsometrical interpolation
 
@@ -496,18 +497,40 @@ def interpolate_hypsometrically(ds: xr.Dataset,
             should be 1/variance or similar. Defaults to "weights".
         outlier_replace (bool, optional): If enabled, also interpolates
             outliers. Defaults to False.
+        return_coeffs (bool, optional): If enabled, also returns 3rd order
+            polynomial parameters in `numpy.polyfit
+            <https://numpy.org/doc/stable/reference/generated/numpy.polyfit.html>`_
+            order (highest to lowest). Defaults to False.
 
     Returns:
         xr.Dataset: Filled dataset.
     """
+
+    def select_returns(return_coeffs, ds, coeffs):
+        if return_coeffs: return ds, coeffs
+        else: return ds
+
+    def design_matrix(x_vals):
+        return np.hstack([x_vals, x_vals**2, x_vals**3])
+
+    def invert_3rd_order_coeff_scaling(scaler, coeffs):
+        mu, sig = scaler.mean_[0], scaler.scale_[0]
+        p0, p1, p2, p3 = coeffs/np.hstack([1, design_matrix(sig)])[::-1]
+        return np.array([
+            p0,
+            p1-3*mu*p0,
+            p2-2*mu*p1+3*mu**2*p0,
+            p3-mu*p2+mu**2*p1-mu**3*p0
+        ])
+
     if "time" in ds.dims and len(ds.time) > 1:
         # note: `groupby("time")` creates time depencies for all data_vars. this
         #       requires taking note of those data_vars that do not depend on
         #       time and reset those after the operation
         no_time_dep = [data_var for data_var in ds.data_vars if not "time" in ds[data_var].dims]
-        ds = ds.groupby("time", squeeze=False).apply(interpolate_hypsometrically, main_var=main_var, elev=elev, error=error, outlier_replace=outlier_replace)
+        ds = ds.groupby("time", squeeze=False).apply(interpolate_hypsometrically, main_var=main_var, elev=elev, error=error, outlier_replace=outlier_replace, return_coeffs=return_coeffs)
         ds[no_time_dep] = ds[no_time_dep].isel(time=0)
-        return ds
+        return select_returns(return_coeffs, ds, np.array([np.nan]*4))
     # assign weights if not present. use previously assigned weights to
     # prevent using previously filled cells from inform a new average.
     if weights not in ds:
@@ -516,11 +539,11 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     # necessary to prevent errors but also introduces data gaps
     if ds[elev].where(ds[error]>0).count() < 24:
         # print("too little data")
-        return ds
+        return select_returns(return_coeffs, ds, np.array([np.nan]*4))
     # also, abort if there isn't anything to do
     if not ds[error].isnull().any() and not outlier_replace:
         # print("nothing to do")
-        return ds
+        return select_returns(return_coeffs, ds, np.array([np.nan]*4))
     elev_range_80pctl = float(ds[elev].quantile([.1, .9]).diff(dim="quantile").values)
     if elev_range_80pctl >= 500:
         elev_bin_width = 50
@@ -579,7 +602,7 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     if elev_bin_means.empty \
             or len(elev_bin_means.index) < 5 \
             or elev_bin_means.index[-1].right - elev_bin_means.index[0].left < 2/3 * elev_range_80pctl:
-        return ds
+        return select_returns(return_coeffs, ds, np.array([np.nan]*4))
     else:
         # fit polynomial
         # print(elev_bin_means, elev_bin_errs)
@@ -587,21 +610,18 @@ def interpolate_hypsometrically(ds: xr.Dataset,
             x_vals = np.array([[idx.mid for idx in elev_bin_means.index]]).T
             scaler = preprocessing.StandardScaler().fit(x_vals, sample_weight=1/elev_bin_errs.values)
             # print(x_vals, scaler.transform(x_vals))
-            def design_matrix(x_vals):
-                return np.hstack([x_vals, x_vals**2, x_vals**3])
             # print(x_vals, design_matrix(x_vals), elev_bin_means.values, 1/elev_bin_errs.values)
             # cov = covariance.EmpiricalCovariance().fit(design_matrix(scaler.transform(x_vals))).covariance_
             fit = linear_model.Ridge(1).fit(design_matrix(scaler.transform(x_vals)), elev_bin_means.values, 1/elev_bin_errs.values)
-            coeffs = fit.coef_
+            coeffs = np.hstack((fit.intercept_, fit.coef_))[::-1]
         except np.linalg.LinAlgError: # not sure what error sklearn raises
             print(elev_bin_means)
             print(elev_bin_errs)
-            return ds
-        coeffs = np.hstack((fit.intercept_, coeffs))[::-1]
+            return select_returns(return_coeffs, ds, np.array([np.nan]*4))
         if (np.abs(np.polyval(np.polyder(coeffs), scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))).max() > 15/100*scaler.var_**.5 \
                 and np.abs(np.polyval(coeffs, scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))-elev_bin_means.mean()).max() > 50) \
             or np.abs(np.polyval(np.polyder(coeffs), scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))).max() > 50/100*scaler.var_**.5:
-            return ds
+            return select_returns(return_coeffs, ds, np.array([np.nan]*4))
         elev0 = design_matrix(scaler.transform(ds[elev].values[:,None]))
         try:
             ds[main_var] = xr.where(ds[weights] > 0, ds[main_var], xr.DataArray(fit.predict(elev0), coords={"stacked_x_y": ds.stacked_x_y}, dims="stacked_x_y"))
@@ -614,7 +634,7 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         errs = ((residuals/elev_bin_errs.values)**2).sum()*(elev_bin_errs.values**2).sum()/effective_samp_size**.5
         ds[error] = xr.where(ds[weights] > 0, ds[error], 2*errs)
         ds[weights] = xr.where(ds[weights] > 0, ds[weights], 0)
-    return ds
+    return select_returns(return_coeffs, ds, invert_3rd_order_coeff_scaling(scaler, coeffs))
 __all__.append("interpolate_hypsometrically")
 
 
