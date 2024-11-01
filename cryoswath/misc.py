@@ -962,7 +962,8 @@ def load_basins(rgi_ids: list[str]) -> gpd.GeoDataFrame:
     """
     if len(rgi_ids) > 1:
         assert(all([id[:17]==rgi_ids[0][:17]] for id in rgi_ids))
-    rgi_o1_gpdf = load_o1region(rgi_ids[0].split("-")[3], product="glaciers")
+    product_code, o1_code = rgi_ids[0].split("-")[2:4]
+    rgi_o1_gpdf = load_o1region(o1_code, product="glaciers" if product_code=="G" else "complexes")
     id_to_index_series = pd.Series(data=rgi_o1_gpdf.index, index=rgi_o1_gpdf.rgi_id)
     return rgi_o1_gpdf.loc[id_to_index_series.loc[rgi_ids].values]
 
