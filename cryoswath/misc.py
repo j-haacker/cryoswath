@@ -744,7 +744,10 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
     Returns:
         gpd.GeoDataFrame: CryoSat-2 tracks.
     """
+    advance_end = isinstance(end_datetime, str) and re.match(r"^20[0-9]{2}.?[01][0-9]$", end_datetime)
     start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
+    if advance_end:
+        end_datetime = end_datetime + pd.DateOffset(months=1)
     if os.path.isfile(cs_ground_tracks_path):
         cs_tracks = gpd.read_feather(cs_ground_tracks_path)
         if "index" in cs_tracks.columns: 
