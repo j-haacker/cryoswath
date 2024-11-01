@@ -16,6 +16,8 @@ import rasterio
 import re
 from scipy.constants import speed_of_light
 import scipy.stats
+from scipy.stats import norm
+from scipy.stats import t as student_t
 import shapely
 import shutil
 from sklearn import covariance, linear_model, preprocessing
@@ -487,7 +489,12 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     Args:
         ds (xr.Dataset): Input with voids.
         main_var (str): Name of variable to interpolate.
-        error (str): Name of errors. Only used, if weights are not provided.
+        error (str): Name of errors. Where interpolated, errors will be
+            filled by the scaled RMSE of the fit. The scaling factor will be
+            inferred from `error`! Include one of "std", "iqr", "mad", "95" in
+            the `error` variable name. If non can be found, it is assumed to be
+            the standard deviation ("std"). The error data are only used if
+            weights are not provided.
         elev (str, optional): Name of variable that contains the reference
             elevation used for binning. If the variable does not exist, it
             is attempted to read the reference elevations from disk.
@@ -552,32 +559,30 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     group_obj = ds.groupby_bins(elev, np.arange(ds[elev].min(), ds[elev].max()+elev_bin_width, elev_bin_width))
     elev_bin_means = pd.Series(index=group_obj.groups)
     elev_bin_errs = pd.Series(index=group_obj.groups)
-    grp_result_buffer = []
     for label, group in group_obj:
         if (group[weights] > 0).sum() < 6:
-            grp_result_buffer.append(group)
             continue
         vals = group[main_var].fillna(-9999).squeeze() # make it obvious if anything goes wrong
         w = group[weights].fillna(0).squeeze()
         avg, _var, effective_samp_size, to_be_filled_mask = weighted_mean_excl_outliers(
             values=vals, weights=w, deviation_factor=2, return_mask=True)
-        err = (_var/effective_samp_size)**.5
+        err = student_t.isf(.025, effective_samp_size-1)*(_var/effective_samp_size)**.5
         if outlier_replace:
             to_be_filled_mask = np.logical_or(group[main_var].isnull().squeeze(), to_be_filled_mask)
         else:
             to_be_filled_mask = group[main_var].isnull().squeeze()
         if np.isnan(avg) or not any(to_be_filled_mask):
-            grp_result_buffer.append(group)
             # # debugging notice
+            # print(group)
             # print("calc weighted avg failed (probably insufficient data)", label)
             # print("avg", avg, "_var", _var, "effective_samp_size", effective_samp_size, "err", err)
             continue
         # # debugging notice
         # print("calc weighted avg succeeded", label)
         # print("avg", avg, "_var", _var, "effective_samp_size", effective_samp_size, "err", err)
-        group[main_var] = xr.where(to_be_filled_mask, avg, group[main_var])
+        # group[main_var] = xr.where(to_be_filled_mask, avg, group[main_var]) # not sure the values should be filled here. they're also filled (overwritten) with the fit below
         elev_bin_means.loc[label] = avg
-        elev_bin_errs.loc[label] = err
+        elev_bin_errs.loc[label] = err #+ 3/((label.mid-ds[elev].min())/25)**3
         if err < .01:
             print("+++++++++++++++++++++++++++++++++++++++")
             print("+++++++++++++++++++++++++++++++++++++++")
@@ -588,15 +593,6 @@ def interpolate_hypsometrically(ds: xr.Dataset,
             print(vals[~to_be_filled_mask])
             print("+++++++++++++++++++++++++++++++++++++++")
             print("+++++++++++++++++++++++++++++++++++++++")
-        group[error] = xr.where(to_be_filled_mask, 2*err, group[error])
-        # assigning 0 to weights of filled cells to prevent them from informing
-        # a next fit, e.g., if first filling cells per basin and then filling
-        # remaining voids by another grouping
-        group[weights] = xr.where(to_be_filled_mask, 0, group[weights])
-        grp_result_buffer.append(group)
-    ds = xr.concat(grp_result_buffer, "stacked_x_y")
-    for each in grp_result_buffer:
-        each.close()
     elev_bin_means.dropna(inplace=True)
     elev_bin_errs.dropna(inplace=True)
     if elev_bin_means.empty \
@@ -623,16 +619,22 @@ def interpolate_hypsometrically(ds: xr.Dataset,
             or np.abs(np.polyval(np.polyder(coeffs), scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))).max() > 50/100*scaler.var_**.5:
             return select_returns(return_coeffs, ds, np.array([np.nan]*4))
         elev0 = design_matrix(scaler.transform(ds[elev].values[:,None]))
+        modelled = xr.DataArray(fit.predict(elev0), coords={"stacked_x_y": ds.stacked_x_y}, dims="stacked_x_y")
         try:
-            ds[main_var] = xr.where(ds[weights] > 0, ds[main_var], xr.DataArray(fit.predict(elev0), coords={"stacked_x_y": ds.stacked_x_y}, dims="stacked_x_y"))
+            ds[main_var] = xr.where(ds[weights] > 0, ds[main_var], modelled)
         except:
-            print(xr.DataArray(fit.predict(elev0), coords={"stacked_x_y": ds.stacked_x_y}, dims="stacked_x_y"))
+            print(modelled)
             raise
-        y_hat = fit.predict(design_matrix(scaler.transform(x_vals)))
-        residuals = elev_bin_means.values - y_hat
-        effective_samp_size = float(elev_bin_errs.sum()**2/(elev_bin_errs**2).sum())
-        errs = ((residuals/elev_bin_errs.values)**2).sum()*(elev_bin_errs.values**2).sum()/effective_samp_size**.5
-        ds[error] = xr.where(ds[weights] > 0, ds[error], 2*errs)
+        RMSE = ((ds[main_var]-modelled).where(ds[weights]>0)**2).mean()**.5
+        if "std" in error.lower():
+            pass
+        elif "iqr" in error.lower():
+            RMSE *= 2*norm.isf(.25)
+        elif "mad" in error.lower():
+            RMSE *= norm.isf(.25)
+        elif "95" in error.lower():
+            RMSE *= norm.isf(.025)
+        ds[error] = xr.where(ds[weights] > 0, ds[error], RMSE)
         ds[weights] = xr.where(ds[weights] > 0, ds[weights], 0)
     return select_returns(return_coeffs, ds, invert_3rd_order_coeff_scaling(scaler, coeffs))
 __all__.append("interpolate_hypsometrically")
