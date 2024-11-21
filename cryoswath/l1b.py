@@ -181,14 +181,14 @@ class L1bData(xr.Dataset):
         tmp = tmp.assign_coords({"phase_wrap_factor": np.arange(-3, 4)})
         super().__init__(data_vars=tmp.data_vars, coords=tmp.coords, attrs=tmp.attrs)
     
-    def append_ambiguous_reference_elevation(self):
+    def append_ambiguous_reference_elevation(self, dem_file_name_or_path: str = None):
         # !! This function causes much of the computation time. I suspect that
         # sparse memory accessing can be minimized with some tricks. However,
         # first tries sorting the spatial data, took even (much) longer.
         if not "xph_lats" in self.data_vars:
             self = self.locate_ambiguous_origin()
         # ! tbi: auto download ref dem if not present
-        with get_dem_reader(self) as dem_reader:
+        with get_dem_reader((self if dem_file_name_or_path is None else dem_file_name_or_path)) as dem_reader:
             trans_4326_to_dem_crs = Transformer.from_crs('EPSG:4326', dem_reader.crs)
             x, y = trans_4326_to_dem_crs.transform(self.xph_lats, self.xph_lons)
             self = self.assign(xph_x=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), x), 
