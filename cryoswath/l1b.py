@@ -28,8 +28,8 @@ class L1bData(xr.Dataset):
     """Class to wrap functions and properties for L1b data.
 
     Args to init:
-        l1b_filename (str): File to read data from. waveform_selection
-        (int | pd.Timestamp | list[int |
+        l1b_filename (str): File to read data from.
+        waveform_selection (int | pd.Timestamp | list[int |
             pd.Timestamp] | slice, optional): Waveforms to retrieve data
             from. If none provided, retrieve all data. Defaults to None.
         drop_waveforms_by_flag (dict[str, list], optional):
@@ -97,6 +97,10 @@ class L1bData(xr.Dataset):
             tmp = xr.open_dataset(l1b_filename)
         # at least until baseline E ns_20_ku needs to be made a coordinate
         tmp = tmp.assign_coords(ns_20_ku=("ns_20_ku", np.arange(len(tmp.ns_20_ku))))
+        # remove data that will not be used to reduce memory footprint
+        for dim in ["time_plrm_01_ku", "time_plrm_20_ku", "nlooks_ku", "space_3d"]:
+            if dim in tmp.dims:
+                tmp = tmp.drop_dims(dim)
         # first: get azimuth bearing from smoothed incremental azimuths.
         # this needs to be done before dropping part of the recording
         poly3fit_params = np.polyfit(np.arange(len(tmp.time_20_ku)-1), 
