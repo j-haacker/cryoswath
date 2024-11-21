@@ -439,6 +439,9 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
     Returns:
         rasterio.DatasetReader: Reader pointing to the file.
     """
+
+    raster_extensions = ['tif', 'nc']
+
     if isinstance(data, shapely.Geometry):
         lat = np.mean(data.bounds[1::2])
     elif isinstance(data, float) \
@@ -456,12 +459,26 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
             lat = 90
         elif data.lower() in ["antarctic", "rema"]:
             lat = -90
+        elif os.path.sep in data:
+            return rasterio.open(data)
+        elif any([data.split(".")[-1] in raster_extensions]):
+            return rasterio.open(os.path.join(dem_path, data))
     if "lat" not in locals():
         raise NotImplementedError(f"`get_dem_reader` could not handle the input of type {data.__class__}. See doc for further info.")
     if lat > 0:
-        return rasterio.open(os.path.join(dem_path, "arcticdem_mosaic_100m_v4.1_dem.tif"))
+        # return rasterio.open(os.path.join(dem_path, "arcticdem_mosaic_100m_v4.1_dem.tif"))
+        dem_filename = "arcticdem_mosaic_100m_v4.1_dem.tif"
     else:
-        return rasterio.open(os.path.join(dem_path, "rema_mosaic_100m_v2.0_filled_cop30_dem.tif"))
+        dem_filename = "rema_mosaic_100m_v2.0_filled_cop30_dem.tif"
+    if not os.path.isfile(os.path.join(dem_path, dem_filename)):
+        raster_file_list = []
+        for ext in raster_extensions:
+            raster_file_list.extend(glob.glob('*.'+ext, root_dir=dem_path))
+        print("DEM not found with default filename. Please select from the following:\n",
+              ", ".join(raster_file_list), flush=True)
+        dem_filename = input("Enter filename:")
+    return rasterio.open(os.path.join(dem_path, dem_filename))
+
 
 
 def interpolate_hypsometrically(ds: xr.Dataset,
