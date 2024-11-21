@@ -204,10 +204,12 @@ def dem_transect(waveform, *,
                                   linewidth=0.6,
                                   facecolor="xkcd:ice")
                     ),
-                 selected_phase_only: bool = True):
+                 selected_phase_only: bool = True,
+                 dem_file_name_or_path: str = None,
+                 ):
     if ax is None:
         ax = plt.subplots()[1]
-    dem_reader = get_dem_reader(waveform)
+    dem_reader = get_dem_reader((waveform if dem_file_name_or_path is None else dem_file_name_or_path))
     trans_4326_to_dem_crs = get_4326_to_dem_Transformer(dem_reader)
     sampling_dist = np.arange(-30000, 30000+1, 100)
     num_samples = len(sampling_dist)
