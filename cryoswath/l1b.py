@@ -447,7 +447,6 @@ class L1bData(xr.Dataset):
         any_separator = np.logical_or(*xr.align(self.phase_jump(), gap_separator, join="outer"))
         print("debug tag groups 0.2.1", flush=True)
         rising_edge_per_waveform_counter = (any_separator.astype('int32').diff("ns_20_ku")==-1).cumsum("ns_20_ku") + 1
-        # print(rising_edge_per_waveform_counter)
         print("debug tag groups 0.3", flush=True)
         group_tags = rising_edge_per_waveform_counter \
             + xr.DataArray(data=np.arange(len(self.time_20_ku))*len(self.ns_20_ku), dims="time_20_ku")
