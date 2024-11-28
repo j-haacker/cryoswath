@@ -79,6 +79,7 @@ class L1bData(xr.Dataset):
                  drop_outside: float = 30_000,
                  coherence_threshold: float = 0.6,
                  power_threshold: tuple = ("snr", 10),
+                 smooth_phase_difference: bool = True,
                  ) -> None:
         # ! tbi customize or drop misleading attributes of xr.Dataset
         # currently only originally named CryoSat-2 SARIn files implemented
@@ -233,13 +234,13 @@ class L1bData(xr.Dataset):
             L1bData
         """
         # ! Implement opt-out or/and grouping alternatives
+        # before locating echos, find groups because also phase is unwrapped
         if not "group_id" in self.data_vars:
             self = self.tag_groups()
             # it makes sense to always unwrap the phases immediately after finding
             # the groups. assigning the best fitting indices otherwise messes up
             # your data
             self = self.unwrap_phase_diff()
-        # before locating echos, find groups because also phase is unwrapped
         if not "xph_elev_diffs" in self.data_vars:
             self = self.append_elev_diff_to_ref()
         self = self.assign(ph_idx=(("time_20_ku", "ns_20_ku"),
@@ -509,12 +510,19 @@ class L1bData(xr.Dataset):
         Returns:
             Self: l1b_ds.
         """
+
         def unwrap(ph_diff, group_ids):
             out = ph_diff
             for i in nan_unique(group_ids):
                 mask = group_ids == i
                 out[mask] = np.unwrap(ph_diff[mask])
             return out
+        
+        if self.attrs["smooth_phase_difference"]: #
+            self["ph_diff_waveform_20_ku"] = xr.where(self.ph_diff_complex_smoothed.isnull(),
+                                                        self.ph_diff_waveform_20_ku,
+                                                        xr.apply_ufunc(np.angle, self.ph_diff_complex_smoothed))
+            
         self["ph_diff_waveform_20_ku"] = xr.apply_ufunc(unwrap, 
                                                         self.ph_diff_waveform_20_ku, 
                                                         self.group_id,
