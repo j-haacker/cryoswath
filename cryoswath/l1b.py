@@ -7,6 +7,7 @@ import os
 import pandas as pd
 from pyproj import Transformer
 import rioxarray as rioxr
+from scipy.stats import median_abs_deviation
 import shapely
 from threading import Event, Thread
 import time
@@ -245,7 +246,7 @@ class L1bData(xr.Dataset):
                                    np.empty((len(self.time_20_ku), len(self.ns_20_ku)), dtype="int")))
         if best_column is None:
             def best_column(elev_diff):
-                return np.argmin(np.abs(np.sum(elev_diff, axis=0)))
+                return np.argmin(np.abs(np.median(elev_diff, axis=0))**2+median_abs_deviation(elev_diff, axis=0)**2)
         def find_group_ph_idx(elev_diff, group_ids):
             out = np.zeros_like(group_ids)
             for i in nan_unique(group_ids):
