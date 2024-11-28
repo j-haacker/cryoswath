@@ -680,13 +680,19 @@ def load_cs_full_file_names(update: str = "no") -> pd.Series:
         file_names = pd.read_pickle(file_names_path).sort_index()
     if update == "no":
         return file_names
-    if update == "quick":
+    elif update == "quick":
         last_lta_idx = file_names.index[-1]
         print(last_lta_idx+pd.offsets.MonthBegin(-1, normalize=True))
-    if update == "regular":
+    elif update == "version":
+        # implement, also, to actually update the files or remove outdated - or
+        # think of something to prevent that old data receives a new name
+        raise Exception("Functionality to update L1b file version (e.g. ...E001.nc"
+                        + "vs ...E003.nc) is not yet implemented.")
+    if update in ["regular", "version"]:
         # ! "regular" should also be baseline and version aware
         last_lta_idx = file_names[(fn[3:7]=="LTA_" for fn in file_names)].index[-1]
         print(last_lta_idx+pd.offsets.MonthBegin(-1, normalize=True))
+
     with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
         ftp.login(passwd=personal_email)
         ftp.cwd("/SIR_SIN_L1")
@@ -714,9 +720,9 @@ def load_cs_full_file_names(update: str = "no") -> pd.Series:
                             file_names.loc[remote_idx] = remote_file[:-3]
             except Exception:
                 warnings.warn(f"Error occurred in remote directory /SIR_SIN_L1/{year}/{month}.")
-            finally:
-                file_names.to_pickle(file_names_path)
-                return file_names
+
+    file_names.to_pickle(file_names_path)
+    return file_names
 
 
 def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
