@@ -79,6 +79,7 @@ class L1bData(xr.Dataset):
                  drop_outside: float = 30_000,
                  coherence_threshold: float = 0.6,
                  power_threshold: tuple = ("snr", 10),
+                 smooth_phase_difference: bool = True,
                  dem_file_name_or_path: str = None,
                  ) -> None:
         # ! tbi customize or drop misleading attributes of xr.Dataset
@@ -175,7 +176,8 @@ class L1bData(xr.Dataset):
                 warnings.warn("No waveforms left on glacier. Proceeding with empty dataset.")
                 tmp = tmp.isel(time_20_ku=[])
         tmp = tmp.assign_attrs(coherence_threshold=coherence_threshold,
-                               power_threshold=power_threshold)
+                               power_threshold=power_threshold,
+                               smooth_phase_difference=smooth_phase_difference)
         tmp = append_exclude_mask(tmp)
         tmp = append_poca_and_swath_idxs(tmp)
         # ! smooth phase at poca
@@ -235,13 +237,13 @@ class L1bData(xr.Dataset):
             L1bData
         """
         # ! Implement opt-out or/and grouping alternatives
+        # before locating echos, find groups because also phase is unwrapped
         if not "group_id" in self.data_vars:
             self = self.tag_groups()
             # it makes sense to always unwrap the phases immediately after finding
             # the groups. assigning the best fitting indices otherwise messes up
             # your data
             self = self.unwrap_phase_diff()
-        # before locating echos, find groups because also phase is unwrapped
         if not "xph_elev_diffs" in self.data_vars:
             self = self.append_elev_diff_to_ref()
         self = self.assign(ph_idx=(("time_20_ku", "ns_20_ku"),
@@ -409,6 +411,7 @@ class L1bData(xr.Dataset):
         any_separator = np.logical_or(*xr.align(self.phase_jump(), gap_separator, join="outer"))
         print("debug tag groups 0.2.1", flush=True)
         rising_edge_per_waveform_counter = (any_separator.astype('int32').diff("ns_20_ku")==-1).cumsum("ns_20_ku") + 1
+        # print(rising_edge_per_waveform_counter)
         print("debug tag groups 0.3", flush=True)
         group_tags = rising_edge_per_waveform_counter \
             + xr.DataArray(data=np.arange(len(self.time_20_ku))*len(self.ns_20_ku), dims="time_20_ku")
@@ -518,12 +521,19 @@ class L1bData(xr.Dataset):
         Returns:
             Self: l1b_ds.
         """
+
         def unwrap(ph_diff, group_ids):
             out = ph_diff
             for i in nan_unique(group_ids):
                 mask = group_ids == i
                 out[mask] = np.unwrap(ph_diff[mask])
             return out
+        
+        if self.attrs["smooth_phase_difference"]: #
+            self["ph_diff_waveform_20_ku"] = xr.where(self.ph_diff_complex_smoothed.isnull(),
+                                                        self.ph_diff_waveform_20_ku,
+                                                        xr.apply_ufunc(np.angle, self.ph_diff_complex_smoothed))
+            
         self["ph_diff_waveform_20_ku"] = xr.apply_ufunc(unwrap, 
                                                         self.ph_diff_waveform_20_ku, 
                                                         self.group_id,
