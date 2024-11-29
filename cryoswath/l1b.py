@@ -80,6 +80,7 @@ class L1bData(xr.Dataset):
                  coherence_threshold: float = 0.6,
                  power_threshold: tuple = ("snr", 10),
                  smooth_phase_difference: bool = True,
+                 use_original_noise_estimates: bool = False,
                  ) -> None:
         # ! tbi customize or drop misleading attributes of xr.Dataset
         # currently only originally named CryoSat-2 SARIn files implemented
@@ -136,8 +137,39 @@ class L1bData(xr.Dataset):
             # print("drop bad. cur buf:", buffer)
             for flag_var, flag_val_list in drop_waveforms_by_flag.items():
                 tmp = drop_waveform(tmp, build_flag_mask(tmp[flag_var], flag_val_list))
-        # tbi: maybe add option to pass area of interest instead of the boolean
-        if drop_outside is not None:
+        if not use_original_noise_estimates:
+            def noise_val(vec):
+                # calculate average noise values for slices of the data
+                # use sufficiently large slices (well more than 6 members)
+                n = 30  # slice_thickness
+                noise_val = np.mean(vec[:n])
+                noise_sqerr = np.var(vec[:n], ddof=1)/29
+                # iterate over slices: use those of which the average
+                # does not significantly differ from previous slices
+                # collectively
+                for i in range(round(len(tmp.ns_20_ku)/n/4)): # look at first quarter samples
+                    tmp_val = np.mean(vec[(i+1)*n:(i+2)*n])
+                    tmp_sqerr = np.var(vec[(i+1)*n:(i+2)*n], ddof=1)/29
+                    if (noise_val-tmp_val)**2 < (noise_sqerr+tmp_sqerr):
+                        noise_val = np.mean(vec[:(i+2)*n])
+                        noise_sqerr = np.var(vec[:(i+2)*n], ddof=1)/((i+2)*n-1)
+                    else:
+                        break
+                return noise_val
+            noise = xr.apply_ufunc(noise_val, tmp.power_waveform_20_ku, input_core_dims=[["ns_20_ku"]], output_core_dims=[[]], vectorize=True)
+            def noise_floor(noise):
+                # construct a lower envelope of the noise values
+                window_size = 5*20+1 # on the scale of the tracking loop (1 Hz)
+                fwd = noise.rolling(time_20_ku=window_size).min()
+                bwd = noise.isel(time_20_ku=slice(None,None,-1)).rolling(time_20_ku=window_size).min().sortby("time_20_ku")
+                # the upper envelope of the two lower envelope builds
+                # the collective lower envelope
+                upper_envelope = xr.concat([fwd, bwd], "tmp").max("tmp")
+                return upper_envelope.fillna(upper_envelope.max())
+            tmp["noise_power_20_ku"] = noise_floor(noise)
+        else:
+            tmp["noise_power_20_ku"] = tmp.transmit_pwr_20_ku*10**(tmp.noise_power_20_ku/10)
+        if drop_outside is not None and drop_outside != False:
             # ! needs to be tidied up:
             # (also: simplify needed?)
             planar_crs = find_planar_crs(lon=tmp.lon_20_ku, lat=tmp.lat_20_ku)
@@ -555,16 +587,10 @@ def append_exclude_mask(cs_l1b_ds: "L1bData") -> "L1bData":
     assert(isinstance(cs_l1b_ds.power_threshold, tuple))
     # only signal-to-noise-ratio implemented
     assert(cs_l1b_ds.power_threshold[0] == "snr")
-    # if "swath_start" not in cs_l1b_ds:
-    #     cs_l1b_ds.append_poca_and_swath_idxs()
-    # ! the below is verbose but not fast. scrap the unnecessary computations
-    power_threshold = cs_l1b_ds.noise_power_20_ku+10*np.log10(cs_l1b_ds.power_threshold[1])
+    power_threshold = cs_l1b_ds.noise_power_20_ku*cs_l1b_ds.power_threshold[1]
     cs_l1b_ds["exclude_mask"] = \
-        np.logical_or(10*np.log10(cs_l1b_ds.power_waveform_20_ku) < power_threshold,
+        np.logical_or(cs_l1b_ds.power_waveform_20_ku < power_threshold,
                       cs_l1b_ds.coherence_waveform_20_ku < cs_l1b_ds.coherence_threshold)
-    # if drop_first_peak:
-    #     cs_l1b_ds["exclude_mask"] = np.logical_or(cs_l1b_ds.exclude_mask,
-    #                                                 (cs_l1b_ds.ns_20_ku < cs_l1b_ds.swath_start).values.T)
     return cs_l1b_ds
 __all__.append("append_exclude_mask")
     

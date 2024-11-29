@@ -126,7 +126,7 @@ def power(waveform, *,
             plot_properties["threshold"]["facecolor"] = ax.get_facecolor()
         assert(waveform.power_threshold[0] == "snr")
         if logarithmic:
-            power_threshold = waveform.noise_power_20_ku[0]+10*np.log10(waveform.power_threshold[1])
+            power_threshold = 10*np.log10(waveform.noise_power_20_ku[0]*waveform.power_threshold[1])
             y0 = -250
         else:
             power_threshold = waveform.noise_power_20_ku[0]*waveform.power_threshold[1]
