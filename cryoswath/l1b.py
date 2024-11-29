@@ -208,10 +208,14 @@ class L1bData(xr.Dataset):
         tmp = tmp.assign_attrs(coherence_threshold=coherence_threshold,
                                power_threshold=power_threshold,
                                smooth_phase_difference=smooth_phase_difference)
-        tmp = append_exclude_mask(tmp)
+        # find and store POCAs and swath-starts
         tmp = append_poca_and_swath_idxs(tmp)
-        # ! smooth phase at poca
-        
+        # use lowpass-filtered phase difference at POCA
+        tmp["ph_diff_waveform_20_ku"] = xr.where(
+            tmp.ns_20_ku==tmp.poca_idx,
+            xr.apply_ufunc(np.angle, tmp.ph_diff_complex_smoothed),
+            tmp.ph_diff_waveform_20_ku
+        )
         # add potential phase wrap factor for later use
         tmp = tmp.assign_coords({"phase_wrap_factor": np.arange(-3, 4)})
         super().__init__(data_vars=tmp.data_vars, coords=tmp.coords, attrs=tmp.attrs)
