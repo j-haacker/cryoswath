@@ -356,7 +356,7 @@ def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwar
                 gpd.read_feather(os.path.join(l2_poca_path, current_subdir,
                                                 l2_paths.loc[idx, "poca"])))
     except (KeyError, FileNotFoundError, AssertionError, ArrowInvalid):
-        print("debug 0", idx, flush=True)
+        # print("debug 0", idx, flush=True)
         if "cs_full_file_names" in kwargs:
             cs_full_file_names = kwargs["cs_full_file_names"]
         else:
@@ -364,18 +364,18 @@ def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwar
         l1b_kwargs = filter_kwargs(l1b.L1bData, kwargs)
         to_l2_kwargs = filter_kwargs(l1b.L1bData.to_l2, kwargs, blacklist=["swath_or_poca"],
                                      whitelist=["crs", "max_elev_diff"])
-        print("debug 1", idx, flush=True)
+        # print("debug 1", idx, flush=True)
         try:
             tmp = l1b.L1bData.from_id(cs_time_to_id(idx), **l1b_kwargs)
-            print("debug 2", idx, flush=True)
+            # print("debug 2", idx, flush=True)
             # the below is necessary to pass a specific dem file. skipped by default.
             if "dem_file_name_or_path" in kwargs:
                 # tmp = tmp.append_ambiguous_reference_elevation(kwargs.pop("dem_file_name_or_path"))
                 tmp = tmp.append_ambiguous_reference_elevation(kwargs["dem_file_name_or_path"])
                 tmp = tmp.append_best_fit_phase_index()
-                print("debug 3", idx, flush=True)
+                # print("debug 3", idx, flush=True)
             swath_poca_tuple = tmp.to_l2(swath_or_poca="both", **to_l2_kwargs)
-            print("debug 4", idx, flush=True)
+            # print("debug 4", idx, flush=True)
             tmp.close()
         except Exception as err:
             if isinstance(err, KeyboardInterrupt):

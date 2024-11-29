@@ -438,21 +438,21 @@ class L1bData(xr.Dataset):
         Returns:
             Self: l1b_ds.
         """
-        print("debug tag groups 0", flush=True)
+        # print("debug tag groups 0", flush=True)
         phase_outlier = self.phase_outlier()
-        print("debug tag groups 0.1", flush=True)
+        # print("debug tag groups 0.1", flush=True)
         ignore_mask = (self.exclude_mask + phase_outlier) != 0
         gap_separator = ignore_mask.rolling(ns_20_ku=3).sum() == 3
-        print("debug tag groups 0.2", flush=True)
+        # print("debug tag groups 0.2", flush=True)
         any_separator = np.logical_or(*xr.align(self.phase_jump(), gap_separator, join="outer"))
-        print("debug tag groups 0.2.1", flush=True)
+        # print("debug tag groups 0.2.1", flush=True)
         rising_edge_per_waveform_counter = (any_separator.astype('int32').diff("ns_20_ku")==-1).cumsum("ns_20_ku") + 1
         # print(rising_edge_per_waveform_counter)
-        print("debug tag groups 0.3", flush=True)
+        # print("debug tag groups 0.3", flush=True)
         group_tags = rising_edge_per_waveform_counter \
             + xr.DataArray(data=np.arange(len(self.time_20_ku))*len(self.ns_20_ku), dims="time_20_ku")
         group_tags = xr.align(group_tags, self.power_waveform_20_ku, join="right")[0].where(~ignore_mask)
-        print("debug tag groups 0.4", flush=True)
+        # print("debug tag groups 0.4", flush=True)
         def filter_small_groups(group_ids):
             out = group_ids
             for i in nan_unique(group_ids):
@@ -460,7 +460,7 @@ class L1bData(xr.Dataset):
                 if mask.sum() < 3:
                     out[mask] = 0
             return out
-        print("debug tag groups 1", flush=True)
+        # print("debug tag groups 1", flush=True)
         group_tags = xr.apply_ufunc(filter_small_groups,
                        group_tags,
                        input_core_dims=[["ns_20_ku"]],
