@@ -219,6 +219,7 @@ class L1bData(xr.Dataset):
         # find and store POCAs and swath-starts
         tmp = append_poca_and_swath_idxs(tmp)
         # use lowpass-filtered phase difference at POCA
+        tmp = append_smoothed_complex_phase(tmp)
         tmp["ph_diff_waveform_20_ku"] = xr.where(
             tmp.ns_20_ku==tmp.poca_idx,
             xr.apply_ufunc(np.angle, tmp.ph_diff_complex_smoothed),
@@ -315,12 +316,6 @@ class L1bData(xr.Dataset):
         return self
     __all__.append("append_elev_diff_to_ref")
     
-    def append_smoothed_complex_phase(self):
-        self["ph_diff_complex_smoothed"] = gauss_filter_DataArray(np.exp(1j*self.ph_diff_waveform_20_ku),
-                                                                  dim="ns_20_ku", window_extent=21, std=5)
-        return self
-    __all__.append("append_smoothed_complex_phase")
-    
     @classmethod
     def from_id(cls, track_id: str|pd.Timestamp, **kwargs) -> Self:
         track_id = pd.to_datetime(track_id)
@@ -357,8 +352,6 @@ class L1bData(xr.Dataset):
     __all__.append("get_rgi_o2")
 
     def phase_jump(self):
-        if not "ph_diff_complex_smoothed" in self.data_vars:
-            self = self.append_smoothed_complex_phase()
         ph_diff_diff = self.ph_diff_complex_smoothed.diff("ns_20_ku")
         # ! implement choosing tolerance
         ph_diff_diff_tolerance = .1
@@ -378,8 +371,6 @@ class L1bData(xr.Dataset):
             # 0s below: set to an arbitrary off nadir angle at which the x_width should actually have the defined value
             tol = (np.arctan(np.tan(np.deg2rad(0))+temp_x_width/temp_H)-np.deg2rad(0)) \
                    * 2*np.pi / np.tan(speed_of_light/Ku_band_freq/antenna_baseline)
-        if not "ph_diff_complex_smoothed" in self.data_vars:
-            self = self.append_smoothed_complex_phase()
         # ph_diff_tol is small, so approx equal to secant length
         return np.abs(np.exp(1j*self.ph_diff_waveform_20_ku) - self.ph_diff_complex_smoothed) > tol
     __all__.append("phase_outlier")
@@ -656,6 +647,13 @@ def append_poca_and_swath_idxs(cs_l1b_ds: "L1bData") -> "L1bData":
     cs_l1b_ds["exclude_mask"] = xr.where(cs_l1b_ds.ns_20_ku<cs_l1b_ds.swath_start, True, cs_l1b_ds.exclude_mask)
     return cs_l1b_ds
 __all__.append("append_poca_and_swath_idxs")
+    
+
+def append_smoothed_complex_phase(cs_l1b_ds: "L1bData") -> "L1bData":
+    cs_l1b_ds["ph_diff_complex_smoothed"] = gauss_filter_DataArray(np.exp(1j*cs_l1b_ds.ph_diff_waveform_20_ku),
+                                                                dim="ns_20_ku", window_extent=21, std=5)
+    return cs_l1b_ds
+__all__.append("append_smoothed_complex_phase")
 
 
 def build_flag_mask(cs_l1b_flag: xr.DataArray, flag_val_list: list) -> xr.DataArray:
