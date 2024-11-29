@@ -206,7 +206,8 @@ class L1bData(xr.Dataset):
                 warnings.warn("No waveforms left on glacier. Proceeding with empty dataset.")
                 tmp = tmp.isel(time_20_ku=[])
         tmp = tmp.assign_attrs(coherence_threshold=coherence_threshold,
-                               power_threshold=power_threshold)
+                               power_threshold=power_threshold,
+                               smooth_phase_difference=smooth_phase_difference)
         tmp = append_exclude_mask(tmp)
         tmp = append_poca_and_swath_idxs(tmp)
         # ! smooth phase at poca
