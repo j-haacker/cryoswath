@@ -138,35 +138,43 @@ class L1bData(xr.Dataset):
             for flag_var, flag_val_list in drop_waveforms_by_flag.items():
                 tmp = drop_waveform(tmp, build_flag_mask(tmp[flag_var], flag_val_list))
         if not use_original_noise_estimates:
-            def noise_val(vec):
-                # calculate average noise values for slices of the data
-                # use sufficiently large slices (well more than 6 members)
-                n = 30  # slice_thickness
-                noise_val = np.mean(vec[:n])
-                noise_sqerr = np.var(vec[:n], ddof=1)/29
-                # iterate over slices: use those of which the average
-                # does not significantly differ from previous slices
-                # collectively
-                for i in range(round(len(tmp.ns_20_ku)/n/4)): # look at first quarter samples
-                    tmp_val = np.mean(vec[(i+1)*n:(i+2)*n])
-                    tmp_sqerr = np.var(vec[(i+1)*n:(i+2)*n], ddof=1)/29
-                    if (noise_val-tmp_val)**2 < (noise_sqerr+tmp_sqerr):
-                        noise_val = np.mean(vec[:(i+2)*n])
-                        noise_sqerr = np.var(vec[:(i+2)*n], ddof=1)/((i+2)*n-1)
-                    else:
-                        break
-                return noise_val
-            noise = xr.apply_ufunc(noise_val, tmp.power_waveform_20_ku, input_core_dims=[["ns_20_ku"]], output_core_dims=[[]], vectorize=True)
-            def noise_floor(noise):
-                # construct a lower envelope of the noise values
-                window_size = 5*20+1 # on the scale of the tracking loop (1 Hz)
-                fwd = noise.rolling(time_20_ku=window_size).min()
-                bwd = noise.isel(time_20_ku=slice(None,None,-1)).rolling(time_20_ku=window_size).min().sortby("time_20_ku")
-                # the upper envelope of the two lower envelope builds
-                # the collective lower envelope
-                upper_envelope = xr.concat([fwd, bwd], "tmp").max("tmp")
-                return upper_envelope.fillna(upper_envelope.max())
-            tmp["noise_power_20_ku"] = noise_floor(noise)
+            # consider noise estimates over periods on the scale of
+            # multiple tracking cycles to avoid loss-of-lock issues
+            tracking_cycles = 5
+            # the implemented algorithm uses a forward and a backward
+            # rolling minimum. to work it needs at least twice the
+            # window width (however, it is designed for much longer
+            # tracks)
+            if len(tmp.time_20_ku) > 2*(tracking_cycles*20):
+                def noise_val(vec):
+                    # calculate average noise values for slices of the data
+                    # use sufficiently large slices (well more than 6 members)
+                    n = 30  # slice_thickness
+                    noise_val = np.mean(vec[:n])
+                    noise_sqerr = np.var(vec[:n], ddof=1)/29
+                    # iterate over slices: use those of which the average
+                    # does not significantly differ from previous slices
+                    # collectively
+                    for i in range(round(len(tmp.ns_20_ku)/n/4)): # look at first quarter samples
+                        tmp_val = np.mean(vec[(i+1)*n:(i+2)*n])
+                        tmp_sqerr = np.var(vec[(i+1)*n:(i+2)*n], ddof=1)/29
+                        if (noise_val-tmp_val)**2 < (noise_sqerr+tmp_sqerr):
+                            noise_val = np.mean(vec[:(i+2)*n])
+                            noise_sqerr = np.var(vec[:(i+2)*n], ddof=1)/((i+2)*n-1)
+                        else:
+                            break
+                    return noise_val
+                noise = xr.apply_ufunc(noise_val, tmp.power_waveform_20_ku, input_core_dims=[["ns_20_ku"]], output_core_dims=[[]], vectorize=True)
+                def noise_floor(noise):
+                    # construct a lower envelope of the noise values
+                    window_size = 5*20 # on the scale of the tracking loop (1 Hz)
+                    fwd = noise.rolling(time_20_ku=window_size).min()
+                    bwd = noise.isel(time_20_ku=slice(None,None,-1)).rolling(time_20_ku=window_size).min().sortby("time_20_ku")
+                    # the upper envelope of the two lower envelope builds
+                    # the collective lower envelope
+                    upper_envelope = xr.concat([fwd, bwd], "tmp").max("tmp")
+                    return upper_envelope.fillna(upper_envelope.max())
+                tmp["noise_power_20_ku"] = noise_floor(noise)
         else:
             tmp["noise_power_20_ku"] = tmp.transmit_pwr_20_ku*10**(tmp.noise_power_20_ku/10)
         if drop_outside is not None and drop_outside != False:
