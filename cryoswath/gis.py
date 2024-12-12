@@ -76,7 +76,8 @@ __all__.append("esri_to_feather")
 
 def find_planar_crs(*, shp: shapely.Geometry = None, lat: float = None, lon: float = None, region_id: str = None):
     if region_id is not None:
-        shp = load_glacier_outlines(region_id)
+        with warnings.catch_warnings(action="ignore"):
+            shp = load_glacier_outlines(region_id)
     elif shp is None:
         shp = shapely.MultiPoint([(lon, lat) for lon, lat in zip(lon, lat)])
     shp = shp.centroid
