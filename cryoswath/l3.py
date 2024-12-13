@@ -12,6 +12,7 @@ import shutil
 import tqdm
 import rasterio.warp
 import rioxarray as rioxr
+import warnings
 import xarray as xr
 
 from . import l2
@@ -207,10 +208,11 @@ def preallocate_zarr(
         time_index,
         data_vars
 ) -> None:
-    x_dummy = np.arange((bbox.bounds[0]//500+.5)*500, bbox.bounds[2], 500, dtype="int")
-    y_dummy = np.arange((bbox.bounds[1]//500+.5)*500, bbox.bounds[3], 500, dtype="int")
+    x_dummy = np.arange((bbox.bounds[0]//500+.5)*500, bbox.bounds[2], 500, dtype="i4")
+    y_dummy = np.arange((bbox.bounds[1]//500+.5)*500, bbox.bounds[3], 500, dtype="i4")
     array_dummy = xr.DataArray(
         dask.array.full(shape=(len(time_index), len(x_dummy), len(y_dummy)), fill_value=np.nan),
+        dtype="f4",
         coords={"time": time_index, "x": x_dummy, "y": y_dummy}
     )
     (xr.merge([array_dummy.rename(stat) for stat in data_vars])
@@ -406,8 +408,12 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
                 warnings.warn(
                     "Failed to write to zarr! Attempting to dump current dataframe.")
                 try:
-                    safety_net_tmp_file_path = os.path.join(tmp_path,
-                        f"tmp_l3_state__{datetime.datetime.now().strftime('%Y%m%dT%H%M%S')}.feather")
+                    safety_net_tmp_file_path = os.path.join(tmp_path, "__".join([
+                        f"{datetime.datetime.now().strftime('%Y%m%dT%H%M%S')}",
+                        "l3_dfdump",
+                        f"region_{region_id}",
+                        "_".join(chunk_name)
+                    ])+".feather")
                     l3_data.to_feather(safety_net_tmp_file_path)
                 except Exception as err_inner:
                     print("\n")
@@ -422,7 +428,7 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
                 print(datetime.datetime.now())
                 print(f"processed and stored cell", chunk_name)
                 print(l3_data.head())
-        print("\n\n+++++++++++++ successfully build dataset ++++++++++++++\n\n")
+    print("\n\n+++++++++++++ successfully build dataset ++++++++++++++\n\n")
     return xr.open_zarr(outfilepath, decode_coords="all")
 __all__.append("build_dataset")
 
