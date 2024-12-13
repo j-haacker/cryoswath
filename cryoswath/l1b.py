@@ -283,7 +283,6 @@ class L1bData(xr.Dataset):
         """
         # ! Implement opt-out or/and grouping alternatives
         # before locating echos, find groups because also phase is unwrapped
-        # before locating echos, find groups because also phase is unwrapped
         if not "group_id" in self.data_vars:
             self = self.tag_groups()
             # it makes sense to always unwrap the phases immediately after finding
@@ -558,19 +557,12 @@ class L1bData(xr.Dataset):
             Self: l1b_ds.
         """
 
-
         def unwrap(ph_diff, group_ids):
             out = ph_diff
             for i in nan_unique(group_ids):
                 mask = group_ids == i
                 out[mask] = np.unwrap(ph_diff[mask])
             return out
-        
-        if self.attrs["smooth_phase_difference"]: #
-            self["ph_diff_waveform_20_ku"] = xr.where(self.ph_diff_complex_smoothed.isnull(),
-                                                        self.ph_diff_waveform_20_ku,
-                                                        xr.apply_ufunc(np.angle, self.ph_diff_complex_smoothed))
-            
         
         if self.attrs["smooth_phase_difference"]: #
             self["ph_diff_waveform_20_ku"] = xr.where(self.ph_diff_complex_smoothed.isnull(),
