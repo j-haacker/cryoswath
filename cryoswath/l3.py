@@ -80,7 +80,7 @@ def append_basin_group(ds: xr.DataArray|xr.Dataset,
                 lat = basin_lat_group[0].mid
                 lon = basin_lon_group[0].mid
                 group_id = int(f"{np.sign(lat)*term_type:.0f}{np.abs(lat):02.0f}{lon%360:03.0f}")
-                mask = xr.where(mask==mask.isnull(), ds.group_id.loc[dict(x=mask.x, y=mask.y)], group_id)
+                mask = xr.where(mask.isnull(), ds.group_id.loc[dict(x=mask.x, y=mask.y)], group_id)
                 ds["group_id"].loc[dict(x=mask.x, y=mask.y)] = mask
     ds["group_id"] = xr.where(ds.group_id==-1, ds.group_id._FillValue, ds.group_id)
     return ds
