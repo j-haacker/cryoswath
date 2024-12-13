@@ -564,9 +564,9 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     # tbi: currently the data needs to have the single dimension "stacked_x_y".
     #      implement automatic stacking and remove the hard coded dim name.
 
-    # if the reference elevations contain nan values, this leads to errors
-    index_with_nan_in_elev = ds[ds[elev].dims[0]]
-    ds = ds.where(~ds[elev].isnull()).dropna(ds[elev].dims[0])
+    # # if the reference elevations contain nan values, this leads to errors
+    # index_with_nan_in_elev = ds[ds[elev].dims[0]]
+    # ds = ds.where(~ds[elev].isnull()).dropna(ds[elev].dims[0])
     # assign weights if not present. use previously assigned weights to
     # prevent using previously filled cells from inform a new average.
     if weights not in ds:
@@ -664,8 +664,8 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         RMSE *= norm.isf(.025)
     ds[error] = xr.where(ds[weights] > 0, ds[error], RMSE)
     ds[weights] = xr.where(ds[weights] > 0, ds[weights], 0)
-    # restore data gaps
-    ds = ds.reindex_like(index_with_nan_in_elev)
+    # # restore data gaps
+    # ds = ds.reindex_like(index_with_nan_in_elev)
     # tbi: if initially stacked, unstack here
     return select_returns(return_coeffs, ds, invert_3rd_order_coeff_scaling(scaler, coeffs))
 __all__.append("interpolate_hypsometrically")
