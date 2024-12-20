@@ -617,43 +617,42 @@ def interpolate_hypsometrically(ds: xr.Dataset,
             or len(elev_bin_means.index) < 5 \
             or elev_bin_means.index[-1].right - elev_bin_means.index[0].left < 2/3 * elev_range_80pctl:
         return select_returns(return_coeffs, ds, np.array([np.nan]*4))
-    else:
-        # fit polynomial
-        # print(elev_bin_means, elev_bin_errs)
-        try:
-            x_vals = np.array([[idx.mid for idx in elev_bin_means.index]]).T
-            scaler = preprocessing.StandardScaler().fit(x_vals, sample_weight=1/elev_bin_errs.values)
-            # print(x_vals, scaler.transform(x_vals))
-            # print(x_vals, design_matrix(x_vals), elev_bin_means.values, 1/elev_bin_errs.values)
-            # cov = covariance.EmpiricalCovariance().fit(design_matrix(scaler.transform(x_vals))).covariance_
-            fit = linear_model.Ridge(1).fit(design_matrix(scaler.transform(x_vals)), elev_bin_means.values, 1/elev_bin_errs.values)
-            coeffs = np.hstack((fit.intercept_, fit.coef_))[::-1]
-        except np.linalg.LinAlgError: # not sure what error sklearn raises
-            print(elev_bin_means)
-            print(elev_bin_errs)
-            return select_returns(return_coeffs, ds, np.array([np.nan]*4))
-        if (np.abs(np.polyval(np.polyder(coeffs), scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))).max() > 15/100*scaler.var_**.5 \
-                and np.abs(np.polyval(coeffs, scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))-elev_bin_means.mean()).max() > 50) \
-            or np.abs(np.polyval(np.polyder(coeffs), scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))).max() > 50/100*scaler.var_**.5:
-            return select_returns(return_coeffs, ds, np.array([np.nan]*4))
-        elev0 = design_matrix(scaler.transform(ds[elev].values[:,None]))
-        modelled = xr.DataArray(fit.predict(elev0), coords={"stacked_x_y": ds.stacked_x_y}, dims="stacked_x_y")
-        try:
-            ds[main_var] = xr.where(ds[weights] > 0, ds[main_var], modelled)
-        except:
-            print(modelled)
-            raise
-        RMSE = ((ds[main_var]-modelled).where(ds[weights]>0)**2).mean()**.5
-        if "std" in error.lower():
-            pass
-        elif "iqr" in error.lower():
-            RMSE *= 2*norm.isf(.25)
-        elif "mad" in error.lower():
-            RMSE *= norm.isf(.25)
-        elif "95" in error.lower():
-            RMSE *= norm.isf(.025)
-        ds[error] = xr.where(ds[weights] > 0, ds[error], RMSE)
-        ds[weights] = xr.where(ds[weights] > 0, ds[weights], 0)
+    # fit polynomial
+    # print(elev_bin_means, elev_bin_errs)
+    try:
+        x_vals = np.array([[idx.mid for idx in elev_bin_means.index]]).T
+        scaler = preprocessing.StandardScaler().fit(x_vals, sample_weight=1/elev_bin_errs.values)
+        # print(x_vals, scaler.transform(x_vals))
+        # print(x_vals, design_matrix(x_vals), elev_bin_means.values, 1/elev_bin_errs.values)
+        # cov = covariance.EmpiricalCovariance().fit(design_matrix(scaler.transform(x_vals))).covariance_
+        fit = linear_model.Ridge(1).fit(design_matrix(scaler.transform(x_vals)), elev_bin_means.values, 1/elev_bin_errs.values)
+        coeffs = np.hstack((fit.intercept_, fit.coef_))[::-1]
+    except np.linalg.LinAlgError: # not sure what error sklearn raises
+        print(elev_bin_means)
+        print(elev_bin_errs)
+        return select_returns(return_coeffs, ds, np.array([np.nan]*4))
+    if (np.abs(np.polyval(np.polyder(coeffs), scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))).max() > 15/100*scaler.var_**.5 \
+            and np.abs(np.polyval(coeffs, scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))-elev_bin_means.mean()).max() > 50) \
+        or np.abs(np.polyval(np.polyder(coeffs), scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))).max() > 50/100*scaler.var_**.5:
+        return select_returns(return_coeffs, ds, np.array([np.nan]*4))
+    elev0 = design_matrix(scaler.transform(ds[elev].values[:,None]))
+    modelled = xr.DataArray(fit.predict(elev0), coords={"stacked_x_y": ds.stacked_x_y}, dims="stacked_x_y").astype(ds[main_var].dtype)
+    try:
+        ds[main_var] = xr.where(ds[weights] > 0, ds[main_var], modelled)
+    except:
+        print(modelled)
+        raise
+    RMSE = ((ds[main_var]-modelled).where(ds[weights]>0)**2).mean()**.5
+    if "std" in error.lower():
+        pass
+    elif "iqr" in error.lower():
+        RMSE *= 2*norm.isf(.25)
+    elif "mad" in error.lower():
+        RMSE *= norm.isf(.25)
+    elif "95" in error.lower():
+        RMSE *= norm.isf(.025)
+    ds[error] = xr.where(ds[weights] > 0, ds[error], RMSE)
+    ds[weights] = xr.where(ds[weights] > 0, ds[weights], 0)
     return select_returns(return_coeffs, ds, invert_3rd_order_coeff_scaling(scaler, coeffs))
 __all__.append("interpolate_hypsometrically")
 
