@@ -553,7 +553,8 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         #       time and reset those after the operation
         no_time_dep = [data_var for data_var in ds.data_vars if not "time" in ds[data_var].dims]
         ds = ds.groupby("time", squeeze=False).apply(interpolate_hypsometrically, main_var=main_var, elev=elev, error=error, outlier_replace=outlier_replace, return_coeffs=return_coeffs)
-        ds[no_time_dep] = ds[no_time_dep].isel(time=0)
+        for var_name in no_time_dep:
+            ds[var_name] = ds[var_name].isel(time=0)
         return select_returns(return_coeffs, ds, np.array([np.nan]*4))
     # assign weights if not present. use previously assigned weights to
     # prevent using previously filled cells from inform a new average.
