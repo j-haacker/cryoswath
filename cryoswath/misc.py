@@ -554,7 +554,8 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         #       time and reset those after the operation
         no_time_dep = [data_var for data_var in ds.data_vars if not "time" in ds[data_var].dims]
         ds = ds.groupby("time", squeeze=False).apply(interpolate_hypsometrically, main_var=main_var, elev=elev, error=error, outlier_replace=outlier_replace, return_coeffs=return_coeffs)
-        ds[no_time_dep] = ds[no_time_dep].isel(time=0)
+        for var_name in no_time_dep:
+            ds[var_name] = ds[var_name].isel(time=0)
         return select_returns(return_coeffs, ds, np.array([np.nan]*4))
     # this function uses boolean indexing which is not possible with dask
     # arrays. so if ds contains dask arrays, compute them.
@@ -600,7 +601,7 @@ def interpolate_hypsometrically(ds: xr.Dataset,
             to_be_filled_mask = np.logical_or(group[main_var].isnull().squeeze(), to_be_filled_mask)
         else:
             to_be_filled_mask = group[main_var].isnull().squeeze()
-        if np.isnan(avg) or not any(to_be_filled_mask):
+        if np.isnan(avg):
             # # debugging notice
             # print(group)
             # print("calc weighted avg failed (probably insufficient data)", label)
