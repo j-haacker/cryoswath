@@ -528,7 +528,7 @@ def fill_voids(ds: xr.Dataset,
                 print("... assigning basin ids to grid cells")
                 ds = append_basin_id(ds, basin_shapes)
             print("... interpolating per basin")
-            for label, group in (pbar := tqdm.tqdm(ds.groupby(ds.basin_id, squeeze=False))):
+            for label, group in (pbar := tqdm.tqdm(ds.groupby(ds.basin_id.where(~ds[elev].isnull()), squeeze=False))):
                 pbar.set_description(f"... current basin id: {label:.0f}")
                 res.append(interpolate_hypsometrically(group, main_var=main_var, elev=elev, error=error, outlier_replace=outlier_replace))
         elif grouper=="basin_group":
@@ -537,7 +537,7 @@ def fill_voids(ds: xr.Dataset,
                 ds = append_basin_group(ds, basin_shapes)
             print("... interpolating per basin group")
             res = []
-            for label, group in (pbar := tqdm.tqdm(ds.groupby(ds.group_id, squeeze=False))):
+            for label, group in (pbar := tqdm.tqdm(ds.groupby(ds.group_id.where(~ds[elev].isnull()), squeeze=False))):
                 pbar.set_description(f"... current group id: {label:.0f}")
                 res.append(interpolate_hypsometrically(group, main_var=main_var, elev=elev, error=error, outlier_replace=False))
         ds = xr.concat(res, "stacked_x_y")
