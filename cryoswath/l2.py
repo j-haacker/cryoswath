@@ -152,7 +152,7 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                     else:
                         shutil.copyfile(cache_fullname, cache_fullname+"__backup")
                 for l2_type, i in zip(["swath", "poca"], [0, 1]):
-                    l2_data = pd.concat([item[i] for item in collective_swath_poca_list])
+                    l2_data = pd.concat([item[i] for item in collective_swath_poca_list if not item[i].empty])
                     if l2_data.empty:
                         warnings.warn(f"No {l2_type} data at all for month {current_month}.")
                         continue
