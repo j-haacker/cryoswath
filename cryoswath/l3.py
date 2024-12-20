@@ -513,6 +513,8 @@ def fill_voids(ds: xr.Dataset,
         basin_shapes = load_o2region(o2code, product="glaciers").to_crs(ds.rio.crs)
     else:
         basin_shapes = basin_shapes.to_crs(ds.rio.crs)
+    # remove time steps without any data
+    ds = ds.dropna("time", how="all")
     # polygons will be repaired in later functions. it may be more
     # transparent to do it here.
     ds = fill_missing_coords(ds, *basin_shapes.total_bounds)
