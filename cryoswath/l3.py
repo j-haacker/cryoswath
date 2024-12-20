@@ -210,11 +210,10 @@ def preallocate_zarr(
 ) -> None:
     x_dummy = np.arange((bbox.bounds[0]//500+.5)*500, bbox.bounds[2], 500, dtype="i4")
     y_dummy = np.arange((bbox.bounds[1]//500+.5)*500, bbox.bounds[3], 500, dtype="i4")
-    array_dummy = xr.DataArray(
-        dask.array.full(shape=(len(time_index), len(x_dummy), len(y_dummy)), fill_value=np.nan),
-        dtype="f4",
-        coords={"time": time_index, "x": x_dummy, "y": y_dummy}
-    )
+    array_dummy = xr.DataArray(dask.array.full(shape=(len(time_index), len(x_dummy), len(y_dummy)),
+                                               fill_value=np.nan,
+                                               dtype="f4"),
+                               coords={"time": time_index, "x": x_dummy, "y": y_dummy})
     (xr.merge([array_dummy.rename(stat) for stat in data_vars])
         .rio.write_crs(crs)
         .to_zarr(path, compute=False))
