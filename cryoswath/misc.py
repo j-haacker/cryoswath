@@ -588,7 +588,7 @@ def interpolate_hypsometrically(ds: xr.Dataset,
             to_be_filled_mask = np.logical_or(group[main_var].isnull().squeeze(), to_be_filled_mask)
         else:
             to_be_filled_mask = group[main_var].isnull().squeeze()
-        if np.isnan(avg) or not any(to_be_filled_mask):
+        if np.isnan(avg):
             # # debugging notice
             # print(group)
             # print("calc weighted avg failed (probably insufficient data)", label)
