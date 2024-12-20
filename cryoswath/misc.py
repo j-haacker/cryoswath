@@ -648,7 +648,7 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         or np.abs(np.polyval(np.polyder(coeffs), scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))).max() > 50/100*scaler.var_**.5:
         return select_returns(return_coeffs, ds, np.array([np.nan]*4))
     elev0 = design_matrix(scaler.transform(ds[elev].values[:,None]))
-    modelled = xr.DataArray(fit.predict(elev0), coords={"stacked_x_y": ds.stacked_x_y}, dims="stacked_x_y")
+    modelled = xr.DataArray(fit.predict(elev0), coords={"stacked_x_y": ds.stacked_x_y}, dims="stacked_x_y").astype(ds[main_var].dtype)
     try:
         ds[main_var] = xr.where(ds[weights] > 0, ds[main_var], modelled)
     except:
