@@ -487,46 +487,63 @@ def interpolate_hypsometrically(ds: xr.Dataset,
                                 elev: str = "ref_elev",
                                 weights: str = "weights",
                                 outlier_replace: bool = False,
+                                outlier_limit: float = 2,
                                 return_coeffs: bool = False,
+                                fit_sanity_check: dict = None,
                                 ) -> xr.Dataset:
     """Fills data gaps by hypsometrical interpolation
 
-    If sufficient data is provided, this routine sorts and bins the data by
-    elevation bands and fits a third-order polynomial to the weighted
+    If sufficient data is provided, this routine sorts and bins the data
+    by elevation bands and fits a third-order polynomial to the weighted
     averages.
 
-    Sufficient data requires 4 or more bands, with an effective sample size
-    of 6 or larger, that span at least 2/3 of the total elevation range.
-    The weights used to calculate the weighted average are the reciprocal
-    squared errors if no weights are provided.
+    Sufficient data requires 4 or more bands, with an effective sample
+    size of 6 or larger, that span at least 2/3 of the total elevation
+    range. The weights used to calculate the weighted average are the
+    reciprocal squared errors if no weights are provided.
 
-    If dimension "time" exists, recurse into time steps and interpolate per
-    time step.
+    If dimension "time" exists, recurse into time steps and interpolate
+    per time step.
 
     Args:
-        ds (xr.Dataset): Input with voids. The input has to be along dimension
-            "stacked_x_y".
-        main_var (str): Name of variable to interpolate.
-        error (str): Name of errors. Where interpolated, errors will be
-            filled by the scaled RMSE of the fit. The scaling factor will be
-            inferred from `error`! Include one of "std", "iqr", "mad", "95" in
-            the `error` variable name. If non can be found, it is assumed to be
-            the standard deviation ("std"). The error data are only used if
-            weights are not provided.
-        elev (str, optional): Name of variable that contains the reference
-            elevation used for binning. If the variable does not exist, it
-            is attempted to read the reference elevations from disk.
-            Defaults to "ref_elev".
-        weights (str, optional): Provide name of variable that contains the
-            weights. The weights will be passed to `numpy.average` and
-            should be 1/variance or similar. Defaults to "weights".
+        ds (xr.Dataset): Input with voids. The input has to be along
+            dimension "stacked_x_y".
+        main_var (str): Name of variable to interpolate. error (str):
+            Name of errors. Where interpolated, errors will be filled by
+            the scaled RMSE of the fit. The scaling factor will be
+            inferred from `error`! Include one of "std", "iqr", "mad",
+            "95" in the `error` variable name. If non can be found, it
+            is assumed to be the standard deviation ("std"). The error
+            data are only used if weights are not provided.
+        elev (str, optional): Name of variable that contains the
+            reference elevation used for binning. If the variable does
+            not exist, it is attempted to read the reference elevations
+            from disk. Defaults to "ref_elev".
+        weights (str, optional): Provide name of variable that contains
+            the weights. The weights will be passed to `numpy.average`
+            and should be 1/variance or similar. Defaults to "weights".
         outlier_replace (bool, optional): If enabled, also interpolates
             outliers. Defaults to False.
-        return_coeffs (bool, optional): If enabled, also returns 3rd order
-            polynomial parameters in `numpy.polyfit
+        outlier_limit (float, optional): Factor of outlier scale (e.g.
+            standard deviation). Defaults to 2.
+        return_coeffs (bool, optional): If enabled, also returns 3rd
+            order polynomial parameters in `numpy.polyfit
             <https://numpy.org/doc/stable/reference/generated/numpy.polyfit.html>`_
             order (highest to lowest). Defaults to False.
-
+        fit_sanity_check (dict, optional): Defaults to None and will not
+            be used unless activated because it is outdated. The current
+            implementation extrapolates linearly for low elevations and
+            constantly for high elevations. This argument aims to test
+            the 3rd order polynomial at its bounds where the fit is
+            least robust. If you still want to test the polynomial at
+            the min/max reference elevations, either pass a dictionary
+            or set to True which will result in the earlier default
+            values: `{"abs_deriv_at_bnds": 50/100,
+            "conditional_abs_deriv_at_bnds": 15/100,
+            "abs_dev_from_mean_at_bnds": 50}`. The model is compared to
+            the given values at its bounds. If the gradient is steeper
+            than the thresholds the model is rejected. Search the source
+            code for this argument to find the implementation in detail.
     Returns:
         xr.Dataset: Filled dataset.
     """
@@ -557,6 +574,7 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         for var_name in no_time_dep:
             ds[var_name] = ds[var_name].isel(time=0)
         return select_returns(return_coeffs, ds, np.array([np.nan]*4))
+    
     # this function uses boolean indexing which is not possible with dask
     # arrays. so if ds contains dask arrays, compute them.
     if ds.chunks is not None:
@@ -589,45 +607,36 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     group_obj = ds.groupby_bins(elev, np.arange(ds[elev].min(), ds[elev].max()+elev_bin_width, elev_bin_width))
     elev_bin_means = pd.Series(index=group_obj.groups)
     elev_bin_errs = pd.Series(index=group_obj.groups)
+    fill_mask = -1*xr.ones_like(ds[main_var])
     for label, group in group_obj:
         if (group[weights] > 0).sum() < 6:
             continue
         vals = group[main_var].fillna(-9999).squeeze() # make it obvious if anything goes wrong
         w = group[weights].fillna(0).squeeze()
         avg, _var, effective_samp_size, to_be_filled_mask = weighted_mean_excl_outliers(
-            values=vals, weights=w, deviation_factor=2, return_mask=True)
+            values=vals, weights=w, deviation_factor=outlier_limit, return_mask=True)
         err = student_t.isf(.025, effective_samp_size-1)*(_var/effective_samp_size)**.5
         if outlier_replace:
             to_be_filled_mask = np.logical_or(group[main_var].isnull().squeeze(), to_be_filled_mask)
         else:
             to_be_filled_mask = group[main_var].isnull().squeeze()
+        to_be_filled_mask = xr.align(fill_mask, to_be_filled_mask, join="left", fill_value=-1)[1]
+        fill_mask = xr.where(to_be_filled_mask!=-1, to_be_filled_mask, fill_mask)
         if np.isnan(avg):
-            # # debugging notice
-            # print(group)
             # print("calc weighted avg failed (probably insufficient data)", label)
-            # print("avg", avg, "_var", _var, "effective_samp_size", effective_samp_size, "err", err)
             continue
         # # debugging notice
         # print("calc weighted avg succeeded", label)
         # print("avg", avg, "_var", _var, "effective_samp_size", effective_samp_size, "err", err)
-        # group[main_var] = xr.where(to_be_filled_mask, avg, group[main_var]) # not sure the values should be filled here. they're also filled (overwritten) with the fit below
         elev_bin_means.loc[label] = avg
-        elev_bin_errs.loc[label] = err #+ 3/((label.mid-ds[elev].min())/25)**3
-        if err < .01:
-            print("+++++++++++++++++++++++++++++++++++++++")
-            print("+++++++++++++++++++++++++++++++++++++++")
-            print("avg:", avg)
-            print("var:", _var)
-            print("n_eff:", effective_samp_size)
-            print("err:", err)
-            print(vals[~to_be_filled_mask])
-            print("+++++++++++++++++++++++++++++++++++++++")
-            print("+++++++++++++++++++++++++++++++++++++++")
+        elev_bin_errs.loc[label] = err
     elev_bin_means.dropna(inplace=True)
     elev_bin_errs.dropna(inplace=True)
+    # print(elev_range_80pctl)
     if elev_bin_means.empty \
             or len(elev_bin_means.index) < 5 \
             or elev_bin_means.index[-1].right - elev_bin_means.index[0].left < 2/3 * elev_range_80pctl:
+        # print("data doesn't cover sufficient elevation bands", elev_bin_means)
         return select_returns(return_coeffs, ds, np.array([np.nan]*4))
     # fit polynomial
     # print(elev_bin_means, elev_bin_errs)
@@ -643,18 +652,96 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         print(elev_bin_means)
         print(elev_bin_errs)
         return select_returns(return_coeffs, ds, np.array([np.nan]*4))
-    if (np.abs(np.polyval(np.polyder(coeffs), scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))).max() > 15/100*scaler.var_**.5 \
-            and np.abs(np.polyval(coeffs, scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))-elev_bin_means.mean()).max() > 50) \
-        or np.abs(np.polyval(np.polyder(coeffs), scaler.transform(np.array([ds[elev].min().values, ds[elev].max().values])[:,None]))).max() > 50/100*scaler.var_**.5:
-        return select_returns(return_coeffs, ds, np.array([np.nan]*4))
-    elev0 = design_matrix(scaler.transform(ds[elev].values[:,None]))
-    modelled = xr.DataArray(fit.predict(elev0), coords={"stacked_x_y": ds.stacked_x_y}, dims="stacked_x_y").astype(ds[main_var].dtype)
+    if fit_sanity_check is not None:
+        if fit_sanity_check == True:
+            fit_sanity_check = dict(
+                # absolute change of main_var per meter of elevation at smallest and largest elevation
+                abs_deriv_at_bnds = 50/100,
+                conditional_abs_deriv_at_bnds = 15/100,  # like above, but additianal condition
+                # maximum deviation from mean of measured values at smallest and largest elevation
+                abs_dev_from_mean_at_bnds = 50
+            )
+        if (
+            np.abs(np.polyval(np.polyder(coeffs),
+                              scaler.transform(np.array([ds[elev].min().values,
+                                                         ds[elev].max().values])[:,None]))).max()
+            > fit_sanity_check["abs_deriv_at_bnds"]*scaler.var_**.5
+            or (
+                np.abs(np.polyval(coeffs, scaler.transform(np.array([ds[elev].min().values,
+                                                                     ds[elev].max().values])[:,None]))
+                       - elev_bin_means.mean()).max()
+                > fit_sanity_check["abs_dev_from_mean_at_bnds"]
+                and np.abs(np.polyval(np.polyder(coeffs),
+                                      scaler.transform(np.array([ds[elev].min().values,
+                                                                 ds[elev].max().values])[:,None]))).max()
+                    > fit_sanity_check["conditional_abs_deriv_at_bnds"]*scaler.var_**.5)
+        ):
+            warnings.warn("discarding fit because unrealistic - !note: this is usually not the"
+                          + "desired behavior const./linear extrapolation is used instead of"
+                          + "the fit which renders this check obsolete!")
+            return select_returns(return_coeffs, ds, np.array([np.nan]*4))
+    def predict(elev):
+        def scale(x):
+            if isinstance(x, xr.DataArray):
+                x = x.values
+            elif isinstance(x, (int, float, list)):
+                x = np.array(x)
+            while len(x.shape) < 2:
+                x = x[...,np.newaxis]
+            return scaler.transform(x)
+        elev_below = elev[elev < elev_bin_means.index[0].mid]
+        elev_above = elev[elev > elev_bin_means.index[-1].right]
+        elev_fitted = elev.drop_sel(stacked_x_y=elev_below.stacked_x_y).drop_sel(stacked_x_y=elev_above.stacked_x_y)
+        modelled_list = [xr.DataArray(fit.predict(design_matrix(scale(elev_fitted))), coords={"stacked_x_y": elev_fitted.stacked_x_y}, dims="stacked_x_y")]
+        if len(elev_below) > 0:
+            trend_below = np.polyval(np.polyder(coeffs), scale(elev_bin_means.index[0].mid))
+            modelled_list.append(xr.DataArray((fit.predict(design_matrix(scale(elev_bin_means.index[0].mid)))+(scale(elev_below)-scale(elev_bin_means.index[0].mid))*trend_below).flatten(), coords={"stacked_x_y": elev_below.stacked_x_y}, dims="stacked_x_y"))
+        if len(elev_above) > 0:
+            const_above = np.polyval(coeffs, scale(elev_bin_means.index[-1].right)).flatten()
+            modelled_list.append(const_above+xr.zeros_like(elev_above))
+        return xr.concat(modelled_list, "stacked_x_y").reindex_like(ds[main_var]).astype(ds[main_var].dtype)
+    modelled = predict(ds[elev])
+    residuals = ds[main_var]-modelled
+    neighbours = ds[main_var].unstack().sortby("x").sortby("y").rolling(x=5, y=5, min_periods=3, center=True)
+    neighbour_count = neighbours.count().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
+    neighbour_mean = neighbours.mean().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
+    # # debugging plot:
+    # import matplotlib.pyplot as plt
+    # (np.abs(neighbour_mean-modelled) - outlier_limit*residuals.std()/(neighbour_count/4)**.5).unstack().sortby("x").sortby("y").T.plot(robust=True, cmap="RdYlBu")
+    # plt.show()
+    potential_local_dynamic_changes = np.logical_and(
+        neighbour_count >= 6,
+        np.abs(neighbour_mean-modelled) > outlier_limit*residuals.std()/(neighbour_count/4)**.5
+    )
+    fill_mask = xr.where(potential_local_dynamic_changes, 0, fill_mask)
+    modelled = xr.where(potential_local_dynamic_changes, neighbour_mean, modelled)
+    if outlier_replace:
+        # std is used as a deviation measure because the fit relies on
+        # normal distributed errors anyway. however, maybe it would be
+        # better to use the MAD (and maybe go for some max.likelihood
+        # optimizer)
+        fill_mask = np.logical_or(ds[main_var].isnull(),
+                                  np.logical_and(fill_mask!=0,
+                                                 np.abs(residuals) > outlier_limit * residuals.std()))
+    else:
+        fill_mask = ds[main_var].isnull()
+    # # debugging plot:
+    # import matplotlib.pyplot as plt
+    # plt.scatter(ds[elev].where(~fill_mask).values.flatten(), ds[main_var].values.flatten())
+    # plt.scatter(ds[elev].where(fill_mask).values.flatten(), ds[main_var].values.flatten(), ec="tab:purple", fc="none")
+    # plt.scatter(ds[elev].where(ds[main_var].isnull()).values.flatten(), modelled.values.flatten(), ec="tab:purple", fc="none")
+    # tmp_x_vals = np.linspace(ds[elev].min(), ds[elev].max(), 50)[:,None]
+    # plt.plot(tmp_x_vals, fit.predict(design_matrix(scaler.transform(tmp_x_vals))), c="tab:orange")
+    # plt.errorbar(x_vals, elev_bin_means, elev_bin_errs, ls="none", c="tab:red")
+    # if "time" in ds:
+    #     plt.title(ds.time.values[0])#.strftime("%Y-%m-%d")
+    # plt.show()
     try:
-        ds[main_var] = xr.where(ds[weights] > 0, ds[main_var], modelled)
+        ds[main_var] = xr.where(fill_mask, modelled, ds[main_var])
     except:
         print(modelled)
         raise
-    RMSE = ((ds[main_var]-modelled).where(ds[weights]>0)**2).mean()**.5
+    RMSE = (residuals.where(~fill_mask)**2).mean()**.5
     if "std" in error.lower():
         pass
     elif "iqr" in error.lower():
@@ -663,8 +750,8 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         RMSE *= norm.isf(.25)
     elif "95" in error.lower():
         RMSE *= norm.isf(.025)
-    ds[error] = xr.where(ds[weights] > 0, ds[error], RMSE)
-    ds[weights] = xr.where(ds[weights] > 0, ds[weights], 0)
+    ds[error] = xr.where(fill_mask, RMSE, ds[error])
+    ds[weights] = xr.where(fill_mask, 0, ds[weights])
     # # restore data gaps
     # ds = ds.reindex_like(index_with_nan_in_elev)
     # tbi: if initially stacked, unstack here

@@ -501,6 +501,7 @@ def fill_voids(ds: xr.Dataset,
                 outlier_limit: float = 5,
                 outlier_replace: bool = False,
                 outlier_iterations: int = 1,
+                fit_sanity_check: dict = None,
                ) -> xr.Dataset:
     # mention memory footprint in docstring: reindexing leaks and takes a s**t ton of memory. roughly 5-10x l3_data size in total.
     if any([grouper not in ["basin", "basin_group"] for grouper in per]):
@@ -513,7 +514,8 @@ def fill_voids(ds: xr.Dataset,
     else:
         basin_shapes = basin_shapes.to_crs(ds.rio.crs)
     # remove time steps without any data
-    ds = ds.dropna("time", how="all")
+    if "time" in ds.dims:
+        ds = ds.dropna("time", how="all")
     # polygons will be repaired in later functions. it may be more
     # transparent to do it here.
     ds = fill_missing_coords(ds, *basin_shapes.total_bounds)
@@ -531,16 +533,15 @@ def fill_voids(ds: xr.Dataset,
             print("... interpolating per basin")
             for label, group in (pbar := tqdm.tqdm(ds.groupby(ds.basin_id.where(~ds[elev].isnull()), squeeze=False))):
                 pbar.set_description(f"... current basin id: {label:.0f}")
-                res.append(interpolate_hypsometrically(group, main_var=main_var, elev=elev, error=error, outlier_replace=outlier_replace))
+                res.append(interpolate_hypsometrically(group, main_var=main_var, elev=elev, error=error, outlier_replace=outlier_replace, outlier_limit=outlier_limit, fit_sanity_check=fit_sanity_check))
         elif grouper=="basin_group":
             if "group_id" not in ds:
                 print("... assigning basin groups to grid cells")
                 ds = append_basin_group(ds, basin_shapes)
             print("... interpolating per basin group")
-            res = []
             for label, group in (pbar := tqdm.tqdm(ds.groupby(ds.group_id.where(~ds[elev].isnull()), squeeze=False))):
                 pbar.set_description(f"... current group id: {label:.0f}")
-                res.append(interpolate_hypsometrically(group, main_var=main_var, elev=elev, error=error, outlier_replace=False))
+                res.append(interpolate_hypsometrically(group, main_var=main_var, elev=elev, error=error, outlier_replace=False, outlier_limit=outlier_limit, fit_sanity_check=fit_sanity_check))
         ds = xr.concat(res, "stacked_x_y")
         for each in res:
             each.close()
@@ -555,7 +556,7 @@ def fill_voids(ds: xr.Dataset,
     if "time" in ds.dims:
         ds[main_var] = ds[main_var].interpolate_na(dim="time", method="linear", max_gap=pd.Timedelta(days=367))
     # if there are still missing data, interpolate region wide ("global hypsometric interpolation")
-    ds = interpolate_hypsometrically(ds.rio.clip(basin_shapes.make_valid()).stack({"stacked_x_y": ["x", "y"]}).dropna("stacked_x_y", how="all"), main_var=main_var, elev=elev, error=error, outlier_replace=False)
+    ds = interpolate_hypsometrically(ds.rio.clip(basin_shapes.make_valid()).stack({"stacked_x_y": ["x", "y"]}).dropna("stacked_x_y", how="all"), main_var=main_var, elev=elev, error=error, outlier_replace=False, outlier_limit=outlier_limit, fit_sanity_check=fit_sanity_check)
     ds = fill_missing_coords(ds.unstack("stacked_x_y").sortby("x").sortby("y"))
     return ds
 __all__.append("fill_voids")

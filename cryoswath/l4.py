@@ -64,12 +64,13 @@ def difference_to_reference_dem(l3_data: xr.Dataset,
                                 save_to_disk: str|bool = True,
                                 basin_shapes: gpd.GeoDataFrame = None,
                                 ) -> xr.Dataset:
-    # roughly filter data. important: _iqr=nan will be filled   
-    l3_data = l3_data.where(l3_data._count>3).where(np.abs(l3_data._median)<150)
+    if (np.abs(l3_data._median)<150).any():
+        Exception("_median deviates more than 150 m from reference")
+    l3_data = l3_data.where(l3_data._count>3)
     res = l3.fill_voids(l3_data,
                         main_var="_median", error="_iqr", elev="ref_elev",
                         basin_shapes=basin_shapes,
-                        per=("basin", "basin_group"), outlier_limit=2, outlier_replace=True, outlier_iterations=3) # 
+                        per=("basin", "basin_group"), outlier_replace=False)
     if save_to_disk:
         try:
             region_id = find_region_id(l3_data)
