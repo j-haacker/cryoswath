@@ -85,6 +85,27 @@ def difference_to_reference_dem(l3_data: xr.Dataset,
 __all__.append("difference_to_reference_dem")
 
 
+def fit_trend__seasons_removed(ds: xr.Dataset) -> xr.Dataset:
+    def trend_with_seasons(t_ns, trend, offset, A1, B1, A2, B2):
+        t_yr = t_ns / (365.25*24*60*60*1e9)
+        return offset + t_yr * trend + A1*np.sin(t_yr*2*np.pi) + B1*np.cos(t_yr*2*np.pi) + A2*np.sin(t_yr*2*np.pi/2) + B2*np.cos(t_yr*2*np.pi/2)
+    ds = ds.where(np.logical_and((~ds._median.isel(time=slice(None, 30)).isnull()).sum("time")>5, (~ds._median.isel(time=slice(-30, None)).isnull()).sum("time")>5))
+    ds = ds.chunk(dict(time=-1))
+    fit_res = ds._median.transpose('time', 'y', 'x').curvefit(
+        coords="time", func=trend_with_seasons, param_names=["trend", "offset", "A1", "B1", "A2", "B2"])
+    model_vals = xr.apply_ufunc(trend_with_seasons, ds.time.astype("int"), *[fit_res.sel(param=p) for p in fit_res.param], dask="allowed")
+    residuals = ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
+    res_std = residuals.std("time")
+    outlier = np.abs(residuals)-2*res_std>0
+    fit_rm_outl_res = ds._median.where(~outlier).transpose('time', 'y', 'x').curvefit(
+        coords="time", func=trend_with_seasons, param_names=["trend", "offset", "A1", "B1", "A2", "B2"])
+    model_vals = xr.apply_ufunc(trend_with_seasons, ds.time.astype("int"), *[fit_rm_outl_res.sel(param=p) for p in fit_rm_outl_res.param], dask="allowed")
+    residuals = ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
+    fit_rm_outl_res["RMSE"] = (residuals**2).mean("time")**.5
+    return fit_rm_outl_res
+__all__.append("fit_trend__seasons_removed")
+
+
 def differential_change(data: xr.Dataset,
                         save_to_disk: str|bool = True,
                         ) -> xr.Dataset:
