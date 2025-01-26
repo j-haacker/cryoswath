@@ -63,6 +63,8 @@
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.misc.convert_all_esri_to_feather"><code class="docutils literal notranslate"><span class="pre">convert_all_esri_to_feather()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.misc.cs_id_to_time"><code class="docutils literal notranslate"><span class="pre">cs_id_to_time()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.misc.cs_time_to_id"><code class="docutils literal notranslate"><span class="pre">cs_time_to_id()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cryoswath.misc.define_elev_band_edges"><code class="docutils literal notranslate"><span class="pre">define_elev_band_edges()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cryoswath.misc.discard_frontal_retreat_zone"><code class="docutils literal notranslate"><span class="pre">discard_frontal_retreat_zone()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.misc.extend_filename"><code class="docutils literal notranslate"><span class="pre">extend_filename()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.misc.filter_kwargs"><code class="docutils literal notranslate"><span class="pre">filter_kwargs()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.misc.find_region_id"><code class="docutils literal notranslate"><span class="pre">find_region_id()</span></code></a></li>
@@ -84,6 +86,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.misc.rgi_code_translator"><code class="docutils literal notranslate"><span class="pre">rgi_code_translator()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.misc.rgi_o1region_translator"><code class="docutils literal notranslate"><span class="pre">rgi_o1region_translator()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.misc.rgi_o2region_translator"><code class="docutils literal notranslate"><span class="pre">rgi_o2region_translator()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cryoswath.misc.warn_with_traceback"><code class="docutils literal notranslate"><span class="pre">warn_with_traceback()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.misc.weighted_mean_excl_outliers"><code class="docutils literal notranslate"><span class="pre">weighted_mean_excl_outliers()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cryoswath.misc.xycut"><code class="docutils literal notranslate"><span class="pre">xycut()</span></code></a></li>
 </ul>
@@ -183,6 +186,42 @@
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.define_elev_band_edges">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">define_elev_band_edges</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">elevations</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DataArray</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/misc.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.misc.define_elev_band_edges" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.discard_frontal_retreat_zone">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">discard_frontal_retreat_zone</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ds</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">replace_vars</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">list</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">main_var</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'_median'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">elev</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'ref_elev'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">threshold</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dataset</span></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/misc.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.misc.discard_frontal_retreat_zone" title="Link to this definition"></a></dt>
+<dd><p>Unsets values in zone of frontal retreat</p>
+<p>Areas that are not continuesly glacierized distort the fitted
+polynomial that is used to fill voids, biasing aggregates of later
+products.</p>
+<p>This function compares the change rates in lower elevation bands. If
+the lowest bands show smaller changes than those immediately above
+them, this is interpreted as indication of a temporarily
+glacier-free surface.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ds</strong> (<em>_type_</em>) – _description_</p></li>
+<li><p><strong>replace_vars</strong> (<em>list</em>) – _description_</p></li>
+<li><p><strong>main_var</strong> (<em>str</em><em>, </em><em>optional</em>) – _description_. Defaults to “_median”.</p></li>
+<li><p><strong>elev</strong> (<em>str</em><em>, </em><em>optional</em>) – _description_. Defaults to “ref_elev”.</p></li>
+<li><p><strong>mode</strong> (<em>str</em><em>, </em><em>optional</em>) – _description_. Defaults to None.</p></li>
+<li><p><strong>threshold</strong> (<em>float</em><em>, </em><em>optional</em>) – _description_. Defaults to None.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>_description_</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>xr.Dataset</p>
 </dd>
 </dl>
 </dd></dl>
@@ -371,32 +410,51 @@ REMA.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="cryoswath.misc.interpolate_hypsometrically">
-<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">interpolate_hypsometrically</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ds</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dataset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">main_var</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">error</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">elev</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'ref_elev'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'weights'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outlier_replace</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dataset</span></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/misc.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.misc.interpolate_hypsometrically" title="Link to this definition"></a></dt>
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">interpolate_hypsometrically</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ds</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dataset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">main_var</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">error</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">elev</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'ref_elev'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">weights</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'weights'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outlier_replace</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outlier_limit</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_coeffs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fit_sanity_check</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">dict</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Dataset</span></span></span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/misc.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.misc.interpolate_hypsometrically" title="Link to this definition"></a></dt>
 <dd><p>Fills data gaps by hypsometrical interpolation</p>
-<p>If sufficient data is provided, this routine sorts and bins the data by
-elevation bands and fits a third-order polynomial to the weighted
+<p>If sufficient data is provided, this routine sorts and bins the data
+by elevation bands and fits a third-order polynomial to the weighted
 averages.</p>
-<p>Sufficient data requires 4 or more bands, with an effective sample size
-of 6 or larger, that span at least 2/3 of the total elevation range.
-The weights used to calculate the weighted average are the reciprocal
-squared errors if no weights are provided.</p>
-<p>If dimension “time” exists, recurse into time steps and interpolate per
-time step.</p>
+<p>Sufficient data requires 4 or more bands, with an effective sample
+size of 6 or larger, that span at least 2/3 of the total elevation
+range. The weights used to calculate the weighted average are the
+reciprocal squared errors if no weights are provided.</p>
+<p>If dimension “time” exists, recurse into time steps and interpolate
+per time step.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>ds</strong> (<em>xr.Dataset</em>) – Input with voids.</p></li>
-<li><p><strong>main_var</strong> (<em>str</em>) – Name of variable to interpolate.</p></li>
-<li><p><strong>error</strong> (<em>str</em>) – Name of errors. Only used, if weights are not provided.</p></li>
-<li><p><strong>elev</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of variable that contains the reference
-elevation used for binning. If the variable does not exist, it
-is attempted to read the reference elevations from disk.
-Defaults to “ref_elev”.</p></li>
-<li><p><strong>weights</strong> (<em>str</em><em>, </em><em>optional</em>) – Provide name of variable that contains the
-weights. The weights will be passed to <cite>numpy.average</cite> and
-should be 1/variance or similar. Defaults to “weights”.</p></li>
+<li><p><strong>ds</strong> (<em>xr.Dataset</em>) – Input with voids. The input has to be along
+dimension “stacked_x_y”.</p></li>
+<li><p><strong>main_var</strong> (<em>str</em>) – Name of variable to interpolate. error (str):
+Name of errors. Where interpolated, errors will be filled by
+the scaled RMSE of the fit. The scaling factor will be
+inferred from <cite>error</cite>! Include one of “std”, “iqr”, “mad”,
+“95” in the <cite>error</cite> variable name. If non can be found, it
+is assumed to be the standard deviation (“std”). The error
+data are only used if weights are not provided.</p></li>
+<li><p><strong>elev</strong> (<em>str</em><em>, </em><em>optional</em>) – Name of variable that contains the
+reference elevation used for binning. If the variable does
+not exist, it is attempted to read the reference elevations
+from disk. Defaults to “ref_elev”.</p></li>
+<li><p><strong>weights</strong> (<em>str</em><em>, </em><em>optional</em>) – Provide name of variable that contains
+the weights. The weights will be passed to <cite>numpy.average</cite>
+and should be 1/variance or similar. Defaults to “weights”.</p></li>
 <li><p><strong>outlier_replace</strong> (<em>bool</em><em>, </em><em>optional</em>) – If enabled, also interpolates
 outliers. Defaults to False.</p></li>
+<li><p><strong>outlier_limit</strong> (<em>float</em><em>, </em><em>optional</em>) – Factor of outlier scale (e.g.
+standard deviation). Defaults to 2.</p></li>
+<li><p><strong>return_coeffs</strong> (<em>bool</em><em>, </em><em>optional</em>) – If enabled, also returns 3rd
+order polynomial parameters in <a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.polyfit.html">numpy.polyfit</a>
+order (highest to lowest). Defaults to False.</p></li>
+<li><p><strong>fit_sanity_check</strong> (<em>dict</em><em>, </em><em>optional</em>) – Defaults to None. If None or
+False, it will not be used. If you want to test the
+polynomial gradients, either set to True or pass a <cite>dict</cite>.
+If True, default values will be used; that are 0.1 if used
+with elevation difference to a ref. DEM and 0.05 if used
+with elevation change trends. If you pass a <cite>dict</cite>, the key
+“max_allowed_gradient” will be used. If the gradient is
+steeper than the threshold the model is rejected.</p></li>
 </ul>
 </dd>
 <dt class="field-even">Returns<span class="colon">:</span></dt>
@@ -722,6 +780,11 @@ Defaults to “full_name”.</p></li>
 </dd>
 </dl>
 </dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="cryoswath.misc.warn_with_traceback">
+<span class="sig-prename descclassname"><span class="pre">cryoswath.misc.</span></span><span class="sig-name descname"><span class="pre">warn_with_traceback</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">message</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">category</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">lineno</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">line</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/j-haacker/cryoswath/blob/main/cryoswath/misc.py"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#cryoswath.misc.warn_with_traceback" title="Link to this definition"></a></dt>
+<dd></dd></dl>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="cryoswath.misc.weighted_mean_excl_outliers">
