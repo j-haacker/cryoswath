@@ -92,16 +92,36 @@ def fit_trend__seasons_removed(ds: xr.Dataset) -> xr.Dataset:
     ds = ds.where(np.logical_and((~ds._median.isel(time=slice(None, 30)).isnull()).sum("time")>5, (~ds._median.isel(time=slice(-30, None)).isnull()).sum("time")>5))
     ds = ds.chunk(dict(time=-1))
     fit_res = ds._median.transpose('time', 'y', 'x').curvefit(
-        coords="time", func=trend_with_seasons,
-        param_names=["trend", "offset", "amp_yearly", "phase_yearly", "amp_semiyr", "phase_semiyr"])
-    model_vals = xr.apply_ufunc(trend_with_seasons, ds.time.astype("int"), *[fit_res.sel(param=p) for p in fit_res.param], dask="allowed")
+        coords="time",
+        func=trend_with_seasons,
+        param_names=["trend", "offset", "amp_yearly", "phase_yearly", "amp_semiyr", "phase_semiyr"],
+        bounds={"amp_yearly": (0, np.inf),
+                "phase_yearly": [-np.pi, np.pi],
+                "amp_semiyr": (0, np.inf),
+                "phase_semiyr": [-np.pi, np.pi]},
+        errors="ignore"
+    )
+    model_vals = xr.apply_ufunc(trend_with_seasons,
+                                ds.time.astype("int"),
+                                *[fit_res.sel(param=p) for p in fit_res.param],
+                                dask="allowed")
     residuals = ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
     res_std = residuals.std("time")
     outlier = np.abs(residuals)-2*res_std>0
     fit_rm_outl_res = ds._median.where(~outlier).transpose('time', 'y', 'x').curvefit(
-        coords="time", func=trend_with_seasons,
-        param_names=["trend", "offset", "amp_yearly", "phase_yearly", "amp_semiyr", "phase_semiyr"])
-    model_vals = xr.apply_ufunc(trend_with_seasons, ds.time.astype("int"), *[fit_rm_outl_res.sel(param=p) for p in fit_rm_outl_res.param], dask="allowed")
+        coords="time",
+        func=trend_with_seasons,
+        param_names=["trend", "offset", "amp_yearly", "phase_yearly", "amp_semiyr", "phase_semiyr"],
+        bounds={"amp_yearly": (0, np.inf),
+                "phase_yearly": [-np.pi, np.pi],
+                "amp_semiyr": (0, np.inf),
+                "phase_semiyr": [-np.pi, np.pi]},
+        errors="ignore"
+    ).rio.write_crs(ds.rio.crs)
+    model_vals = xr.apply_ufunc(trend_with_seasons,
+                                ds.time.astype("int"),
+                                *[fit_rm_outl_res.sel(param=p) for p in fit_rm_outl_res.param],
+                                dask="allowed")
     residuals = ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
     fit_rm_outl_res["RMSE"] = (residuals**2).mean("time")**.5
     return fit_rm_outl_res
