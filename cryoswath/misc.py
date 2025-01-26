@@ -16,7 +16,7 @@ import rasterio
 import re
 from scipy.constants import speed_of_light
 import scipy.stats
-from scipy.stats import norm
+from scipy.stats import norm, median_abs_deviation
 from scipy.stats import t as student_t
 import shapely
 import shutil
@@ -31,12 +31,47 @@ import xarray as xr
 from . import gis
 
 # make contents accessible
-__all__ = ["WGS84_ellpsoid", "antenna_baseline", "Ku_band_freq", "sample_width",     # vars ...........................
-           "speed_of_light", "cryosat_id_pattern", "nanoseconds_per_year",
-           "cs_id_to_time", "cs_time_to_id", "find_region_id", "flag_translator",    # funcs ..........................
-           "gauss_filter_DataArray", "get_dem_reader", "load_cs_full_file_names", 
-           "load_cs_ground_tracks", "load_o1region", "load_o2region", "load_basins",
-          ]
+__all__ = [  # variables
+    "antenna_baseline",
+    "cryosat_id_pattern",
+    "Ku_band_freq",
+    "nanoseconds_per_year",
+    "sample_width",
+    "speed_of_light",
+    "WGS84_ellpsoid",
+]
+
+__all__.extend([  # pathes
+    "aux_path",
+    "cs_ground_tracks_path",
+    "data_path",
+    "dem_path",
+    "l1b_path",
+    "l2_swath_path",
+    "l2_poca_path",
+    "l3_path",
+    "l4_path",
+    "rgi_path",
+    "tmp_path",
+])
+
+__all__.extend([  # functions
+    "cs_id_to_time",
+    "cs_time_to_id",
+    "define_elev_band_edges",
+    "discard_frontal_retreat_zone",
+    "find_region_id",
+    "flag_translator",
+    "gauss_filter_DataArray",
+    "get_dem_reader",
+    "interpolate_hypsometrically",
+    "load_basins",
+    "load_cs_full_file_names", 
+    "load_cs_ground_tracks",
+    "load_o1region",
+    "load_o2region",
+])
+
 
 config = configparser.ConfigParser()
 config_path = os.path.join(os.path.dirname(__file__), "config.ini")
@@ -72,9 +107,6 @@ aux_path = os.path.join(data_path, "auxiliary")
 cs_ground_tracks_path = os.path.join(aux_path, "CryoSat-2_SARIn_ground_tracks.feather")
 rgi_path = os.path.join(aux_path, "RGI")
 dem_path = os.path.join(aux_path, "DEM")
-__all__.extend(["data_path",
-                "l1b_path", "l2_swath_path", "l2_poca_path", "l3_path", "l4_path", "tmp_path",
-                "aux_path", "cs_ground_tracks_path", "rgi_path", "dem_path"])
 
 ## Config #############################################################
 WGS84_ellpsoid = Geod(ellps="WGS84")
@@ -169,6 +201,109 @@ def convert_all_esri_to_feather(dir_path: str = None) -> None:
                     else:
                         print("Removed", associated_file)
 __all__.append("convert_all_esri_to_feather")
+
+
+def define_elev_band_edges(elevations: xr.DataArray) -> np.ndarray:
+    elev_range_80pctl = float(elevations.quantile([.1, .9]).diff(dim="quantile").values.item(0))
+    if elev_range_80pctl >= 500:
+        elev_bin_width = 50
+    else:
+        elev_bin_width = elev_range_80pctl/10
+    return np.arange(elevations.min(), elevations.max()+elev_bin_width, elev_bin_width)
+
+
+def discard_frontal_retreat_zone(
+        ds,
+        replace_vars: list,
+        main_var: str = "_median",
+        elev: str = "ref_elev",
+        mode: str = None,
+        threshold: float = None
+) -> xr.Dataset:
+    """Unsets values in zone of frontal retreat
+
+    Areas that are not continuesly glacierized distort the fitted
+    polynomial that is used to fill voids, biasing aggregates of later
+    products.
+
+    This function compares the change rates in lower elevation bands. If
+    the lowest bands show smaller changes than those immediately above
+    them, this is interpreted as indication of a temporarily
+    glacier-free surface.
+
+    Args:
+        ds (_type_): _description_
+        replace_vars (list): _description_
+        main_var (str, optional): _description_. Defaults to "_median".
+        elev (str, optional): _description_. Defaults to "ref_elev".
+        mode (str, optional): _description_. Defaults to None.
+        threshold (float, optional): _description_. Defaults to None.
+
+    Returns:
+        xr.Dataset: _description_
+    """
+    
+    if mode is None:
+        if "time" in ds:
+            mode = "temporal"
+        else:
+            mode = "trend"
+    
+    if threshold is None:
+        if mode == "temporal":
+            threshold = 10
+        elif mode == "trend":
+            threshold = 1
+        else:
+            ValueError("Value for 'mode' not allowed.")
+
+    def custom_count(data, **kwargs):
+        return ((~np.isnan(data)).sum(0)>5).sum()>4
+    
+    def median_mad(data, **kwargs):
+        return np.nanmedian(median_abs_deviation(data, 0, **kwargs))
+
+    try:
+        # print(define_elev_band_edges(ds[elev]))
+        bands = ds[main_var].groupby_bins(ds[elev], define_elev_band_edges(ds[elev])[:5], include_lowest=True)
+    except ValueError as err:
+        if str(err) == "arange: cannot compute length":
+            return ds
+        raise
+
+    if mode == "temporal":
+        if (
+            (ds[main_var].count("time") > 5).sum() < 5
+             or not bands.reduce(custom_count, ...).all()
+        ):
+            return ds
+        tmp = bands.reduce(median_mad, ..., nan_policy="omit")
+    else:
+        if (
+            ds[main_var].count() < 5
+            or not (bands.count() > 4).all()
+        ):
+            # print(ds[main_var].count(), bands.count())
+            return ds
+        tmp = np.abs(bands.mean())
+    
+    if not (tmp > threshold).any():
+        # print(ds.basin_id.values.item(0), "too small.", ds[elev].count().values.item(0), "cells in total")
+        return ds
+
+    front_bin = ((tmp > tmp.max() / 2).cumsum() != 0).idxmax().values.item(0)
+
+    # # debugging:
+    # import matplotlib.pyplot as plt
+    # tmp.plot()
+    # plt.show()
+
+    if isinstance(replace_vars, str):
+        replace_vars = [replace_vars]
+    for var_ in replace_vars:
+        ds[var_] = xr.where(ds[elev] < front_bin.left, np.nan, ds[var_])
+    
+    return ds
 
 
 # def download_file(url: str, out_path: str = ".") -> str:
@@ -530,20 +665,14 @@ def interpolate_hypsometrically(ds: xr.Dataset,
             order polynomial parameters in `numpy.polyfit
             <https://numpy.org/doc/stable/reference/generated/numpy.polyfit.html>`_
             order (highest to lowest). Defaults to False.
-        fit_sanity_check (dict, optional): Defaults to None and will not
-            be used unless activated because it is outdated. The current
-            implementation extrapolates linearly for low elevations and
-            constantly for high elevations. This argument aims to test
-            the 3rd order polynomial at its bounds where the fit is
-            least robust. If you still want to test the polynomial at
-            the min/max reference elevations, either pass a dictionary
-            or set to True which will result in the earlier default
-            values: `{"abs_deriv_at_bnds": 50/100,
-            "conditional_abs_deriv_at_bnds": 15/100,
-            "abs_dev_from_mean_at_bnds": 50}`. The model is compared to
-            the given values at its bounds. If the gradient is steeper
-            than the thresholds the model is rejected. Search the source
-            code for this argument to find the implementation in detail.
+        fit_sanity_check (dict, optional): Defaults to None. If None or
+            False, it will not be used. If you want to test the
+            polynomial gradients, either set to True or pass a `dict`.
+            If True, default values will be used; that are 0.1 if used
+            with elevation difference to a ref. DEM and 0.05 if used
+            with elevation change trends. If you pass a `dict`, the key
+            "max_allowed_gradient" will be used. If the gradient is
+            steeper than the threshold the model is rejected.
     Returns:
         xr.Dataset: Filled dataset.
     """
@@ -570,10 +699,17 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         #       requires taking note of those data_vars that do not depend on
         #       time and reset those after the operation
         no_time_dep = [data_var for data_var in ds.data_vars if not "time" in ds[data_var].dims]
-        ds = ds.groupby("time", squeeze=False).apply(interpolate_hypsometrically, main_var=main_var, elev=elev, error=error, outlier_replace=outlier_replace, return_coeffs=return_coeffs)
+        if fit_sanity_check == True:
+            # set default sanity check for elevation differences wrt. ref. DEM
+            fit_sanity_check = {"max_allowed_gradient": 10/100}  # [10 m elev.diff. per 100 m of elevation]
+        ds = ds.groupby("time", squeeze=False).map(interpolate_hypsometrically, main_var=main_var, elev=elev, error=error, outlier_replace=outlier_replace, return_coeffs=return_coeffs, fit_sanity_check=fit_sanity_check)
         for var_name in no_time_dep:
             ds[var_name] = ds[var_name].isel(time=0)
         return select_returns(return_coeffs, ds, np.array([np.nan]*4))
+    else:
+        if fit_sanity_check == True:
+            # set default sanity check for elevation change rate
+            fit_sanity_check = {"max_allowed_gradient": 5/100}  # [10 m/yr elev.trend per 100 m of elevation]
     
     # this function uses boolean indexing which is not possible with dask
     # arrays. so if ds contains dask arrays, compute them.
@@ -583,6 +719,22 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     # tbi: currently the data needs to have the single dimension "stacked_x_y".
     #      implement automatic stacking and remove the hard coded dim name.
 
+    # below might need fill_missing_coords. naively: should not be important
+    neighbours = ds[main_var].unstack().sortby("x").sortby("y").rolling(x=5, y=5, min_periods=3, center=True)
+    neighbour_count = neighbours.count().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
+    neighbour_mean = neighbours.mean().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
+    if outlier_replace:
+        neighbour_elev = ds[elev].unstack().sortby("x").sortby("y").rolling(x=5, y=5, min_periods=3, center=True)
+        neighbour_elev_mean = neighbour_elev.mean().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
+        neighbour_std = neighbours.std().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
+        neighbour_elev_std = neighbour_elev.std().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
+        noise = (np.abs(ds[main_var]-neighbour_mean)/neighbour_std - np.abs(ds[elev]-neighbour_elev_mean)/neighbour_elev_std) > outlier_limit
+        # print(neighbour_count>=6, noise)
+        ds[main_var] = xr.where(np.logical_and(neighbour_count>=6, noise), np.nan, ds[main_var])
+        # # debugging plot:
+        # import matplotlib.pyplot as plt
+        # noise.astype("int").unstack().sortby("x").sortby("y").T.plot(cmap="cool")
+        # plt.show()
     # # if the reference elevations contain nan values, this leads to errors
     # index_with_nan_in_elev = ds[ds[elev].dims[0]]
     # ds = ds.where(~ds[elev].isnull()).dropna(ds[elev].dims[0])
@@ -599,12 +751,7 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     if not ds[error].isnull().any() and not outlier_replace:
         # print("nothing to do")
         return select_returns(return_coeffs, ds, np.array([np.nan]*4))
-    elev_range_80pctl = float(ds[elev].quantile([.1, .9]).diff(dim="quantile").values)
-    if elev_range_80pctl >= 500:
-        elev_bin_width = 50
-    else:
-        elev_bin_width = elev_range_80pctl/10
-    group_obj = ds.groupby_bins(elev, np.arange(ds[elev].min(), ds[elev].max()+elev_bin_width, elev_bin_width))
+    group_obj = ds.groupby_bins(elev, define_elev_band_edges(ds[elev]), include_lowest=True)
     elev_bin_means = pd.Series(index=group_obj.groups)
     elev_bin_errs = pd.Series(index=group_obj.groups)
     fill_mask = -1*xr.ones_like(ds[main_var])
@@ -615,7 +762,7 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         w = group[weights].fillna(0).squeeze()
         avg, _var, effective_samp_size, to_be_filled_mask = weighted_mean_excl_outliers(
             values=vals, weights=w, deviation_factor=outlier_limit, return_mask=True)
-        err = student_t.isf(.025, effective_samp_size-1)*(_var/effective_samp_size)**.5
+        err = (_var/effective_samp_size)**.5 
         if outlier_replace:
             to_be_filled_mask = np.logical_or(group[main_var].isnull().squeeze(), to_be_filled_mask)
         else:
@@ -633,12 +780,13 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     elev_bin_means.dropna(inplace=True)
     elev_bin_errs.dropna(inplace=True)
     # print(elev_range_80pctl)
-    if elev_bin_means.empty \
-            or len(elev_bin_means.index) < 5 \
-            or elev_bin_means.index[-1].right - elev_bin_means.index[0].left < 2/3 * elev_range_80pctl:
-        # print("data doesn't cover sufficient elevation bands", elev_bin_means)
+    if (
+        elev_bin_means.empty
+        or len(elev_bin_means.index) < 5
+    ):
+        print("data doesn't cover sufficient elevation bands", elev_bin_means)
         return select_returns(return_coeffs, ds, np.array([np.nan]*4))
-    # fit polynomial
+    ## fit polynomial
     # print(elev_bin_means, elev_bin_errs)
     try:
         x_vals = np.array([[idx.mid for idx in elev_bin_means.index]]).T
@@ -646,76 +794,76 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         # print(x_vals, scaler.transform(x_vals))
         # print(x_vals, design_matrix(x_vals), elev_bin_means.values, 1/elev_bin_errs.values)
         # cov = covariance.EmpiricalCovariance().fit(design_matrix(scaler.transform(x_vals))).covariance_
-        fit = linear_model.Ridge(1).fit(design_matrix(scaler.transform(x_vals)), elev_bin_means.values, 1/elev_bin_errs.values)
+        fit = linear_model.Ridge(1, solver="svd").fit(design_matrix(scaler.transform(x_vals)), elev_bin_means.values, 1/elev_bin_errs.values)
         coeffs = np.hstack((fit.intercept_, fit.coef_))[::-1]
     except np.linalg.LinAlgError: # not sure what error sklearn raises
         print(elev_bin_means)
         print(elev_bin_errs)
         return select_returns(return_coeffs, ds, np.array([np.nan]*4))
     if fit_sanity_check is not None:
-        if fit_sanity_check == True:
-            fit_sanity_check = dict(
-                # absolute change of main_var per meter of elevation at smallest and largest elevation
-                abs_deriv_at_bnds = 50/100,
-                conditional_abs_deriv_at_bnds = 15/100,  # like above, but additianal condition
-                # maximum deviation from mean of measured values at smallest and largest elevation
-                abs_dev_from_mean_at_bnds = 50
-            )
         if (
             np.abs(np.polyval(np.polyder(coeffs),
-                              scaler.transform(np.array([ds[elev].min().values,
-                                                         ds[elev].max().values])[:,None]))).max()
-            > fit_sanity_check["abs_deriv_at_bnds"]*scaler.var_**.5
-            or (
-                np.abs(np.polyval(coeffs, scaler.transform(np.array([ds[elev].min().values,
-                                                                     ds[elev].max().values])[:,None]))
-                       - elev_bin_means.mean()).max()
-                > fit_sanity_check["abs_dev_from_mean_at_bnds"]
-                and np.abs(np.polyval(np.polyder(coeffs),
-                                      scaler.transform(np.array([ds[elev].min().values,
-                                                                 ds[elev].max().values])[:,None]))).max()
-                    > fit_sanity_check["conditional_abs_deriv_at_bnds"]*scaler.var_**.5)
+                              scaler.transform(np.array([elev_bin_means.index[0].mid,
+                                                         elev_bin_means.index[-1].mid])[:,None]))).max()
+            > fit_sanity_check["max_allowed_gradient"]*scaler.var_**.5
         ):
-            warnings.warn("discarding fit because unrealistic - !note: this is usually not the"
-                          + "desired behavior const./linear extrapolation is used instead of"
-                          + "the fit which renders this check obsolete!")
+            # warnings.warn("discarding fit because unrealistic - !note: this is usually not the"
+            #               + "desired behavior const./linear extrapolation is used instead of"
+            #               + "the fit which renders this check obsolete!")
             return select_returns(return_coeffs, ds, np.array([np.nan]*4))
-    def predict(elev):
-        def scale(x):
-            if isinstance(x, xr.DataArray):
-                x = x.values
-            elif isinstance(x, (int, float, list)):
-                x = np.array(x)
-            while len(x.shape) < 2:
-                x = x[...,np.newaxis]
-            return scaler.transform(x)
-        elev_below = elev[elev < elev_bin_means.index[0].mid]
-        elev_above = elev[elev > elev_bin_means.index[-1].right]
-        elev_fitted = elev.drop_sel(stacked_x_y=elev_below.stacked_x_y).drop_sel(stacked_x_y=elev_above.stacked_x_y)
-        modelled_list = [xr.DataArray(fit.predict(design_matrix(scale(elev_fitted))), coords={"stacked_x_y": elev_fitted.stacked_x_y}, dims="stacked_x_y")]
-        if len(elev_below) > 0:
-            trend_below = np.polyval(np.polyder(coeffs), scale(elev_bin_means.index[0].mid))
-            modelled_list.append(xr.DataArray((fit.predict(design_matrix(scale(elev_bin_means.index[0].mid)))+(scale(elev_below)-scale(elev_bin_means.index[0].mid))*trend_below).flatten(), coords={"stacked_x_y": elev_below.stacked_x_y}, dims="stacked_x_y"))
-        if len(elev_above) > 0:
-            const_above = np.polyval(coeffs, scale(elev_bin_means.index[-1].right)).flatten()
-            modelled_list.append(const_above+xr.zeros_like(elev_above))
-        return xr.concat(modelled_list, "stacked_x_y").reindex_like(ds[main_var]).astype(ds[main_var].dtype)
-    modelled = predict(ds[elev])
+    def scale(x):
+        if isinstance(x, xr.DataArray):
+            x = x.values
+        elif isinstance(x, (int, float, list)):
+            x = np.array(x)
+        if len(x.shape) < 2:
+            x = x.reshape(-1, 1)
+        return scaler.transform(x)
+    def const_extrapol(data, pivot):
+        return np.polyval(coeffs, scale(pivot).flatten()) + xr.zeros_like(data)
+    def linear_extrapol(data, pivot):
+        return (np.polyval(np.polyder(coeffs), scale(pivot))*(scale(data)-scale(pivot))).flatten() + const_extrapol(data, pivot)
+    extrap_below = ds[elev] < elev_bin_means.index[0].mid
+    extrap_above = ds[elev] > elev_bin_means.index[-1].mid
+    modelled_list = [xr.DataArray(fit.predict(design_matrix(scale(ds[elev]))), coords={"stacked_x_y": ds.stacked_x_y}, dims="stacked_x_y")[~np.logical_or(extrap_below, extrap_above)]]
+    if extrap_below.any():
+        modelled_list.append(linear_extrapol(ds[elev][extrap_below], elev_bin_means.index[0].mid))
+    if extrap_above.any():
+        modelled_list.append(linear_extrapol(ds[elev][extrap_above], elev_bin_means.index[-1].mid))
+    modelled = xr.concat(modelled_list, "stacked_x_y").reindex_like(ds[main_var]).astype(ds[main_var].dtype)
+    fit_x_range = elev_bin_means.index[-1].mid - elev_bin_means.index[0].mid
+    modelled = xr.where(ds[elev]<elev_bin_means.index[0].mid - fit_x_range/3,
+                        xr.zeros_like(ds[elev])+linear_extrapol(xr.zeros_like(ds[elev][:1])+elev_bin_means.index[0].mid - fit_x_range/3, elev_bin_means.index[0].mid).values[0],
+                        modelled)
+    modelled = xr.where(ds[elev]>elev_bin_means.index[-1].mid + fit_x_range/3,
+                        xr.zeros_like(ds[elev])+linear_extrapol(xr.zeros_like(ds[elev][:1])+elev_bin_means.index[-1].mid + fit_x_range/3, elev_bin_means.index[-1].mid).values[0],
+                        modelled)
+    elev_bin_min = elev_bin_means.min()-2*elev_bin_errs.iloc[elev_bin_means.argmin()]
+    elev_bin_max = elev_bin_means.max()+2*elev_bin_errs.iloc[elev_bin_means.argmax()]
+    modelled = xr.where(modelled>elev_bin_max,
+                        elev_bin_max,
+                        modelled)
+    modelled = xr.where(modelled<elev_bin_min,
+                        elev_bin_min,
+                        modelled)
+    # # debugging plot:
+    # import matplotlib.pyplot as plt
+    # _, ax = plt.subplots(ncols=2, figsize=(18,6))
+    # ds[main_var].unstack().sortby("x").sortby("y").T.plot(ax=ax[0], robust=True, cmap="RdYlBu")
+    # modelled.unstack().sortby("x").sortby("y").T.plot(ax=ax[1], robust=True, cmap="RdYlBu")
+    # plt.show()
     residuals = ds[main_var]-modelled
-    neighbours = ds[main_var].unstack().sortby("x").sortby("y").rolling(x=5, y=5, min_periods=3, center=True)
-    neighbour_count = neighbours.count().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
-    neighbour_mean = neighbours.mean().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
     # # debugging plot:
     # import matplotlib.pyplot as plt
     # (np.abs(neighbour_mean-modelled) - outlier_limit*residuals.std()/(neighbour_count/4)**.5).unstack().sortby("x").sortby("y").T.plot(robust=True, cmap="RdYlBu")
     # plt.show()
-    potential_local_dynamic_changes = np.logical_and(
+    local_deviation = np.logical_and(
         neighbour_count >= 6,
         np.abs(neighbour_mean-modelled) > outlier_limit*residuals.std()/(neighbour_count/4)**.5
     )
-    fill_mask = xr.where(potential_local_dynamic_changes, 0, fill_mask)
-    modelled = xr.where(potential_local_dynamic_changes, neighbour_mean, modelled)
+    modelled = xr.where(local_deviation, neighbour_mean, modelled)
     if outlier_replace:
+        fill_mask = xr.where(local_deviation, 0, fill_mask)
         # std is used as a deviation measure because the fit relies on
         # normal distributed errors anyway. however, maybe it would be
         # better to use the MAD (and maybe go for some max.likelihood
@@ -729,17 +877,20 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     # import matplotlib.pyplot as plt
     # plt.scatter(ds[elev].where(~fill_mask).values.flatten(), ds[main_var].values.flatten())
     # plt.scatter(ds[elev].where(fill_mask).values.flatten(), ds[main_var].values.flatten(), ec="tab:purple", fc="none")
-    # plt.scatter(ds[elev].where(ds[main_var].isnull()).values.flatten(), modelled.values.flatten(), ec="tab:purple", fc="none")
+    # # plt.scatter(ds[elev].where(ds[main_var].isnull()).values.flatten(), np.zeros(ds[elev].size), ec="tab:purple", fc="none")
+    # plt.scatter(ds[elev].where(ds[main_var].isnull()).values.flatten(), modelled, ec="tab:purple", fc="none")
     # tmp_x_vals = np.linspace(ds[elev].min(), ds[elev].max(), 50)[:,None]
     # plt.plot(tmp_x_vals, fit.predict(design_matrix(scaler.transform(tmp_x_vals))), c="tab:orange")
     # plt.errorbar(x_vals, elev_bin_means, elev_bin_errs, ls="none", c="tab:red")
     # if "time" in ds:
-    #     plt.title(ds.time.values[0])#.strftime("%Y-%m-%d")
+    #     plt.title(ds.time.values)#.strftime("%Y-%m-%d")
+    # plt.ylim([ds[main_var].min(), ds[main_var].max()])
     # plt.show()
     try:
+        # print(fill_mask)
         ds[main_var] = xr.where(fill_mask, modelled, ds[main_var])
     except:
-        print(modelled)
+        # print(modelled)
         raise
     RMSE = (residuals.where(~fill_mask)**2).mean()**.5
     if "std" in error.lower():
@@ -750,6 +901,7 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         RMSE *= norm.isf(.25)
     elif "95" in error.lower():
         RMSE *= norm.isf(.025)
+    # print(fill_mask)
     ds[error] = xr.where(fill_mask, RMSE, ds[error])
     ds[weights] = xr.where(fill_mask, 0, ds[weights])
     # # restore data gaps

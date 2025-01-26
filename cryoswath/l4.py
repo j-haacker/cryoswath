@@ -4,6 +4,8 @@ import numpy as np
 import os
 import pandas as pd
 import scipy.special
+from scipy.stats import norm
+from statsmodels.tsa.seasonal import seasonal_decompose
 import xarray as xr
 
 from .misc import l4_path, find_region_id, load_glacier_outlines, nanoseconds_per_year
@@ -66,11 +68,12 @@ def difference_to_reference_dem(l3_data: xr.Dataset,
                                 ) -> xr.Dataset:
     if (np.abs(l3_data._median)<150).any():
         Exception("_median deviates more than 150 m from reference")
-    l3_data = l3_data.where(l3_data._count>3)
     res = l3.fill_voids(l3_data,
                         main_var="_median", error="_iqr", elev="ref_elev",
                         basin_shapes=basin_shapes,
-                        per=("basin", "basin_group"), outlier_replace=False)
+                        per=("basin", "basin_group"),
+                        outlier_replace=False,
+                        fit_sanity_check=True)
     if save_to_disk:
         try:
             region_id = find_region_id(l3_data)
@@ -86,19 +89,18 @@ __all__.append("difference_to_reference_dem")
 
 
 def fit_trend__seasons_removed(ds: xr.Dataset) -> xr.Dataset:
-    def trend_with_seasons(t_ns, trend, offset, A1, B1, A2, B2):
-        t_yr = t_ns / (365.25*24*60*60*1e9)
-        return offset + t_yr * trend + A1*np.sin(t_yr*2*np.pi) + B1*np.cos(t_yr*2*np.pi) + A2*np.sin(t_yr*2*np.pi/2) + B2*np.cos(t_yr*2*np.pi/2)
     ds = ds.where(np.logical_and((~ds._median.isel(time=slice(None, 30)).isnull()).sum("time")>5, (~ds._median.isel(time=slice(-30, None)).isnull()).sum("time")>5))
     ds = ds.chunk(dict(time=-1))
     fit_res = ds._median.transpose('time', 'y', 'x').curvefit(
-        coords="time", func=trend_with_seasons, param_names=["trend", "offset", "A1", "B1", "A2", "B2"])
+        coords="time", func=trend_with_seasons,
+        param_names=["trend", "offset", "amp_yearly", "phase_yearly", "amp_semiyr", "phase_semiyr"])
     model_vals = xr.apply_ufunc(trend_with_seasons, ds.time.astype("int"), *[fit_res.sel(param=p) for p in fit_res.param], dask="allowed")
     residuals = ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
     res_std = residuals.std("time")
     outlier = np.abs(residuals)-2*res_std>0
     fit_rm_outl_res = ds._median.where(~outlier).transpose('time', 'y', 'x').curvefit(
-        coords="time", func=trend_with_seasons, param_names=["trend", "offset", "A1", "B1", "A2", "B2"])
+        coords="time", func=trend_with_seasons,
+        param_names=["trend", "offset", "amp_yearly", "phase_yearly", "amp_semiyr", "phase_semiyr"])
     model_vals = xr.apply_ufunc(trend_with_seasons, ds.time.astype("int"), *[fit_rm_outl_res.sel(param=p) for p in fit_rm_outl_res.param], dask="allowed")
     residuals = ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
     fit_rm_outl_res["RMSE"] = (residuals**2).mean("time")**.5
@@ -163,6 +165,12 @@ def relative_change(l3_data: xr.Dataset,
         res.to_netcdf(os.path.join(l4_path, save_to_disk if isinstance(save_to_disk, str) else find_region_id(l3_data)+"__relative_elevation_estimates_at_monthly_intervals.nc"))
     return res
 __all__.append("relative_change")
+
+
+def trend_with_seasons(t_ns, trend, offset, amp_yearly, phase_yearly, amp_semiyr, phase_semiyr):
+    t_yr = t_ns / (365.25*24*60*60*1e9)
+    return offset + t_yr * trend + np.abs(amp_yearly)*np.exp((2*np.pi*t_yr-phase_yearly)*1j).real + np.abs(amp_semiyr)*np.exp((4*np.pi*t_yr-phase_semiyr)*1j).real
+__all__.append("trend_with_seasons")
 
 
 __all__ = sorted(__all__)

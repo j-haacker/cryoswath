@@ -533,11 +533,18 @@ def fill_voids(ds: xr.Dataset,
             print("... interpolating per basin")
             for label, group in (pbar := tqdm.tqdm(ds.groupby(ds.basin_id.where(~ds[elev].isnull()), squeeze=False))):
                 pbar.set_description(f"... current basin id: {label:.0f}")
+                if (
+                    ("time" in group and (~group[main_var].isnull()).any("time").sum() > 100)
+                    or (~group[main_var].isnull()).sum() > 100
+                ):
+                    group = discard_frontal_retreat_zone(group, "basin_id", main_var, elev)
                 res.append(interpolate_hypsometrically(group, main_var=main_var, elev=elev, error=error, outlier_replace=outlier_replace, outlier_limit=outlier_limit, fit_sanity_check=fit_sanity_check))
         elif grouper=="basin_group":
             if "group_id" not in ds:
                 print("... assigning basin groups to grid cells")
                 ds = append_basin_group(ds, basin_shapes)
+                if "basin_id" in ds:
+                    ds["group_id"] = xr.where(ds.basin_id.isnull(), np.nan, ds.group_id)
             print("... interpolating per basin group")
             for label, group in (pbar := tqdm.tqdm(ds.groupby(ds.group_id.where(~ds[elev].isnull()), squeeze=False))):
                 pbar.set_description(f"... current group id: {label:.0f}")
@@ -556,7 +563,10 @@ def fill_voids(ds: xr.Dataset,
     if "time" in ds.dims:
         ds[main_var] = ds[main_var].interpolate_na(dim="time", method="linear", max_gap=pd.Timedelta(days=367))
     # if there are still missing data, interpolate region wide ("global hypsometric interpolation")
-    ds = interpolate_hypsometrically(ds.rio.clip(basin_shapes.make_valid()).stack({"stacked_x_y": ["x", "y"]}).dropna("stacked_x_y", how="all"), main_var=main_var, elev=elev, error=error, outlier_replace=False, outlier_limit=outlier_limit, fit_sanity_check=fit_sanity_check)
+    ds = interpolate_hypsometrically((ds.where(~ds.basin_id.isnull()) if "basin_id" in ds else ds).rio.clip(basin_shapes.make_valid()).stack({"stacked_x_y": ["x", "y"]}).dropna("stacked_x_y", how="all"), main_var=main_var, elev=elev, error=error, outlier_replace=False, outlier_limit=outlier_limit, fit_sanity_check=fit_sanity_check)
+    # if there are STILL missing data, temporally interpolate remaining gaps and fill the margins
+    if "time" in ds.dims:
+        ds[main_var] = ds[main_var].interpolate_na(dim="time", method="linear").bfill("time").ffill("time")
     ds = fill_missing_coords(ds.unstack("stacked_x_y").sortby("x").sortby("y"))
     return ds
 __all__.append("fill_voids")
