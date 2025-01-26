@@ -21,9 +21,11 @@ from scipy.stats import t as student_t
 import shapely
 import shutil
 from sklearn import covariance, linear_model, preprocessing
+import sys
 from tables import NaturalNameWarning
 import time
 import threading
+import traceback
 from typing import Union
 import warnings
 import xarray as xr
@@ -1521,6 +1523,14 @@ def rgi_o2region_translator(o1: int, o2: int, out_type: str = "full_name") -> st
                           ).set_index("o2region")
     return lut.loc[f"{o1:02d}-{o2:02d}", out_type]
 __all__.append("rgi_o2region_translator")
+
+
+# CREDIT: mgab https://stackoverflow.com/a/22376126
+def warn_with_traceback(message, category, filename, lineno, file=None, line=None):
+    log = file if hasattr(file,'write') else sys.stderr
+    traceback.print_stack(file=log)
+    log.write(warnings.formatwarning(message, category, filename, lineno, line))
+__all__.append("warn_with_traceback")
 
 
 def weighted_mean_excl_outliers(df: pd.DataFrame|xr.Dataset = None,
