@@ -124,7 +124,7 @@ def fit_trend__seasons_removed(l3_ds: xr.Dataset) -> xr.Dataset:
                                 dask="allowed")
     residuals = l3_ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
     fit_rm_outl_res["RMSE"] = (residuals**2).mean("time")**.5
-    return fit_rm_outl_res.rio.write_crs(l3_ds)
+    return fit_rm_outl_res.rio.write_crs(l3_ds.rio.crs)
 __all__.append("fit_trend__seasons_removed")
 
 
