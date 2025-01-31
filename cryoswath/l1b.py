@@ -85,6 +85,14 @@ class L1bData(xr.Dataset):
         # ! tbi customize or drop misleading attributes of xr.Dataset
         # currently only originally named CryoSat-2 SARIn files implemented
         assert(fnmatch.fnmatch(l1b_filename, "*CS_????_SIR_SIN_1B_*.nc"))
+        def tmp_decoding_replacement(data, scale_factor, add_offset, dtype: np.typing.DTypeLike):
+            data = data.astype(dtype=dtype, copy=True)
+            if scale_factor is not None:
+                data = data * scale_factor
+            if add_offset is not None:
+                data += add_offset
+            return data
+        xr.coding.variables._scale_offset_decoding = tmp_decoding_replacement
         try:
             tmp = xr.open_dataset(l1b_filename)#, chunks={"time_20_ku": 256}
         except (OSError, ValueError) as err:

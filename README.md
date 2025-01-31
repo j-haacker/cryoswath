@@ -32,9 +32,7 @@ extent. Other branches are for development.
 To use cryoswath, pull this repo and download ArcticDEM and the RGI
 glacier and complex shape files into the `data/auxiliary/DEM` and -`RGI`
 directories. Then, either use the provided docker container or set up an
-environment and install the software dependencies. If you choose the
-latter, you will have to either limit xarray to <2024.3 or to apply a
-small patch.
+environment and install the software dependencies.
 
 ### with Docker 🐳
 
@@ -45,10 +43,6 @@ small patch.
 
 1. `conda create --name env_name --file <base dir>/docker/conda_requirements.txt`
 2. `conda activate env_name`
-3. `conda install patch`
-4. `find -name variables.py -path */env_name/*/xarray/coding/* -exec patch {} <base dir>/docker/custom_xarray.patch \;` (the patch works for `xarray=2024.9.0`)
-
-(The last two steps are necessary to change `*=` to `x=x*` in the xarray code.)
 
 ## 📖 documentation
 
@@ -64,13 +58,6 @@ cryoswath will point you to the required resources.
 
 ## 🐛 known issues
 
-- ! compatibility issues with xarray >= v2024.3.0  
-    -> apply patch as described in getting started -> conda -> steps 4+5  
-    -> \or downgrade to 2024.1.1  
-    If not fixed, xarray throws an error when you load the raw data. The
-    error message points you to a line in the function
-    `_scale_offset_decoding` where `x*=y` needs to be spelled out as
-    `x=x*y` because the operator is not defined for the data type.
 - projected RGI basins sometimes "invalid"
     -> add `.make_valid()` if it is missing somewhere
 - it has mostly been tested for the Arctic
