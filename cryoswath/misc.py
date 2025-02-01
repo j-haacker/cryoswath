@@ -1,4 +1,5 @@
 import configparser
+from contextlib import contextmanager
 from dateutil.relativedelta import relativedelta
 from defusedxml.ElementTree import fromstring as ET_from_str
 import fnmatch
@@ -9,6 +10,7 @@ import h5py
 import inspect
 import numpy as np
 import os
+from packaging.version import Version
 import pandas as pd
 from pyproj import CRS, Geod
 import queue
@@ -72,6 +74,12 @@ __all__.extend([  # functions
     "load_cs_ground_tracks",
     "load_o1region",
     "load_o2region",
+])
+
+__all__.extend([  # patches
+    "monkeypatch",
+    "patched_xr_decode_tDel",
+    "patched_xr_decode_scaling",
 ])
 
 
@@ -1340,6 +1348,123 @@ def merge_l2_cache(source_glob: str,
                         # print(name, "is not an end node")
                 h5_src.visititems(collect_groups)
 __all__.append("merge_l2_cache")
+
+
+def patch_gatekeeper(module_version: str, rules: list[dict]):
+    """Checks whether a patch should be applied
+
+    Use with a list of dict like
+
+    [{  "version":      "2.3",
+        "comperator":   operator.lt,
+        "action":       "skip"},
+     {  "version":      "3",
+        "comperator":   operator.ge,
+        "action":       "warn" }]
+
+    Args:
+        module_version (str): current version of the patched module
+        rules (dict): Requires keys "comparator", "version", and
+            "action".
+
+    Returns:
+        str: rules["action"] if condition is met, else None
+    """
+    for rule in rules:
+        if rule["comperator"](Version(module_version), Version(rule["version"])):
+            return rule["action"]
+            
+
+@contextmanager
+def monkeypatch(dictlist: list[dict]):
+    """contructs a patched context
+
+    Patching the backend of foreign funktions quickly leads to
+    inconsitencies. Using the patch only within a chosen context limits
+    side effects.
+
+    Optionally, have :func:`patch_gatekeeper` manage for which version
+    to apply the patch, to warn about compatibility issues, or to raise
+    an error.
+
+    Use like:
+
+    patchdicts = [{ "module":       mod1,
+                    "target":       "obj1",
+                    "replacement":  patch1,
+                    "version":      base_mod1.__version__,  # optional
+                    "rules":        rules1},  # optional
+                  { "module":       mod2,
+                    "target":       "obj2",
+                    "replacement":  patch2 }]
+    with monkeypatch(patchdicts):
+        <your code>
+
+    Args:
+        dictlist (list[dict]): Requires keys "module", "target", and
+            "replacement".
+    """
+    for d in dictlist:
+        if "rules" in d:
+            verdict = patch_gatekeeper(d["version"], d["rules"])
+            if verdict == "skip":
+                continue
+            elif verdict == "raise":
+                raise
+            else:
+                warnings.warn(f"Patch not meant for {d["module"]} version {d["version"]}.")
+        d.update({"original": getattr(d["module"], d["target"])})
+        setattr(d["module"], d["target"], d["replacement"])
+    try:
+        yield
+    finally:
+        for d in dictlist:
+            if "original" in d:
+                setattr(d["module"], d["target"], d["original"])
+
+
+def patched_xr_decode_scaling(data, scale_factor, add_offset, dtype: np.typing.DTypeLike):
+    data = data.astype(dtype=dtype, copy=True)
+    if scale_factor is not None:
+        data = data * scale_factor
+    if add_offset is not None:
+        data += add_offset
+    return data
+
+
+def patched_xr_decode_tDel(
+        num_timedeltas, units: str, time_unit="ns"
+    ) -> np.ndarray:
+    """Given an array of numeric timedeltas in netCDF format, convert it into a
+    numpy timedelta64 ["s", "ms", "us", "ns"] array.
+    """
+    from xarray.coding.times import _netcdf_to_numpy_timeunit, _check_timedelta_range, _numbers_to_timedelta, ravel, reshape
+    num_timedeltas = np.asarray(num_timedeltas)
+    unit = _netcdf_to_numpy_timeunit(units)
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", "All-NaN slice encountered", RuntimeWarning)
+        _check_timedelta_range(np.nanmin(num_timedeltas), unit, time_unit)
+        _check_timedelta_range(np.nanmax(num_timedeltas), unit, time_unit)
+
+    timedeltas = _numbers_to_timedelta(num_timedeltas, unit, "ns", "timedelta")
+    pd_timedeltas = pd.to_timedelta(ravel(timedeltas), unit="ns")
+
+    if np.isnat(timedeltas).all():
+        empirical_unit = time_unit
+    else:
+        empirical_unit = pd_timedeltas.unit
+
+    if np.timedelta64(1, time_unit) > np.timedelta64(1, empirical_unit):
+        time_unit = empirical_unit
+
+    if time_unit not in {"s", "ms", "us", "ns"}:
+        raise ValueError(
+            f"time_unit must be one of 's', 'ms', 'us', or 'ns'. Got: {time_unit}"
+        )
+
+    result = pd_timedeltas.as_unit(time_unit).to_numpy()
+    return reshape(result, num_timedeltas.shape)
 
 
 def nan_unique(data: np.typing.ArrayLike) -> list:

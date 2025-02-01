@@ -3,13 +3,14 @@ import ftplib
 import geopandas as gpd
 import numbers
 import numpy as np
+import operator
 import os
 import pandas as pd
 from pyproj import Transformer
 import rioxarray as rioxr
 from scipy.stats import median_abs_deviation
 import shapely
-from threading import Event, Thread
+from threading import Event
 import time
 from typing import Self
 import warnings
@@ -85,16 +86,29 @@ class L1bData(xr.Dataset):
         # ! tbi customize or drop misleading attributes of xr.Dataset
         # currently only originally named CryoSat-2 SARIn files implemented
         assert(fnmatch.fnmatch(l1b_filename, "*CS_????_SIR_SIN_1B_*.nc"))
-        def tmp_decoding_replacement(data, scale_factor, add_offset, dtype: np.typing.DTypeLike):
-            data = data.astype(dtype=dtype, copy=True)
-            if scale_factor is not None:
-                data = data * scale_factor
-            if add_offset is not None:
-                data += add_offset
-            return data
-        xr.coding.variables._scale_offset_decoding = tmp_decoding_replacement
+        patchdicts = [{ "module":       xr.coding.variables,
+                        "target":       "_scale_offset_decoding",
+                        "replacement":  patched_xr_decode_scaling,
+                        "version":      xr.__version__,
+                        "rules":        [{  "version":      "2024.3",
+                                            "comperator":   operator.lt,
+                                            "action":       "skip"},
+                                         {  "version":      "2026",
+                                            "comperator":   operator.ge,
+                                            "action":       "warn"}]},
+                      { "module":       xr.coding.times,
+                        "target":       "decode_cf_timedelta",
+                        "replacement":  patched_xr_decode_tDel,
+                        "version":      xr.__version__,
+                        "rules":        [{  "version":      "2025",
+                                            "comperator":   operator.lt,
+                                            "action":       "skip"},
+                                         {  "version":      "2025.2",
+                                            "comperator":   operator.ge,
+                                            "action":       "warn"}]}]
         try:
-            tmp = xr.open_dataset(l1b_filename)#, chunks={"time_20_ku": 256}
+            with monkeypatch(patchdicts):
+                tmp = xr.open_dataset(l1b_filename)#, chunks={"time_20_ku": 256}
         except (OSError, ValueError) as err:
             if isinstance(err, OSError):
                 if not err.errno == -101:
@@ -105,7 +119,8 @@ class L1bData(xr.Dataset):
                 warnings.warn(str(err)+" was raised. Downloading file again.")
             os.remove(l1b_filename)
             download_single_file(os.path.split(l1b_filename)[-1][19:34])
-            tmp = xr.open_dataset(l1b_filename)
+            with monkeypatch(patchdicts):
+                tmp = xr.open_dataset(l1b_filename)
         # at least until baseline E ns_20_ku needs to be made a coordinate
         tmp = tmp.assign_coords(ns_20_ku=("ns_20_ku", np.arange(len(tmp.ns_20_ku))))
         # remove data that will not be used to reduce memory footprint
