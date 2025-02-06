@@ -4,9 +4,9 @@ Tutorials
 There is a small number of tutorials that will be extended if I find support.
 Those are Jupyter notebooks located in ``scripts`` with names starting with "tutorial".
 
-`scripts/tutorial.ipynb
-<https://github.com/j-haacker/cryoswath/blob/main/scripts/tutorial.ipynb>`_
-will contain a step-by-step guide to retrieve gridded glacier surface
+`scripts/tutorial__general_step-by-step.ipynb
+<https://github.com/j-haacker/cryoswath/blob/main/scripts/tutorial__general_step-by-step.ipynb>`_
+contains a step-by-step guide to retrieve gridded glacier surface
 elevation trends from raw (L1b) data.
 
 `scripts/tutorial__process_first_waveform.ipynb
