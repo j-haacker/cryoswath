@@ -6,6 +6,7 @@ tests/reports/*.html
 tests/reports/*.pdf
 tests/reports/0-*
 tmp_*
+paper_ESSD
 
 # below follows a generated list of files one typically wants to exclude
 
