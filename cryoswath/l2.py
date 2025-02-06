@@ -107,12 +107,12 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                         # function is defined at the bottom of this module
                         collective_swath_poca_list.extend(p.starmap(process_track,
                             [(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"],
-                            current_subdir, kwargs) for idx in batch], chunksize=1))
+                            current_subdir, kwargs.copy()) for idx in batch], chunksize=1))
                 else:
                     for idx in batch:
                         collective_swath_poca_list.append(
                             process_track(idx, reprocess, l2_paths, ["return" if save_or_return == "return" else "both"],
-                                        current_subdir, kwargs))
+                                        current_subdir, kwargs.copy()))
             # ensure all data within `max_elev_diff`, in same CRS, and clip to bbox
             # note: if no crs is provided, check will not be done. if CRS mismatch,
             #       error occurs later
@@ -263,7 +263,7 @@ def from_processed_l1b(l1b_data: l1b.L1bData = None,
         tmp.drop(columns=["x", "y"], inplace=True)
     res = gpd.GeoDataFrame(tmp, geometry=geometry, crs=l1b_data.CRS, **filter_kwargs(gpd.GeoDataFrame, gdf_kwargs, blacklist=["crs"]))
     if "crs" in gdf_kwargs:
-        res = res.to_crs(gdf_kwargs.pop("crs"))
+        res = res.to_crs(gdf_kwargs["crs"])
     return res
 __all__.append("from_processed_l1b")
 
@@ -334,7 +334,7 @@ __all__ = sorted(__all__)
 
 # local helper function. can't be defined where it is needed because of namespace issues
 def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwargs):
-    print("getting", idx)
+    print("getting", idx, flush=True)
     # print("kwargs", wargs)
     try:
         if any(l2_paths.loc[idx,:].isnull()) or (isinstance(reprocess, bool) and reprocess):
@@ -356,17 +356,26 @@ def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwar
                 gpd.read_feather(os.path.join(l2_poca_path, current_subdir,
                                                 l2_paths.loc[idx, "poca"])))
     except (KeyError, FileNotFoundError, AssertionError, ArrowInvalid):
-        if "cs_full_file_names" not in locals():
-            if "cs_full_file_names" in kwargs:
-                cs_full_file_names = kwargs.pop("cs_full_file_names")
-            else:
-                cs_full_file_names = load_cs_full_file_names(update="no")
+        # print("debug 0", idx, flush=True)
+        if "cs_full_file_names" in kwargs:
+            cs_full_file_names = kwargs["cs_full_file_names"]
+        else:
+            cs_full_file_names = load_cs_full_file_names(update="no")
         l1b_kwargs = filter_kwargs(l1b.L1bData, kwargs)
         to_l2_kwargs = filter_kwargs(l1b.L1bData.to_l2, kwargs, blacklist=["swath_or_poca"],
                                      whitelist=["crs", "max_elev_diff"])
+        # print("debug 1", idx, flush=True)
         try:
             tmp = l1b.L1bData.from_id(cs_time_to_id(idx), **l1b_kwargs)
+            # print("debug 2", idx, flush=True)
+            # the below is necessary to pass a specific dem file. skipped by default.
+            if "dem_file_name_or_path" in kwargs:
+                # tmp = tmp.append_ambiguous_reference_elevation(kwargs.pop("dem_file_name_or_path"))
+                tmp = tmp.append_ambiguous_reference_elevation(kwargs["dem_file_name_or_path"])
+                tmp = tmp.append_best_fit_phase_index()
+                # print("debug 3", idx, flush=True)
             swath_poca_tuple = tmp.to_l2(swath_or_poca="both", **to_l2_kwargs)
+            # print("debug 4", idx, flush=True)
             tmp.close()
         except Exception as err:
             if isinstance(err, KeyboardInterrupt):

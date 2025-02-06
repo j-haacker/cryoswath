@@ -82,6 +82,7 @@ class L1bData(xr.Dataset):
                  power_threshold: tuple = ("snr", 10),
                  smooth_phase_difference: bool = True,
                  use_original_noise_estimates: bool = False,
+                 dem_file_name_or_path: str = None,
                  ) -> None:
         # ! tbi customize or drop misleading attributes of xr.Dataset
         # currently only originally named CryoSat-2 SARIn files implemented
@@ -205,33 +206,34 @@ class L1bData(xr.Dataset):
             # (also: simplify needed?)
             planar_crs = find_planar_crs(lon=tmp.lon_20_ku, lat=tmp.lat_20_ku)
             ground_track_points_4326 = gpd.GeoSeries(gpd.points_from_xy(tmp.lon_20_ku, tmp.lat_20_ku), crs=4326)
-            o2regions = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
             try:
-                intersected_o2 = o2regions.geometry.intersects(ground_track_points_4326.union_all(method="unary"))
-                if sum(intersected_o2) == 0:
-                    raise IndexError
+                if isinstance(drop_outside, (int, float)):
+                    o2regions = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
+                    intersected_o2 = o2regions.geometry.intersects(ground_track_points_4326.union_all(method="unary"))
+                    if sum(intersected_o2) == 0:
+                        raise IndexError
+                    else:
+                        o2codes = o2regions.loc[intersected_o2,"o2region"].values
+                    o2region_complexes = []
+                    for o2 in np.unique(o2codes):
+                        if o2 != "05-01": # Greenland periphery is too large
+                            o2region_complexes.append(load_o2region(o2))
+                        else: # cut into 10 subregions, append if crossed
+                            # !tbi: instead of using the arbitrary chunks, use the custom subregions
+                            # 05-11--05-15 (added in commit 2265523)
+                            for grnlnd_part in subdivide_region(load_o2region("05-01"), lat_bin_width_degree=4.5,
+                                                                lon_bin_width_degree=4.5):
+                                if buffer_4326_shp(grnlnd_part.union_all(method="coverage").envelope, drop_outside)\
+                                        .intersects(ground_track_points_4326.union_all(method="unary")):
+                                    o2region_complexes.append(grnlnd_part)
+                    # below, using geopandas as shapely wrapper for readability
+                    buffered_complexes = gpd.GeoSeries(
+                        buffer_4326_shp(pd.concat(o2region_complexes).union_all(method="coverage"), drop_outside), crs=4326
+                        ).to_crs(planar_crs).clip_by_rect(*ground_track_points_4326.to_crs(planar_crs).total_bounds)\
+                        .to_crs(4326).make_valid().iloc[0]
                 else:
-                    o2codes = o2regions.loc[intersected_o2,"o2region"].values
-                o2region_complexes = []
-                for o2 in np.unique(o2codes):
-                    if o2 != "05-01": # Greenland periphery is too large
-                        o2region_complexes.append(load_o2region(o2))
-                    else: # cut into 10 subregions, append if crossed
-                        # !tbi: instead of using the arbitrary chunks, use the custom subregions
-                        # 05-11--05-15 (added in commit 2265523)
-                        for grnlnd_part in subdivide_region(load_o2region("05-01"), lat_bin_width_degree=4.5,
-                                                            lon_bin_width_degree=4.5):
-                            if buffer_4326_shp(grnlnd_part.union_all(method="coverage").envelope, drop_outside)\
-                                    .intersects(ground_track_points_4326.union_all(method="unary")):
-                                o2region_complexes.append(grnlnd_part)
-                # below, using geopandas as shapely wrapper for readability
-                buffered_complexes = gpd.GeoSeries(
-                    buffer_4326_shp(pd.concat(o2region_complexes).union_all(method="coverage"), drop_outside), crs=4326
-                    ).to_crs(planar_crs).clip_by_rect(*ground_track_points_4326.to_crs(planar_crs).total_bounds)\
-                     .to_crs(4326).make_valid()
-                if all(buffered_complexes.is_empty):
-                    raise IndexError
-                retain_indeces = ground_track_points_4326.intersects(buffered_complexes.iloc[0])
+                    buffered_complexes = drop_outside
+                retain_indeces = ground_track_points_4326.intersects(buffered_complexes)
                 tmp = tmp.isel(time_20_ku=retain_indeces[retain_indeces].index)
             except IndexError:
                 warnings.warn("No waveforms left on glacier. Proceeding with empty dataset.")
@@ -458,14 +460,21 @@ class L1bData(xr.Dataset):
         Returns:
             Self: l1b_ds.
         """
+        # print("debug tag groups 0", flush=True)
         phase_outlier = self.phase_outlier()
+        # print("debug tag groups 0.1", flush=True)
         ignore_mask = (self.exclude_mask + phase_outlier) != 0
         gap_separator = ignore_mask.rolling(ns_20_ku=3).sum() == 3
+        # print("debug tag groups 0.2", flush=True)
         any_separator = np.logical_or(*xr.align(self.phase_jump(), gap_separator, join="outer"))
+        # print("debug tag groups 0.2.1", flush=True)
         rising_edge_per_waveform_counter = (any_separator.astype('int32').diff("ns_20_ku")==-1).cumsum("ns_20_ku") + 1
+        # print(rising_edge_per_waveform_counter)
+        # print("debug tag groups 0.3", flush=True)
         group_tags = rising_edge_per_waveform_counter \
             + xr.DataArray(data=np.arange(len(self.time_20_ku))*len(self.ns_20_ku), dims="time_20_ku")
         group_tags = xr.align(group_tags, self.power_waveform_20_ku, join="right")[0].where(~ignore_mask)
+        # print("debug tag groups 0.4", flush=True)
         def filter_small_groups(group_ids):
             out = group_ids
             for i in nan_unique(group_ids):
@@ -473,6 +482,7 @@ class L1bData(xr.Dataset):
                 if mask.sum() < 3:
                     out[mask] = 0
             return out
+        # print("debug tag groups 1", flush=True)
         group_tags = xr.apply_ufunc(filter_small_groups,
                        group_tags,
                        input_core_dims=[["ns_20_ku"]],
