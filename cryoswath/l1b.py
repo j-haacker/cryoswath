@@ -31,9 +31,11 @@ class L1bData(xr.Dataset):
 
     Args to init:
         l1b_filename (str): File to read data from.
+
         waveform_selection (int | pd.Timestamp | list[int |
             pd.Timestamp] | slice, optional): Waveforms to retrieve data
             from. If none provided, retrieve all data. Defaults to None.
+
         drop_waveforms_by_flag (dict[str, list], optional):
             Exclude waveform based on flags. Defaults to
             {"flag_mcd_20_ku", [ 'block_degraded', 'blank_block',
@@ -42,14 +44,18 @@ class L1bData(xr.Dataset):
             'window_delay_error', 'agc_error', 'trk_echo_error',
             'echo_rx1_error', 'echo_rx2_error', 'npm_error',
             'power_scale_error']}.
+
         mask_coherence_gt1 (bool, optional): Defaults to True.
+
         drop_outside (float, optional): Exclude waveforms where nadir is
             a chosen distance in meters outside of any RGI glacier. If
             None, no waveforms are excluded. Defaults to 30_000.
+
         coherence_threshold (float, optional): Exclude waveform samples
             with a lower coherence. This choice also affects the
             grouping, start sample for swath processing per waveform,
             and the POCA retrieval. Defaults to 0.6.
+            
         power_threshold (tuple, optional): Similar to the coherence
             threshold, but does not affect swath start or POCA
             retrieval. Defaults to ("snr", 10).

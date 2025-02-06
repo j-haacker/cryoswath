@@ -34,15 +34,15 @@ glacier and complex shape files into the `data/auxiliary/DEM` and -`RGI`
 directories. Then, either use the provided docker container or set up an
 environment and install the software dependencies.
 
-### with Docker 🐳
-
-1. `docker run --detach --interactive --volume <base dir>:/altimetry_project cryoswath/cryoswath:nightly`
-2. connect with your favorite IDE or `docker exec --interactive <container hash> sh`
-
 ### with conda 🐍
 
 1. `conda create --name env_name --file <base dir>/docker/conda_requirements.txt`
 2. `conda activate env_name`
+
+### with Docker 🐳
+
+1. `docker run --detach --interactive --volume <base dir>:/altimetry_project cryoswath/cryoswath:nightly`
+2. connect with your favorite IDE or `docker exec --interactive <container hash> sh`
 
 ## 📖 documentation
 

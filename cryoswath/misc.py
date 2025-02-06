@@ -1389,16 +1389,22 @@ def monkeypatch(dictlist: list[dict]):
 
     Use like:
 
-    patchdicts = [{ "module":       mod1,
-                    "target":       "obj1",
-                    "replacement":  patch1,
-                    "version":      base_mod1.__version__,  # optional
-                    "rules":        rules1},  # optional
-                  { "module":       mod2,
-                    "target":       "obj2",
-                    "replacement":  patch2 }]
-    with monkeypatch(patchdicts):
-        <your code>
+    .. code-block:: python
+
+        patchdicts = [{
+            "module":       mod1,
+            "target":       "obj1",
+            "replacement":  patch1,
+            "version":      base_mod1.__version__,  # optional
+            "rules":        rules1  # optional
+        },
+        {   "module":       mod2,
+            "target":       "obj2",
+            "replacement":  patch2
+        }]
+        
+        with monkeypatch(patchdicts):
+            <your code>
 
     Args:
         dictlist (list[dict]): Requires keys "module", "target", and

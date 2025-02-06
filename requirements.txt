@@ -24,7 +24,7 @@ scipy
 shapely
 pytables
 tqdm
-xarray<=2024.1.1 # or patch scaling
+xarray
 
 ## cryoswath optional #################################################
 # bottleneck # for numpy: speeds up NaN-skipping and rolling window aggregations by a large factor
