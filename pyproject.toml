@@ -1,0 +1,57 @@
+[build-system]
+requires = ["flit_core >=3.2"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "cryoswath"
+version = "0.2.0"
+authors = [
+  { name="Jan Haacker", email="j.m.haacker@tudelft.nl" },
+]
+description = "Swath processing toolbox for CryoSat-2"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: MIT License",
+]
+keywords = ["glacier", "altimetry", "swath", "cryosat"]
+dependencies = [
+    "dask",
+    "defusedxml",
+    "geopandas",
+    "h5py",
+    "matplotlib",
+    "numpy",
+    "packaging",
+    "pandas",
+    "pyarrow",
+    "pyogrio",
+    "pyproj",
+    "pytables",
+    "python-dateutil",
+    "rasterio",
+    "rioxarray",
+    "scikit-learn",
+    "scipy",
+    "shapely",
+    "statsmodels",
+    "tqdm",
+    "xarray",
+]
+
+[project.license]
+file = "LICENSE.txt"
+# ... = "MIT"
+
+
+[project.optional-dependencies]
+doc = ["sphinx"]
+notebooks = ["ipykernel"]
+
+[project.urls]
+Homepage = "https://github.com/j-haacker/cryoswath"
+Issues = "https://github.com/j-haacker/cryoswath/issues"
+Repository = "https://github.com/j-haacker/cryoswath.git"
+Documentation = "https://j-haacker.github.io/cryoswath"
