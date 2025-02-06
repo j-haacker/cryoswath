@@ -1,6 +1,7 @@
 # cryoswath
 
 ![GitHub Tag](https://img.shields.io/github/v/tag/j-haacker/cryoswath)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14825359.svg)](https://doi.org/10.5281/zenodo.14825359)
 ![GitHub top language](https://img.shields.io/github/languages/top/j-haacker/cryoswath)
 ![GitHub License](https://img.shields.io/github/license/j-haacker/cryoswath)
 
