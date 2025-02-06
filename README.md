@@ -14,7 +14,7 @@ changing the concerned function or adding a new one.
 
 ## 🌱 state
 
-Currently, it is in the beta phase. `main` contains those parts that I
+cryoswath is being developed. `main` contains those parts that I
 believe to work if used as intended and that are tested to some
 extent. Other branches are for development.
 
