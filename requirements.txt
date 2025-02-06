@@ -7,22 +7,25 @@
 # images.
 
 ## cryoswath dependencies #############################################
+dask
 defusedxml # will be optional in future. used for additional security
 geopandas>=1.0.1 # implies among others: shapely
 h5py
-netcdf4
+matplotlib
 numpy
-netcdf4
+packaging
 pandas
 pyarrow
+pyogrio
 pyproj
+pytables
 python-dateutil
 rasterio
 rioxarray
 scikit-learn
 scipy
 shapely
-pytables
+statsmodels
 tqdm
 xarray
 
