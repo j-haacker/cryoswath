@@ -90,7 +90,8 @@ __all__.append("difference_to_reference_dem")
 
 def fit_trend__seasons_removed(l3_ds: xr.Dataset) -> xr.Dataset:
     l3_ds = l3_ds.where(np.logical_and((~l3_ds._median.isel(time=slice(None, 30)).isnull()).sum("time")>5, (~l3_ds._median.isel(time=slice(-30, None)).isnull()).sum("time")>5))
-    l3_ds = l3_ds.chunk(dict(time=-1))
+    if "chunks" in l3_ds._median:
+        l3_ds = l3_ds.chunk(dict(time=-1))
     fit_res = l3_ds._median.transpose('time', 'y', 'x').curvefit(
         coords="time",
         func=trend_with_seasons,
