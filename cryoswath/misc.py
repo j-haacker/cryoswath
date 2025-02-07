@@ -1,10 +1,11 @@
-import configparser
+from configparser import ConfigParser
 from contextlib import contextmanager
 from dateutil.relativedelta import relativedelta
 from defusedxml.ElementTree import fromstring as ET_from_str
 import fnmatch
 import ftplib
 import geopandas as gpd
+from git.repo import Repo
 import glob
 import h5py
 import inspect
@@ -45,20 +46,6 @@ __all__ = [  # variables
     "WGS84_ellpsoid",
 ]
 
-__all__.extend([  # pathes
-    "aux_path",
-    "cs_ground_tracks_path",
-    "data_path",
-    "dem_path",
-    "l1b_path",
-    "l2_swath_path",
-    "l2_poca_path",
-    "l3_path",
-    "l4_path",
-    "rgi_path",
-    "tmp_path",
-])
-
 __all__.extend([  # functions
     "cs_id_to_time",
     "cs_time_to_id",
@@ -66,6 +53,7 @@ __all__.extend([  # functions
     "discard_frontal_retreat_zone",
     "find_region_id",
     "flag_translator",
+    "ftp_cs2_server",
     "gauss_filter_DataArray",
     "get_dem_reader",
     "interpolate_hypsometrically",
@@ -83,40 +71,57 @@ __all__.extend([  # patches
 ])
 
 
-config = configparser.ConfigParser()
-config_path = os.path.join(os.path.dirname(__file__), "config.ini")
-if os.path.isfile(config_path):
-    config.read(config_path)
-try:
-    personal_email = config["personal"]["personal_email"]
-except:
-    print("ESA asks to use one's email as password when downloading data via ftp. Please provide it.")
-    response = None
-    while response != "y":
-        personal_email = input("Your email:")
-        response = input(f"Is your email \"{personal_email}\" spelled correctly? (y/n)",).lower()[0]
-    if "personal" in config:
-        config["personal"]["personal_email"] = personal_email
-    else:
-        config["personal"] = {"personal_email": personal_email}
-    with open(config_path, "w") as config_file:
-        config.write(config_file)
-    print(f"Thanks. You can change your email in {config_path} manually.")
-__all__.append("personal_email")
+def init_project():
+    if (
+        os.path.exists("data")
+        or os.path.exists("scripts")
+    ):
+        Exception("Make sure \"data\" and \"scripts\" do not exist in your working directory.")
+    Repo.clone_from("https://github.com/j-haacker/cryoswath.git", "data", branch="data")
+    Repo.clone_from("https://github.com/j-haacker/cryoswath.git", "scripts", branch="scripts")
+    config_file = os.path.join("scripts", "config.ini")
+    config = ConfigParser()
+    if os.path.isfile(config_file):
+        config.read(os.path.join("scripts", "config.ini"))
+    config["path"] = {"base": os.getcwd()}
+    with open(config_file, "w") as f:
+        config.write(f)
 
 
 ## Paths ##############################################################
-data_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "data")
-l1b_path = os.path.join(data_path, "L1b")
-l2_swath_path = os.path.join(data_path, "L2_swath")
-l2_poca_path = os.path.join(data_path, "L2_poca")
-l3_path = os.path.join(data_path, "L3")
-l4_path = os.path.join(data_path, "L4")
-tmp_path = os.path.join(data_path, "tmp")
-aux_path = os.path.join(data_path, "auxiliary")
-cs_ground_tracks_path = os.path.join(aux_path, "CryoSat-2_SARIn_ground_tracks.feather")
-rgi_path = os.path.join(aux_path, "RGI")
-dem_path = os.path.join(aux_path, "DEM")
+if os.path.isfile("config.ini"):
+    config = ConfigParser()
+    config.read("config.ini")
+    data_path = os.path.join(config["path"]["base"], "data")
+    l1b_path = os.path.join(data_path, "L1b")
+    l2_swath_path = os.path.join(data_path, "L2_swath")
+    l2_poca_path = os.path.join(data_path, "L2_poca")
+    l3_path = os.path.join(data_path, "L3")
+    l4_path = os.path.join(data_path, "L4")
+    tmp_path = os.path.join(data_path, "tmp")
+    aux_path = os.path.join(data_path, "auxiliary")
+    cs_ground_tracks_path = os.path.join(aux_path, "CryoSat-2_SARIn_ground_tracks.feather")
+    rgi_path = os.path.join(aux_path, "RGI")
+    dem_path = os.path.join(aux_path, "DEM")
+
+    __all__.extend([  # pathes
+        "aux_path",
+        "cs_ground_tracks_path",
+        "data_path",
+        "dem_path",
+        "l1b_path",
+        "l2_swath_path",
+        "l2_poca_path",
+        "l3_path",
+        "l4_path",
+        "rgi_path",
+        "tmp_path",
+    ])
+
+else:
+    warnings.warn("Failed to define path variables. You will not be able to use many cryoswath "
+                  "functions. Make sure have run `cryoswath-init` and your working directory"
+                  " is \"scripts\".")
 
 ## Config #############################################################
 WGS84_ellpsoid = Geod(ellps="WGS84")
@@ -332,22 +337,6 @@ def discard_frontal_retreat_zone(
 #                 f.write(chunk)
 #     return local_filename
 # __all__.append("download_file")
-# not used and clutters namespace
-# def download_file(url: str, out_path: str = ".") -> str:
-#     # snippet adapted from https://stackoverflow.com/a/16696317
-#     # authors: https://stackoverflow.com/users/427457/roman-podlinov
-#     #      and https://stackoverflow.com/users/12641442/jenia
-#     local_filename = os.join(out_path, url.split('/')[-1])
-#     # NOTE the stream=True parameter below
-#     with requests.get(url, stream=True) as r:
-#         r.raise_for_status()
-#         with open(local_filename, 'wb') as f:
-#             for chunk in r.iter_content(chunk_size=8192): 
-#                 # If you have chunk encoded response uncomment if
-#                 # and set chunk_size parameter to None.
-#                 #if chunk: 
-#                 f.write(chunk)
-#     return local_filename
 
 
 def extend_filename(file_name: str, extension: str) -> str:
@@ -540,6 +529,21 @@ def flag_translator(cs_l1b_flag):
                                     index=cs_l1b_flag.attrs["flag_values"])
         return flag_dictionary.loc[int(cs_l1b_flag.values)]
 
+
+@contextmanager
+def ftp_cs2_server(**kwargs):
+    try:
+        config = ConfigParser()
+        config.read("config.ini")
+        email = config["user"]["email"]
+    except KeyError:
+        print("\n\nPlease call `misc.update_email()` to provide your email address as ESA asks",
+              "for it as password when downloading data via ftp.\n\n")
+        raise
+    with ftplib.FTP("science-pds.cryosat.esa.int", **kwargs) as ftp:
+        ftp.login(passwd=email)
+        yield ftp
+    
 
 def gauss_filter_DataArray(da: xr.DataArray, dim: str, window_extent: int, std: int) -> xr.DataArray:
     """Low-pass filters input array.
@@ -957,8 +961,7 @@ def load_cs_full_file_names(update: str = "no") -> pd.Series:
         last_lta_idx = file_names[(fn[3:7]=="LTA_" for fn in file_names)].index[-1]
         print(last_lta_idx+pd.offsets.MonthBegin(-1, normalize=True))
 
-    with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
-        ftp.login(passwd=personal_email)
+    with ftp_cs2_server() as ftp:
         ftp.cwd("/SIR_SIN_L1")
         for year in ftp.nlst():
             if update != "full" and year < str(last_lta_idx.year):
@@ -1077,8 +1080,7 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
             Returns:
                 gpd.GeoSeries: Missing tracks to be added to the collection.
             """
-            with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
-                ftp.login(passwd=personal_email)
+            with ftp_cs2_server() as ftp:
                 ftp.cwd("/SIR_SIN_L1/"+pd.to_datetime(remote_files[0][19:34]).strftime("%Y/%m"))
                 tracks_to_be_added = gpd.GeoDataFrame(columns=["geometry"]).rename_axis("index")
                 for rf_name in remote_files:
@@ -1106,8 +1108,7 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
         # for each month after last_idx, list all HDR-files and check whether
         # they are in the local collection.
         while True:
-            with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
-                ftp.login(passwd=personal_email)
+            with ftp_cs2_server() as ftp:
                 try:
                     ftp.cwd("/SIR_SIN_L1/"+last_idx.strftime("%Y/%m"))
                 except ftplib.error_perm:
@@ -1417,8 +1418,8 @@ def monkeypatch(dictlist: list[dict]):
                 continue
             elif verdict == "raise":
                 raise
-            else:
-                warnings.warn(f"Patch not meant for {d["module"]} version {d["version"]}.")
+            elif verdict == "warn":
+                warnings.warn(f"Patch not meant for {d['module']} version {d['version']}.")
         d.update({"original": getattr(d["module"], d["target"])})
         setattr(d["module"], d["target"], d["replacement"])
     try:
@@ -1654,6 +1655,16 @@ def rgi_o2region_translator(o1: int, o2: int, out_type: str = "full_name") -> st
                           ).set_index("o2region")
     return lut.loc[f"{o1:02d}-{o2:02d}", out_type]
 __all__.append("rgi_o2region_translator")
+
+
+def update_email(email):
+    config = ConfigParser()
+    config.read("config.ini")
+    if "user" not in config:
+        config["user"] = dict()
+    config["user"].update({"email": email})
+    with open("config.ini", "w") as f:
+        config.write(f)
 
 
 # CREDIT: mgab https://stackoverflow.com/a/22376126

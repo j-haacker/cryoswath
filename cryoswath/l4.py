@@ -8,8 +8,8 @@ from scipy.stats import norm
 from statsmodels.tsa.seasonal import seasonal_decompose
 import xarray as xr
 
-from .misc import l4_path, find_region_id, load_glacier_outlines, nanoseconds_per_year
-from . import l3
+from .misc import find_region_id, load_glacier_outlines, nanoseconds_per_year
+from . import misc, l3
 
 __all__ = list()
 
@@ -82,7 +82,7 @@ def difference_to_reference_dem(l3_data: xr.Dataset,
             print(traceback.format_exc())
             print(str(err))
             region_id = str(datetime.now())
-        res.drop_encoding().to_netcdf(os.path.join(l4_path, save_to_disk if isinstance(save_to_disk, str)
+        res.drop_encoding().to_netcdf(os.path.join(misc.l4_path, save_to_disk if isinstance(save_to_disk, str)
                                    else region_id+"__elev_diff_to_ref_at_monthly_intervals.nc"))
     return res
 __all__.append("difference_to_reference_dem")
@@ -146,7 +146,7 @@ def differential_change(data: xr.Dataset,
     data = xr.merge([differences.rename("elev_change"), uncertainties.rename("elev_change_CI95"), data.ref_elev])
     res = l3.fill_voids(data, "elev_change", error="elev_change_CI95", elev="ref_elev", per=("basin", "basin_group"), outlier_limit=2, outlier_replace=True, outlier_iterations=3)
     if save_to_disk:
-        res.to_netcdf(os.path.join(l4_path, save_to_disk if isinstance(save_to_disk, str) else find_region_id(data)+"__yearly_changes_at_monthly_intervals.nc"))
+        res.to_netcdf(os.path.join(misc.l4_path, save_to_disk if isinstance(save_to_disk, str) else find_region_id(data)+"__yearly_changes_at_monthly_intervals.nc"))
     return res
 __all__.append("differential_change")
 
@@ -183,7 +183,7 @@ def relative_change(l3_data: xr.Dataset,
     l3_data["error"] = xr.where(l3_data.time.isin(ref_period), 0, l3_data.error)
     res = xr.merge([res, l3_data.sel(time=ref_period).fillna(0)], join="outer", compat="override")
     if save_to_disk:
-        res.to_netcdf(os.path.join(l4_path, save_to_disk if isinstance(save_to_disk, str) else find_region_id(l3_data)+"__relative_elevation_estimates_at_monthly_intervals.nc"))
+        res.to_netcdf(os.path.join(misc.l4_path, save_to_disk if isinstance(save_to_disk, str) else find_region_id(l3_data)+"__relative_elevation_estimates_at_monthly_intervals.nc"))
     return res
 __all__.append("relative_change")
 

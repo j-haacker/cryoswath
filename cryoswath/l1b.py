@@ -818,8 +818,7 @@ def download_files(track_idx: pd.DatetimeIndex|str,
         except FileNotFoundError:
             os.makedirs(os.path.join(l1b_path, year_month_str))
             currently_present_files = []
-        with ftplib.FTP("science-pds.cryosat.esa.int", timeout=120) as ftp:
-            ftp.login(passwd=personal_email)
+        with ftp_cs2_server(timeout=120) as ftp:
             try:
                 ftp.cwd("/SIR_SIN_L1/"+year_month_str)
             except ftplib.error_perm:
@@ -851,8 +850,7 @@ def download_single_file(track_id: str) -> str:
     retries = 10
     while retries > 0:
         try:
-            with ftplib.FTP("science-pds.cryosat.esa.int") as ftp:
-                ftp.login(passwd=personal_email)
+            with ftp_cs2_server() as ftp:
                 ftp.cwd("/SIR_SIN_L1/"+pd.to_datetime(track_id).strftime("%Y/%m"))
                 for remote_file in ftp.nlst():
                     if remote_file[-3:] == ".nc" \

@@ -1,6 +1,5 @@
 import geopandas as gpd
 import h5py
-import itertools
 from multiprocessing import Pool
 import numpy as np
 import os
@@ -101,7 +100,17 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
                 warnings.warn(f"No tracks to load data from for month {current_month}.")
                 continue
             collective_swath_poca_list = []
-            for batch in itertools.batched(current_track_indices, cores*3):
+            try:
+                from itertools import batched
+            except ImportError:
+                # task specific, less than perfect implementation
+                def batched(dtx: pd.DatetimeIndex, number):
+                    batchsize = int(np.ceil(len(dtx)/number))
+                    out = [None]*number
+                    for i in range(number):
+                        out[i] = dtx[i*batchsize:(i+1)*batchsize]
+                    return out
+            for batch in batched(current_track_indices, cores*3):
                 if cores > 1 and len(batch) > 1:
                     with Pool(processes=cores) as p:
                         # function is defined at the bottom of this module

@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "cryoswath"
-version = "0.2.0"
+version = "0.2.0.post9"
 authors = [
   { name="Jan Haacker", email="j.m.haacker@tudelft.nl" },
 ]
@@ -21,6 +21,8 @@ dependencies = [
     "dask",
     "defusedxml",
     "geopandas",
+    "gitpython",
+    "h5netcdf",
     "h5py",
     "matplotlib",
     "numpy",
@@ -29,7 +31,7 @@ dependencies = [
     "pyarrow",
     "pyogrio",
     "pyproj",
-    "pytables",
+    "tables",
     "python-dateutil",
     "rasterio",
     "rioxarray",
@@ -39,12 +41,12 @@ dependencies = [
     "statsmodels",
     "tqdm",
     "xarray",
+    "zarr"
 ]
 
 [project.license]
 file = "LICENSE.txt"
 # ... = "MIT"
-
 
 [project.optional-dependencies]
 doc = ["sphinx"]
@@ -55,3 +57,6 @@ Homepage = "https://github.com/j-haacker/cryoswath"
 Issues = "https://github.com/j-haacker/cryoswath/issues"
 Repository = "https://github.com/j-haacker/cryoswath.git"
 Documentation = "https://j-haacker.github.io/cryoswath"
+
+[project.scripts]
+cryoswath-init = "cryoswath.misc:init_project"

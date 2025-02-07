@@ -29,20 +29,55 @@ extent. Other branches are for development.
 
 ## 🚀 getting started
 
-To use cryoswath, pull this repo and download ArcticDEM and the RGI
-glacier and complex shape files into the `data/auxiliary/DEM` and -`RGI`
-directories. Then, either use the provided docker container or set up an
-environment and install the software dependencies.
+There is a number of ways you can start off. I will give detailed
+instructions for UNIX systems. Make sure to use python 3.11 or higher.
+Further, I recommend to use a virtual environment and will involve
+python-venv in the instructions (however, conda works similar).
 
-### with conda 🐍
+### with git 🐙
 
-1. `conda create --name env_name --file <base dir>/docker/conda_requirements.txt`
-2. `conda activate env_name`
+advantage: easy pulling bugfixes
 
-### with Docker 🐳
+Set up a project directory, pull this repo, create virtual
+environment, initialize, and download ArcticDEM and the RGI glacier and complex
+shape files into the `data/auxiliary/DEM` and -`RGI` directories.
 
-1. `docker run --detach --interactive --volume <base dir>:/altimetry_project cryoswath/cryoswath:nightly`
-2. connect with your favorite IDE or `docker exec --interactive <container hash> sh`
+```sh
+proj_dir=altimetry-project
+git clone https://github.com/j-haacker/cryoswath.git $proj_dir
+cd $proj_dir
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+cryoswath-init
+```
+
+### with pip 📦
+
+advantage: easy installation
+
+Set up a project directory, create virtual environment, install
+cryoswath, initialize, and download ArcticDEM and the RGI glacier and
+complex shape files into the `data/auxiliary/DEM` and -`RGI`
+directories.
+
+```sh
+proj_dir=altimetry-project
+cd $proj_dir
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install cryoswath
+cryoswath-init
+```
+
+### Docker and conda
+
+New setup instructions coming soon.
+
+### multiple projects
+
+Similar to the above, set up a virtual environment but rather locate it
+in a neutral directory. For each project, run `cryoswath-init`.
 
 ## 📖 documentation
 
