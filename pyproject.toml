@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "cryoswath"
-version = "0.2.0.post9"
+version = "0.2.1"
 authors = [
   { name="Jan Haacker", email="j.m.haacker@tudelft.nl" },
 ]
