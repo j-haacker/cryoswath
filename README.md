@@ -66,6 +66,7 @@ directories.
 
 ```sh
 proj_dir=altimetry-project
+mkdir $proj_dir
 cd $proj_dir
 python3.11 -m venv .venv
 source .venv/bin/activate
