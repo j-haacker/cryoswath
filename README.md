@@ -74,7 +74,19 @@ pip install cryoswath
 cryoswath-init
 ```
 
-### Docker and conda
+### with Docker 🐳
+
+advantage: will almost always work
+
+*note*: the first time running the docker image require to download ~ 1 Gb
+
+1. If you don't yet have a designated project directory, make one. I will assume its relative path is `pro/ject`
+2. Then execute `docker run -it -p 8888:8888 -v pro/ject:/home/jovyan cryoswath/jupyterlab:v0.2.1`
+3. You will receive an address including a token with which you can connect to the jupyterlab using your browser
+4. Open a regular shell and execute `cryoswath-init`
+5. Open the scripts folder in the explorer and select one of the notebooks or create your own (inside the scripts folder)
+
+### conda
 
 New setup instructions coming soon.
 
