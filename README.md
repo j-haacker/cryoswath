@@ -1,7 +1,8 @@
 # cryoswath
 
-![GitHub Tag](https://img.shields.io/github/v/tag/j-haacker/cryoswath)
 ![GitHub top language](https://img.shields.io/github/languages/top/j-haacker/cryoswath)
+![PyPI - Version](https://img.shields.io/pypi/v/cryoswath)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14837018.svg)](https://doi.org/10.5281/zenodo.14837018)
 ![GitHub License](https://img.shields.io/github/license/j-haacker/cryoswath)
 
 cryoswath is a python package containing processing pipelines, a tool
@@ -14,9 +15,11 @@ changing the concerned function or adding a new one.
 
 ## 🌱 state
 
-cryoswath is being developed. `main` contains those parts that I
-believe to work if used as intended and that are tested to some
-extent. Other branches are for development.
+cryoswath is being developed. Branch `main` contains the
+"pip"-installable package, `scripts` contains tutorials, and `data`
+contains auxiliary data and the required directory structure. You can
+have everything setup automatically (see "getting started"). Other
+branches are for development.
 
 ## ✨ features
 
@@ -104,13 +107,14 @@ cryoswath will point you to the required resources.
 You can cite this package using bibtex:
 
 ```bibtex
-@misc{cryoswath,
-  author = {J. Haacker},
-  title = {cryoswath: CryoSat-2 swath processing package},
-  year = {2024},
-  publisher = {GitHub},
-  journal = {GitHub repository},
-  howpublished = {\url{https://github.com/j-haacker/cryoswath}}
+@software{cryoswath,
+  author       = {Haacker, Jan},
+  title        = {cryoswath: v0.2.1},
+  month        = feb,
+  year         = 2025,
+  publisher    = {Zenodo},
+  version      = {v0.2.1},
+  doi          = {10.5281/zenodo.14837018}
 }
 ```
 
