@@ -50,7 +50,7 @@ directory. Please set it to a path that suits you like
 In all cases, consider to download the data dependencies ArcticDEM and
 the RGI glacier and complex shape files into the
 `$proj_dir/data/auxiliary/DEM` and `$proj_dir/data/auxiliary/RGI`
-directories.
+directories (more in the [docs](https://j-haacker.github.io/cryoswath/prerequisites.html)).
 
 ### with git 🐙
 
