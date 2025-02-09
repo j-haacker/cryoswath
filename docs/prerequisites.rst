@@ -23,8 +23,10 @@ Deposit them in ``data/auxiliary/DEM`` or change ``dem_path`` in :mod:`cryoswath
 
 Further, if you would like to take advantage of the basin shapes provided in the Randolph Glacier Inventory, download them as needed.
 Make sure to download both products, "G" (glaciers/basins) and "C" (complexes).
-cryoswath will give you hints if any data is missing as you go.
+cryoswath will give you hints, if any data is missing, as you go.
 Deposit the shape files in ``data/auxiliary/RGI`` or change ``rgi_path`` in :mod:`cryoswath.misc` to your needs.
+If you already know what data you need, find them at the `nsidc repository
+<https://daacdata.apps.nsidc.org/pub/DATASETS/nsidc0770_rgi_v7/regional_files/>`_.
 
 Software dependencies
 ---------------------
