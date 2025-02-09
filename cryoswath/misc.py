@@ -5,7 +5,6 @@ from defusedxml.ElementTree import fromstring as ET_from_str
 import fnmatch
 import ftplib
 import geopandas as gpd
-from git.repo import Repo
 import glob
 import h5py
 import inspect
@@ -77,7 +76,8 @@ def init_project():
         or os.path.exists("scripts")
     ):
         Exception("Make sure \"data\" and \"scripts\" do not exist in your working directory.")
-    try:    
+    try:
+        from git.repo import Repo
         Repo.clone_from("https://github.com/j-haacker/cryoswath.git", "data", branch="data")
         Repo.clone_from("https://github.com/j-haacker/cryoswath.git", "scripts", branch="scripts")
     except:
