@@ -23,7 +23,7 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
             reprocess: bool|pd.Timestamp = True,
             save_or_return: str = "both",
             cache_fullname: str = None,
-            cores: int = len(os.sched_getaffinity(0)),
+            cores: int = None,
             **kwargs) -> tuple[gpd.GeoDataFrame]:
     # this function collects processed data and processes the remaining.
     # combining new and old data can show unexpected behavior if
@@ -33,6 +33,12 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
     # tbi: throw error if crs not passed.
     # if ESA complains there were too many parallel ftp connections, reduce
     # the number of cores. 8 cores worked for me, 16 was too many
+    if cores is None:
+        try:
+            cores = len(os.sched_getaffinity(0))
+        except:
+            warnings.warn("Failed to find number of CPU cores. Set manually using \"cores=\".")
+            cores = 1
     if not isinstance(track_idx, pd.DatetimeIndex):
         track_idx = pd.DatetimeIndex(track_idx if isinstance(track_idx, list) else [track_idx])
     track_idx = track_idx.sort_values()
