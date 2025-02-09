@@ -2,7 +2,7 @@
 
 ![GitHub top language](https://img.shields.io/github/languages/top/j-haacker/cryoswath)
 ![PyPI - Version](https://img.shields.io/pypi/v/cryoswath)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14837018.svg)](https://doi.org/10.5281/zenodo.14837018)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14825358.svg)](https://doi.org/10.5281/zenodo.14825358)
 ![GitHub License](https://img.shields.io/github/license/j-haacker/cryoswath)
 
 cryoswath is a python package containing processing pipelines, a tool
@@ -37,16 +37,26 @@ instructions for UNIX systems. Make sure to use python 3.11 or higher.
 Further, I recommend to use a virtual environment and will involve
 python-venv in the instructions (however, conda works similar).
 
+All of the following instructions consist of three main steps:
+
+1. making cryoswath available
+2. setting up a project directory
+3. initializing cryoswath
+
+The instructions will use the variable `$proj_dir` for the project
+directory. Please set it to a path that suits you like
+`proj_dir=altimetry-project`.
+
+In all cases, consider to download the data dependencies ArcticDEM and
+the RGI glacier and complex shape files into the
+`$proj_dir/data/auxiliary/DEM` and `$proj_dir/data/auxiliary/RGI`
+directories.
+
 ### with git 🐙
 
 advantage: easy pulling bugfixes
 
-Set up a project directory, pull this repo, create virtual
-environment, initialize, and download ArcticDEM and the RGI glacier and complex
-shape files into the `data/auxiliary/DEM` and -`RGI` directories.
-
 ```sh
-proj_dir=altimetry-project
 git clone https://github.com/j-haacker/cryoswath.git $proj_dir
 cd $proj_dir
 python3.11 -m venv .venv
@@ -59,18 +69,28 @@ cryoswath-init
 
 advantage: easy installation
 
-Set up a project directory, create virtual environment, install
-cryoswath, initialize, and download ArcticDEM and the RGI glacier and
-complex shape files into the `data/auxiliary/DEM` and -`RGI`
-directories.
-
 ```sh
-proj_dir=altimetry-project
 mkdir $proj_dir
 cd $proj_dir
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install cryoswath
+cryoswath-init
+```
+
+### with conda 🐍
+
+advantage: most stable dependency resolution
+
+First, choose an environment name and either define `$env_name`, e.g.,
+`env_name=cryoswath`, or adapt the create and activate commands
+accordingly.
+
+```sh
+conda create -n $env_name conda-forge::cryoswath
+conda activate $env_name
+mkdir $proj_dir
+cd $proj_dir
 cryoswath-init
 ```
 
@@ -80,20 +100,14 @@ advantage: will almost always work
 
 *note*: the first time running the docker image require to download ~ 1 Gb
 
-1. If you don't yet have a designated project directory, make one. I will assume its relative path is `pro/ject`
-2. Then execute `docker run -it -p 8888:8888 -v pro/ject:/home/jovyan cryoswath/jupyterlab:v0.2.1`
-3. You will receive an address including a token with which you can connect to the jupyterlab using your browser
-4. Open a regular shell and execute `cryoswath-init`
-5. Open the scripts folder in the explorer and select one of the notebooks or create your own (inside the scripts folder)
-
-### conda
-
-New setup instructions coming soon.
+1. `docker run -it -p 8888:8888 -v $proj_dir$:/home/jovyan cryoswath/jupyterlab:v0.2.1`
+2. You will receive an address including a token with which you can connect to the jupyterlab using your browser
+3. In jupyterlab, open a regular shell and execute `cryoswath-init`
+4. Open the scripts folder in the explorer and select one of the notebooks or create your own (inside the scripts folder)
 
 ### multiple projects
 
-Similar to the above, set up a virtual environment but rather locate it
-in a neutral directory. For each project, run `cryoswath-init`.
+For each project, run `cryoswath-init` from the project directory.
 
 ## 📖 documentation
 
