@@ -80,7 +80,7 @@ def init_project():
     try:    
         Repo.clone_from("https://github.com/j-haacker/cryoswath.git", "data", branch="data")
         Repo.clone_from("https://github.com/j-haacker/cryoswath.git", "scripts", branch="scripts")
-    finally:
+    except:
         os.makedirs("scripts")
     config_file = os.path.join("scripts", "config.ini")
     config = ConfigParser()
