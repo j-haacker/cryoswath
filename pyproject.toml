@@ -60,3 +60,6 @@ Documentation = "https://j-haacker.github.io/cryoswath"
 
 [project.scripts]
 cryoswath-init = "cryoswath.misc:init_project"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
