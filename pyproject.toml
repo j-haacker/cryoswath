@@ -53,10 +53,9 @@ doc = ["sphinx"]
 notebooks = ["ipykernel"]
 
 [project.urls]
-Homepage = "https://github.com/j-haacker/cryoswath"
-Issues = "https://github.com/j-haacker/cryoswath/issues"
 Repository = "https://github.com/j-haacker/cryoswath.git"
 Documentation = "https://j-haacker.github.io/cryoswath"
+Issues = "https://github.com/j-haacker/cryoswath/issues"
 
 [project.scripts]
 cryoswath-init = "cryoswath.misc:init_project"
