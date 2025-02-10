@@ -58,7 +58,6 @@ def noise_val(vec: ArrayLike) -> float:
     # does not significantly differ from previous slices
     # collectively
     for i in range(round(len(vec)/n)-1): # look at first quarter samples
-        print(i, np.mean(vec[:(i+2)*n]), np.mean(vec[(i+1)*n:(i+2)*n]), ttest_ind(vec[:(i+1)*n], vec[(i+1)*n:(i+2)*n]))
         if ttest_ind(vec[:(i+1)*n], vec[(i+1)*n:(i+2)*n], equal_var=False).pvalue < 0.001:
             return np.mean(vec[:(i+1)*n])
     return np.mean(vec)
