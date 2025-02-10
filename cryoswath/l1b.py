@@ -215,7 +215,8 @@ class L1bData(xr.Dataset):
                     # construct a lower envelope of the noise values
                     window_size = 5*20 # on the scale of the tracking loop (1 Hz)
                     fwd = noise.rolling(time_20_ku=window_size).min()
-                    bwd = noise.isel(time_20_ku=slice(None,None,-1)).rolling(time_20_ku=window_size).min().sortby("time_20_ku")
+                    bwd = noise.isel(time_20_ku=slice(None,None,-1)).rolling(time_20_ku=window_size).min()\
+                               .isel(time_20_ku=slice(None,None,-1))
                     # the upper envelope of the two lower envelope builds
                     # the collective lower envelope
                     upper_envelope = xr.concat([fwd, bwd], "tmp").max("tmp")
