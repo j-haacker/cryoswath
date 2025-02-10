@@ -1,14 +1,30 @@
+"""cryoswath.l1b module
+
+It mainly contains the L1bData class, that allows to process ESA
+CryoSat-2 SARIn L1b data to point elevation estimate (L2 data).
+"""
+
+helper_functions = [
+    "noise_val",
+]
+
+__all__ = [
+    "L1bData",
+    *helper_functions
+]
+
 import fnmatch
 import ftplib
 import geopandas as gpd
 import numbers
 import numpy as np
+from numpy.typing import ArrayLike
 import operator
 import os
 import pandas as pd
 from pyproj import Transformer
 import rioxarray as rioxr
-from scipy.stats import median_abs_deviation
+from scipy.stats import median_abs_deviation, ttest_ind
 import shapely
 from threading import Event
 import time
@@ -25,6 +41,28 @@ from .gis import buffer_4326_shp, \
 __all__ = list()
 
 # requires implicitly rasterio(?), flox(?), dask(?)
+
+
+def noise_val(vec: ArrayLike) -> float:
+    """calculate average noise values for waveform
+
+    Args:
+        vec (ArrayLike): First few (well more than 30) samples of power waveform.
+
+    Returns:
+        float: Noise power
+    """
+    # use sufficiently large slices (well more than 6 members)
+    n = 30  # slice_thickness
+    # iterate over slices: use those of which the average
+    # does not significantly differ from previous slices
+    # collectively
+    for i in range(round(len(vec)/n)-1): # look at first quarter samples
+        print(i, np.mean(vec[:(i+2)*n]), np.mean(vec[(i+1)*n:(i+2)*n]), ttest_ind(vec[:(i+1)*n], vec[(i+1)*n:(i+2)*n]))
+        if ttest_ind(vec[:(i+1)*n], vec[(i+1)*n:(i+2)*n], equal_var=False).pvalue < 0.001:
+            return np.mean(vec[:(i+1)*n])
+    return np.mean(vec)
+
 
 class L1bData(xr.Dataset):
     """Class to wrap functions and properties for L1b data.
@@ -60,9 +98,6 @@ class L1bData(xr.Dataset):
             threshold, but does not affect swath start or POCA
             retrieval. Defaults to ("snr", 10).
     """
-    # for now, only CryoSat-2 implemented
-
-    __all__ = list()
 
     def __init__(self, l1b_filename: str, *,
                  waveform_selection: int|pd.Timestamp|list[int|pd.Timestamp]|slice = None,
@@ -176,25 +211,7 @@ class L1bData(xr.Dataset):
             # window width (however, it is designed for much longer
             # tracks)
             if len(tmp.time_20_ku) > 2*(tracking_cycles*20):
-                def noise_val(vec):
-                    # calculate average noise values for slices of the data
-                    # use sufficiently large slices (well more than 6 members)
-                    n = 30  # slice_thickness
-                    noise_val = np.mean(vec[:n])
-                    noise_sqerr = np.var(vec[:n], ddof=1)/29
-                    # iterate over slices: use those of which the average
-                    # does not significantly differ from previous slices
-                    # collectively
-                    for i in range(round(len(tmp.ns_20_ku)/n/4)): # look at first quarter samples
-                        tmp_val = np.mean(vec[(i+1)*n:(i+2)*n])
-                        tmp_sqerr = np.var(vec[(i+1)*n:(i+2)*n], ddof=1)/29
-                        if (noise_val-tmp_val)**2 < (noise_sqerr+tmp_sqerr):
-                            noise_val = np.mean(vec[:(i+2)*n])
-                            noise_sqerr = np.var(vec[:(i+2)*n], ddof=1)/((i+2)*n-1)
-                        else:
-                            break
-                    return noise_val
-                noise = xr.apply_ufunc(noise_val, tmp.power_waveform_20_ku, input_core_dims=[["ns_20_ku"]], output_core_dims=[[]], vectorize=True)
+                noise = xr.apply_ufunc(noise_val, tmp.power_waveform_20_ku.isel(ns_20_ku=slice(int(len(tmp.ns_20_ku)/4))), input_core_dims=[["ns_20_ku"]], output_core_dims=[[]], vectorize=True)
                 def noise_floor(noise):
                     # construct a lower envelope of the noise values
                     window_size = 5*20 # on the scale of the tracking loop (1 Hz)
@@ -289,7 +306,6 @@ class L1bData(xr.Dataset):
         #                                   np.reshape(ref_elev_vector,
         #                                              self.xph_lats.shape)))
         return self
-    __all__.append("append_ambiguous_reference_elevation")
 
     def append_best_fit_phase_index(self, best_column: callable = None) -> Self:
         """Resolve phase difference ambiguity
@@ -338,14 +354,12 @@ class L1bData(xr.Dataset):
                                         output_core_dims=[["ns_20_ku"]])
         self["ph_idx"] = xr.where(self.group_id.isnull(), np.abs(self.xph_elev_diffs).idxmin("phase_wrap_factor"), self.ph_idx)
         return self
-    __all__.append("append_best_fit_phase_index")
     
     def append_elev_diff_to_ref(self):
         if not "xph_ref_elevs" in self.data_vars:
             self = self.append_ambiguous_reference_elevation()
         self["xph_elev_diffs"] = (self.xph_elevs-self.xph_ref_elevs)
         return self
-    __all__.append("append_elev_diff_to_ref")
     
     @classmethod
     def from_id(cls, track_id: str|pd.Timestamp, **kwargs) -> Self:
@@ -367,7 +381,6 @@ class L1bData(xr.Dataset):
                 and file_name.endswith(".nc"):
                     return cls(os.path.join(l1b_data_dir, file_name), **kwargs)
         return cls(download_single_file(track_id), **kwargs)
-    __all__.append("from_id")
 
     def get_rgi_o2(self) -> str:
         """Finds RGIv7 o2 region that contains the track's central lat,
@@ -380,7 +393,6 @@ class L1bData(xr.Dataset):
         return rgi_o2_gpdf[rgi_o2_gpdf.contains(
                 gpd.points_from_xy(self.lon_20_ku, self.lat_20_ku, crs=4326).unary_all(method="coverage").centroid
             )].long_code.values[0]
-    __all__.append("get_rgi_o2")
 
     def phase_jump(self):
         ph_diff_diff = self.ph_diff_complex_smoothed.diff("ns_20_ku")
@@ -391,7 +403,6 @@ class L1bData(xr.Dataset):
         if not "exclude_mask" in self.data_vars:
             self = append_exclude_mask(self)
         return xr.where(self.exclude_mask.sel(ns_20_ku=jump_mask.ns_20_ku), False, jump_mask)
-    __all__.append("phase_jump")
 
     def phase_outlier(self, tol: float|None = None):
         # inputs have to be complex unit vectors
@@ -404,7 +415,6 @@ class L1bData(xr.Dataset):
                    * 2*np.pi / np.tan(speed_of_light/Ku_band_freq/antenna_baseline)
         # ph_diff_tol is small, so approx equal to secant length
         return np.abs(np.exp(1j*self.ph_diff_waveform_20_ku) - self.ph_diff_complex_smoothed) > tol
-    __all__.append("phase_outlier")
 
     # ! rename to something like retrieve_ambiguous_origins
     def locate_ambiguous_origin(self):
@@ -441,7 +451,6 @@ class L1bData(xr.Dataset):
                            xph_elevs=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), (r_x - r_N).transpose("time_20_ku", "ns_20_ku", "phase_wrap_factor").values),
                            xph_thetas=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), theta.transpose("time_20_ku", "ns_20_ku", "phase_wrap_factor").values),
                            xph_dists=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), dist_off_groundtrack.transpose("time_20_ku", "ns_20_ku", "phase_wrap_factor").values))
-    __all__.append("locate_ambiguous_origin")
     
     def ref_range(self) -> xr.DataArray:
         """Calculate distance to center of range window.
@@ -458,7 +467,6 @@ class L1bData(xr.Dataset):
                       + self.load_tide_01
         return self.window_del_20_ku/np.timedelta64(1, 's') / 2 * speed_of_light \
                + np.interp(self.time_20_ku, self.time_cor_01, corrections)
-    __all__.append("ref_range")
     
     def tag_groups(self) -> Self:
         """Identifies and tags wafeform sample groups.
@@ -496,7 +504,6 @@ class L1bData(xr.Dataset):
         group_tags = group_tags.where(group_tags != 0)
         self["group_id"] = group_tags
         return self
-    __all__.append("tag_groups")
 
     def to_l2(self, out_vars: list|dict = None, *,
                     retain_vars: list|dict = None,
@@ -575,7 +582,6 @@ class L1bData(xr.Dataset):
         # l2_data = l2.from_processed_l1b(tmp.squeeze().drop_vars(drop_coords), **kwargs)
         l2_data = l2.from_processed_l1b(tmp.drop_vars(drop_coords), **kwargs)
         return l2_data
-    __all__.append("to_l2")
 
     def unwrap_phase_diff(self) -> Self:
         """Replaces phase difference by unwrapped version.
@@ -604,11 +610,6 @@ class L1bData(xr.Dataset):
                                                         input_core_dims=[["ns_20_ku"], ["ns_20_ku"]],
                                                         output_core_dims=[["ns_20_ku"]])
         return self
-    __all__.append("unwrap_phase_diff")
-
-    __all__ = sorted(__all__)
-
-__all__.append("L1bData")
 
 
 # helper functions ####################################################
