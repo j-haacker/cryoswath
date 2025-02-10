@@ -71,17 +71,20 @@ __all__.extend([  # patches
 
 
 def init_project():
-    if (
+    if not (
         os.path.exists("data")
         or os.path.exists("scripts")
     ):
-        Exception("Make sure \"data\" and \"scripts\" do not exist in your working directory.")
-    try:
-        from git.repo import Repo
-        Repo.clone_from("https://github.com/j-haacker/cryoswath.git", "data", branch="data")
-        Repo.clone_from("https://github.com/j-haacker/cryoswath.git", "scripts", branch="scripts")
-    except:
-        os.makedirs("scripts")
+        try:
+            from git.repo import Repo
+            Repo.clone_from("https://github.com/j-haacker/cryoswath.git", "data", branch="data")
+            Repo.clone_from("https://github.com/j-haacker/cryoswath.git", "scripts", branch="scripts")
+        except:
+            os.makedirs("scripts")
+    else:
+        warnings.warn("Make sure \"data\" and \"scripts\" have a structure like the corresponding "
+                      "repository branches. If your unsure, move your directories to a backup, "
+                      "run `init_project()` again, and restore your backups.")
     config_file = os.path.join("scripts", "config.ini")
     config = ConfigParser()
     if os.path.isfile(config_file):
