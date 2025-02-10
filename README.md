@@ -1,7 +1,7 @@
 # cryoswath
 
 ![GitHub top language](https://img.shields.io/github/languages/top/j-haacker/cryoswath)
-![PyPI - Version](https://img.shields.io/pypi/v/cryoswath)
+![Conda Version](https://img.shields.io/conda/vn/conda-forge/cryoswath)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14825358.svg)](https://doi.org/10.5281/zenodo.14825358)
 ![GitHub License](https://img.shields.io/github/license/j-haacker/cryoswath)
 
