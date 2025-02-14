@@ -140,6 +140,9 @@ Ku_band_freq = 13.575e9
 sample_width = speed_of_light/(320e6*2)/2
 cryosat_id_pattern = re.compile("20[12][0-9][01][0-9][0-3][0-9]T[0-2][0-9]([0-5][0-9]){2}")
 nanoseconds_per_year = 365.25*24*60*60*1e9
+_norm_isf_025 = norm.isf(.025)
+_norm_isf_25 = norm.isf(.25)
+_norm_sf_1 = norm.sf(1)
 
 ## Functions ##########################################################
 
@@ -738,30 +741,7 @@ def interpolate_hypsometrically(ds: xr.Dataset,
 
     # tbi: currently the data needs to have the single dimension "stacked_x_y".
     #      implement automatic stacking and remove the hard coded dim name.
-
-    # below might need fill_missing_coords. naively: should not be important
-    neighbours = ds[main_var].unstack().sortby("x").sortby("y").rolling(x=5, y=5, min_periods=3, center=True)
-    neighbour_count = neighbours.count().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
-    neighbour_mean = neighbours.mean().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
-    if outlier_replace:
-        neighbour_elev = ds[elev].unstack().sortby("x").sortby("y").rolling(x=5, y=5, min_periods=3, center=True)
-        neighbour_elev_mean = neighbour_elev.mean().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
-        neighbour_std = neighbours.std().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
-        neighbour_elev_std = neighbour_elev.std().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
-        noise = (np.abs(ds[main_var]-neighbour_mean)/neighbour_std - np.abs(ds[elev]-neighbour_elev_mean)/neighbour_elev_std) > outlier_limit
-        # print(neighbour_count>=6, noise)
-        ds[main_var] = xr.where(np.logical_and(neighbour_count>=6, noise), np.nan, ds[main_var])
-        # # debugging plot:
-        # import matplotlib.pyplot as plt
-        # noise.astype("int").unstack().sortby("x").sortby("y").T.plot(cmap="cool")
-        # plt.show()
-    # # if the reference elevations contain nan values, this leads to errors
-    # index_with_nan_in_elev = ds[ds[elev].dims[0]]
-    # ds = ds.where(~ds[elev].isnull()).dropna(ds[elev].dims[0])
-    # assign weights if not present. use previously assigned weights to
-    # prevent using previously filled cells from inform a new average.
-    if weights not in ds:
-        ds[weights] = 1/ds[error]**2
+    
     # abort if too little data (checking elevation and data validity).
     # necessary to prevent errors but also introduces data gaps
     if ds[elev].where(ds[error]>0).count() < 24:
@@ -771,6 +751,38 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     if not ds[error].isnull().any() and not outlier_replace:
         # print("nothing to do")
         return select_returns(return_coeffs, ds, np.array([np.nan]*4))
+
+    # below might need fill_missing_coords. naively: should not be important
+    neighbours = ds[main_var].unstack().sortby("x").sortby("y").rolling(x=5, y=5, min_periods=3, center=True)
+    def local_stats(groups):
+        _cnt = groups.count()
+        _mean = groups.mean().where(_cnt >= 6).stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
+        _std = groups.std().where(_cnt >= 6).stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
+        _cnt = _cnt.stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
+        return _mean, _std, _cnt
+    neighbour_mean, neighbour_std, neighbour_count = local_stats(neighbours)
+    if outlier_replace:
+        neighbour_elev = ds[elev].unstack().sortby("x").sortby("y").rolling(x=5, y=5, min_periods=3, center=True)
+        neighbour_elev_mean = neighbour_elev.mean().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
+        neighbour_elev_std = neighbour_elev.std().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
+        noise = (np.abs(ds[main_var]-neighbour_mean)/neighbour_std - np.abs(ds[elev]-neighbour_elev_mean)/neighbour_elev_std) > outlier_limit
+        # print(neighbour_count>=6, noise)
+        # # debugging plot:
+        # import matplotlib.pyplot as plt
+        # # noise.astype("int").unstack().sortby("x").sortby("y").T.plot(cmap="cool")
+        # # (np.abs(ds[main_var]-neighbour_mean)/neighbour_std - outlier_limit - np.abs(ds[elev]-neighbour_elev_mean)/neighbour_elev_std).unstack().sortby("x").sortby("y").T.plot(cmap="cool")
+        # neighbour_count.unstack().sortby("x").sortby("y").T.plot(cmap="cool")
+        # plt.show()
+        ds[main_var] = xr.where(np.logical_and(neighbour_count>=6, noise), np.nan, ds[main_var])
+        neighbours = ds[main_var].unstack().sortby("x").sortby("y").rolling(x=5, y=5, min_periods=3, center=True)
+        neighbour_mean, neighbour_std, neighbour_count = local_stats(neighbours)
+    # # if the reference elevations contain nan values, this leads to errors
+    # index_with_nan_in_elev = ds[ds[elev].dims[0]]
+    # ds = ds.where(~ds[elev].isnull()).dropna(ds[elev].dims[0])
+    # assign weights if not present. use previously assigned weights to
+    # prevent using previously filled cells from inform a new average.
+    if weights not in ds:
+        ds[weights] = 1/ds[error]**2
     group_obj = ds.groupby_bins(elev, define_elev_band_edges(ds[elev]), include_lowest=True)
     elev_bin_means = pd.Series(index=group_obj.groups)
     elev_bin_errs = pd.Series(index=group_obj.groups)
@@ -782,7 +794,7 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         w = group[weights].fillna(0).squeeze()
         avg, _var, effective_samp_size, to_be_filled_mask = weighted_mean_excl_outliers(
             values=vals, weights=w, deviation_factor=outlier_limit, return_mask=True)
-        err = (_var/effective_samp_size)**.5 
+        err = student_t.isf(_norm_sf_1, effective_samp_size) * (_var/effective_samp_size)**.5
         if outlier_replace:
             to_be_filled_mask = np.logical_or(group[main_var].isnull().squeeze(), to_be_filled_mask)
         else:
@@ -875,11 +887,11 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     residuals = ds[main_var]-modelled
     # # debugging plot:
     # import matplotlib.pyplot as plt
-    # (np.abs(neighbour_mean-modelled) - outlier_limit*residuals.std()/(neighbour_count/4)**.5).unstack().sortby("x").sortby("y").T.plot(robust=True, cmap="RdYlBu")
+    # (np.abs(neighbour_mean-modelled) - outlier_limit*neighbour_std.mean()).unstack().sortby("x").sortby("y").T.plot(robust=True, cmap="RdYlBu")
     # plt.show()
     local_deviation = np.logical_and(
         neighbour_count >= 6,
-        np.abs(neighbour_mean-modelled) > outlier_limit*residuals.std()/(neighbour_count/4)**.5
+        np.abs(neighbour_mean-modelled) > outlier_limit*neighbour_std.mean()
     )
     modelled = xr.where(local_deviation, neighbour_mean, modelled)
     if outlier_replace:
@@ -897,10 +909,14 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     # import matplotlib.pyplot as plt
     # plt.scatter(ds[elev].where(~fill_mask).values.flatten(), ds[main_var].values.flatten())
     # plt.scatter(ds[elev].where(fill_mask).values.flatten(), ds[main_var].values.flatten(), ec="tab:purple", fc="none")
-    # # plt.scatter(ds[elev].where(ds[main_var].isnull()).values.flatten(), np.zeros(ds[elev].size), ec="tab:purple", fc="none")
     # plt.scatter(ds[elev].where(ds[main_var].isnull()).values.flatten(), modelled, ec="tab:purple", fc="none")
     # tmp_x_vals = np.linspace(ds[elev].min(), ds[elev].max(), 50)[:,None]
     # plt.plot(tmp_x_vals, fit.predict(design_matrix(scaler.transform(tmp_x_vals))), c="tab:orange")
+    # tmp = 2*neighbour_std.mean().values.item(0)
+    # plt.plot(tmp_x_vals, fit.predict(design_matrix(scaler.transform(tmp_x_vals))) + tmp,
+    #          c="tab:gray", ls="dashed")
+    # plt.plot(tmp_x_vals, fit.predict(design_matrix(scaler.transform(tmp_x_vals))) - tmp,
+    #          c="tab:gray", ls="dashed")
     # plt.errorbar(x_vals, elev_bin_means, elev_bin_errs, ls="none", c="tab:red")
     # if "time" in ds:
     #     plt.title(ds.time.values)#.strftime("%Y-%m-%d")
@@ -916,11 +932,11 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     if "std" in error.lower():
         pass
     elif "iqr" in error.lower():
-        RMSE *= 2*norm.isf(.25)
+        RMSE *= 2*_norm_isf_25
     elif "mad" in error.lower():
-        RMSE *= norm.isf(.25)
+        RMSE *= _norm_isf_25
     elif "95" in error.lower():
-        RMSE *= norm.isf(.025)
+        RMSE *= _norm_isf_025
     # print(fill_mask)
     ds[error] = xr.where(fill_mask, RMSE, ds[error])
     ds[weights] = xr.where(fill_mask, 0, ds[weights])
