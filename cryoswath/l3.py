@@ -365,4 +365,28 @@ def build_path(region_of_interest, timestep_months, spatial_res_meter, aggregati
 __all__.append("build_path")
 
 
+def filter_l3(
+        ds: xr.Dataset,
+        minimum_l2_data_count: int = 5,
+        maximum_l2_spread: float = 30,
+        valid_timesteps_n_of_m: tuple[int, int] = None,
+        enforce_valid_ts_everywhere: bool = False
+) -> xr.Dataset:
+    # tbi: allow passing variable names
+    ds = ds.where(ds._count>=minimum_l2_data_count).where(ds._iqr<maximum_l2_spread)
+    if valid_timesteps_n_of_m is not None:
+        n, m = valid_timesteps_n_of_m
+        if not enforce_valid_ts_everywhere:
+            ds = ds.where(np.logical_and(
+                (~ds._median.isel(time=slice(None, m)).isnull()).sum("time") >= n,
+                (~ds._median.isel(time=slice(-m, None)).isnull()).sum("time") >= n
+            ))
+        else:
+            warnings.warn("not yet tested!")
+            ds = ds.where(
+                (~ds._median.isnull()).rolling(time=m, center=True, min_periods=0).sum() >= n
+            )
+    return ds
+
+
 __all__ = sorted(__all__)
