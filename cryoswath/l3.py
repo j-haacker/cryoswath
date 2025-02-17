@@ -1,3 +1,16 @@
+"""Module to produce and work with level 3 (L3) data"""
+
+__all__ = [
+    "build_dataset",
+    "fill_voids",
+    "filter_l3",
+    "append_elevation_reference",
+    "append_basin_id",
+    "append_basin_group",
+    "cache_l2_data",
+    "preallocate_zarr",
+]
+
 import dask.array
 import datetime
 from dateutil.relativedelta import relativedelta
@@ -108,7 +121,6 @@ def cache_l2_data(region_of_interest: str|shapely.Polygon,
     print("Successfully finished caching for",
           "the region "+region_of_interest if isinstance(region_of_interest, str) else "a custom area",
           f"from {start_datetime} to {end_datetime} +-{relativedelta(months=time_buffer_months)}.")
-__all__.append("cache_l2_data")
 
 
 def preallocate_zarr(
@@ -127,8 +139,7 @@ def preallocate_zarr(
     (xr.merge([array_dummy.rename(stat) for stat in data_vars])
         .rio.write_crs(crs)
         .to_zarr(path, compute=False))
-__all__.append("preallocate_zarr")
-
+    
 
 def build_dataset(region_of_interest: str|shapely.Polygon,
                   start_datetime: str|pd.Timestamp,
@@ -339,7 +350,6 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
                 print(l3_data.head())
     print("\n\n+++++++++++++ successfully build dataset ++++++++++++++\n\n")
     return xr.open_zarr(outfilepath, decode_coords="all")
-__all__.append("build_dataset")
 
 
 def build_path(region_of_interest, timestep_months, spatial_res_meter, aggregation_period = None):
