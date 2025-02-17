@@ -227,6 +227,10 @@ def convert_all_esri_to_feather(dir_path: str = None) -> None:
 __all__.append("convert_all_esri_to_feather")
 
 
+def dataframe_to_rioxr(df, crs):
+    return fill_missing_coords(df.to_xarray()).rio.write_crs(crs)
+
+
 def define_elev_band_edges(elevations: xr.DataArray) -> np.ndarray:
     elev_range_80pctl = float(elevations.quantile([.1, .9]).diff(dim="quantile").values.item(0))
     if elev_range_80pctl >= 500:
@@ -361,6 +365,38 @@ def extend_filename(file_name: str, extension: str) -> str:
     fn_parts = file_name.split(os.path.extsep)
     return os.path.extsep.join(fn_parts[:-1]) + extension + os.path.extsep + fn_parts[-1]
 __all__.append("extend_filename")
+
+
+def fill_missing_coords(l3_data, minx: int = 9e7, miny: int = 9e7,
+                                 maxx: int = -9e7, maxy: int = -9e7
+                        ) -> xr.Dataset:
+    # previous version inspired by user9413641
+    # https://stackoverflow.com/questions/68207994/fill-in-missing-index-positions-in-xarray-dataarray
+    # ! resx, resy = [int(r) for r in l3_data.rio.resolution()]
+    # don't use `rio.resolution()`: this assumes no holes which renders this function obsolete
+    l3_data = l3_data.sortby("x").sortby("y") # ensure monotonix x and y
+    resx, resy = [l3_data[k].diff(k).min().values.astype("int") for k in ["x", "y"]]
+    minx, miny = int(minx+resx/2), int(miny+resy/2)
+    maxx, maxy = int(maxx-resx/2), int(maxy-resy/2)
+    if l3_data["x"].min().values < minx:
+        minx = l3_data["x"].min().values.astype("int")
+    else:
+        minx = int(minx + (l3_data["x"].min().values - minx)%resx - resx)
+    if l3_data["y"].min().values < miny:
+        miny = l3_data["y"].min().values.astype("int")
+    else:
+        miny = int(miny + (l3_data["y"].min().values - miny)%resy - resy)
+    if l3_data["x"].max().values > maxx:
+        maxx = l3_data["x"].max().values.astype("int")
+    else:
+        maxx = int(maxx - (maxx - l3_data["x"].max().values)%resx + resx)
+    if l3_data["y"].max().values > maxy:
+        maxy = l3_data["y"].max().values.astype("int")
+    else:
+        maxy = int(maxy - (maxy - l3_data["y"].max().values)%resy + resy)
+    coords = {"x": range(minx, maxx+1, resx), "y": range(miny, maxy+1, resy)}
+    return l3_data.reindex(coords, fill_value=np.nan)
+__all__.append("fill_missing_coords")
 
 
 # ! make recursive

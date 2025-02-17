@@ -9,9 +9,6 @@ import pandas as pd
 from pyproj.crs import CRS
 import shapely
 import shutil
-import tqdm
-import rasterio.warp
-import rioxarray as rioxr
 import warnings
 import xarray as xr
 
@@ -20,94 +17,6 @@ from .misc import *
 from .gis import buffer_4326_shp, ensure_pyproj_crs, find_planar_crs
 
 __all__ = list()
-    
-
-def append_basin_id(ds: xr.DataArray|xr.Dataset,
-                    basin_gdf: gpd.GeoDataFrame = None,
-                    ) -> xr.Dataset:
-    if basin_gdf is None:
-        raise NotImplementedError("Automatic basin loading is not yet implemented.")
-    if isinstance(ds, xr.DataArray):
-        ds = ds.to_dataset()
-    ds["basin_id"] = xr.DataArray(-1.0, # should be float. is converted later anyway and if defined here, _FillValue
-                                        # can be nan
-                                  coords={k: v for k, v in ds.coords.items() if k in ["x", "y"]},
-                                  dims=["x", "y"],
-                                  attrs={"_FillValue": np.nan})
-    for i in range(len(basin_gdf)):
-        try:
-            subset = ds.basin_id.rio.clip(basin_gdf.iloc[[i]].make_valid())
-        except rioxr.exceptions.NoDataInBounds:
-            continue
-        subset = xr.where(subset.isnull(), ds.basin_id.loc[dict(x=subset.x, y=subset.y)], float(basin_gdf.iloc[i].rgi_id.split("-")[-1]))
-        ds["basin_id"].loc[dict(x=subset.x, y=subset.y)] = subset
-    ds["basin_id"] = xr.where(ds.basin_id==-1, ds.basin_id._FillValue, ds.basin_id)
-    return ds
-__all__.append("append_basin_id")
-    
-
-def append_basin_group(ds: xr.DataArray|xr.Dataset,
-                       basin_gdf: gpd.GeoDataFrame = None,
-                       ) -> xr.Dataset:
-    if basin_gdf is None:
-        raise NotImplementedError("Automatic basin loading is not yet implemented.")
-    if isinstance(ds, xr.DataArray):
-        ds = ds.to_dataset()
-    ds["group_id"] = xr.DataArray(-1.0, # should be float. is converted later anyway and if defined here, _FillValue
-                                        # can be nan
-                                  coords={k: v for k, v in ds.coords.items() if k in ["x", "y"]},
-                                  dims=["x", "y"],
-                                  attrs={"_FillValue": np.nan})
-    for basin_tt_group in basin_gdf.groupby("term_type"):
-        # cut latitude into degree slices
-        n_lat_bins = max(1, round(basin_tt_group[1].cenlat.max()-basin_tt_group[1].cenlat.min()))
-        # below, `observed=True` to grant compatibility with future pandas versions.
-        for basin_lat_group in basin_tt_group[1].groupby(pd.cut(basin_tt_group[1].cenlat, bins=n_lat_bins),
-                                                         observed=True):
-            # similarly, cut longitude
-            n_lon_bins = max(1, round((basin_lat_group[1].cenlon.max()-basin_lat_group[1].cenlon.min())
-                                        * np.cos(np.deg2rad(basin_lat_group[0].mid))))
-            for basin_lon_group in basin_lat_group[1].groupby(pd.cut(basin_lat_group[1].cenlon, bins=n_lon_bins),
-                                                                observed=True):
-                # use all cells with matching term_type in proximity as reference
-                try:
-                    mask = ds.group_id.rio.clip(basin_lon_group[1].make_valid())
-                except rioxr.exceptions.NoDataInBounds:
-                    # if there is no data at all, continue
-                    continue
-                # construct id: sign indicates hemisphere, first digit is termination
-                # type (see RGI doc; 0: land, 1: tidewater, 2: lake, 3: shelf, 9: n/a),
-                # digits 2+3 are latitude, digits 4-6 are longitude east of 0 (0-360)
-                term_type = basin_tt_group[0]
-                lat = basin_lat_group[0].mid
-                lon = basin_lon_group[0].mid
-                group_id = int(f"{np.sign(lat)*term_type:.0f}{np.abs(lat):02.0f}{lon%360:03.0f}")
-                mask = xr.where(mask.isnull(), ds.group_id.loc[dict(x=mask.x, y=mask.y)], group_id)
-                ds["group_id"].loc[dict(x=mask.x, y=mask.y)] = mask
-    ds["group_id"] = xr.where(ds.group_id==-1, ds.group_id._FillValue, ds.group_id)
-    return ds
-__all__.append("append_basin_group")
-
-
-def append_elevation_reference(geospatial_ds: xr.Dataset|xr.DataArray,
-                               ref_elev_name: str = "ref_elev",
-                               dem_file_name_or_path: str = None,
-                               ) -> xr.Dataset:
-    if isinstance(geospatial_ds, xr.DataArray):
-        geospatial_ds = geospatial_ds.to_dataset()
-    # finding a latitude to determine the reference DEM like below may be prone to bugs
-    with get_dem_reader((geospatial_ds if dem_file_name_or_path is None else dem_file_name_or_path)) as dem_reader:
-        with rioxr.open_rasterio(dem_reader) as ref_dem:
-            ref_dem = ref_dem.rio.clip_box(*geospatial_ds.rio.transform_bounds(ref_dem.rio.crs)).squeeze()
-            ref_dem = xr.where(ref_dem==ref_dem._FillValue, np.nan, ref_dem).rio.write_crs(ref_dem.rio.crs)
-            ref_dem.attrs.update({"_FillValue": np.nan})
-    geospatial_ds[ref_elev_name] = xr.align(
-        ref_dem.rio.reproject_match(geospatial_ds, resampling=rasterio.warp.Resampling.average,
-                                    nodata=ref_dem._FillValue),
-        geospatial_ds, join="right")[0]
-    geospatial_ds[ref_elev_name].attrs.update({"_FillValue": np.nan})
-    return geospatial_ds
-__all__.append("append_elevation_reference")
 
 
 # numba does not do help here easily. using the numpy functions is as fast as it gets.
@@ -433,10 +342,6 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
 __all__.append("build_dataset")
 
 
-def dataframe_to_rioxr(df, crs):
-    return fill_missing_coords(df.to_xarray()).rio.write_crs(crs)
-
-
 def build_path(region_of_interest, timestep_months, spatial_res_meter, aggregation_period = None):
     # ! implement parsing aggregation period
     if not isinstance(region_of_interest, str):
@@ -458,119 +363,6 @@ def build_path(region_of_interest, timestep_months, spatial_res_meter, aggregati
     return os.path.join(data_path, "L3", "_".join(
         [region_id, timestep_str, spatial_res_str+".zarr"]))
 __all__.append("build_path")
-
-
-def fill_missing_coords(l3_data, minx: int = 9e7, miny: int = 9e7,
-                                 maxx: int = -9e7, maxy: int = -9e7
-                        ) -> xr.Dataset:
-    # previous version inspired by user9413641
-    # https://stackoverflow.com/questions/68207994/fill-in-missing-index-positions-in-xarray-dataarray
-    # ! resx, resy = [int(r) for r in l3_data.rio.resolution()]
-    # don't use `rio.resolution()`: this assumes no holes which renders this function obsolete
-    l3_data = l3_data.sortby("x").sortby("y") # ensure monotonix x and y
-    resx, resy = [l3_data[k].diff(k).min().values.astype("int") for k in ["x", "y"]]
-    minx, miny = int(minx+resx/2), int(miny+resy/2)
-    maxx, maxy = int(maxx-resx/2), int(maxy-resy/2)
-    if l3_data["x"].min().values < minx:
-        minx = l3_data["x"].min().values.astype("int")
-    else:
-        minx = int(minx + (l3_data["x"].min().values - minx)%resx - resx)
-    if l3_data["y"].min().values < miny:
-        miny = l3_data["y"].min().values.astype("int")
-    else:
-        miny = int(miny + (l3_data["y"].min().values - miny)%resy - resy)
-    if l3_data["x"].max().values > maxx:
-        maxx = l3_data["x"].max().values.astype("int")
-    else:
-        maxx = int(maxx - (maxx - l3_data["x"].max().values)%resx + resx)
-    if l3_data["y"].max().values > maxy:
-        maxy = l3_data["y"].max().values.astype("int")
-    else:
-        maxy = int(maxy - (maxy - l3_data["y"].max().values)%resy + resy)
-    coords = {"x": range(minx, maxx+1, resx), "y": range(miny, maxy+1, resy)}
-    return l3_data.reindex(coords, fill_value=np.nan)
-__all__.append("fill_missing_coords")
-
-
-def fill_voids(ds: xr.Dataset,
-               main_var: str,
-               error: str,
-               *,
-               elev: str = "ref_elev",
-               per: tuple[str] = ("basin", "basin_group"),
-               basin_shapes: gpd.GeoDataFrame = None,
-                outlier_limit: float = 5,
-                outlier_replace: bool = False,
-                outlier_iterations: int = 1,
-                fit_sanity_check: dict = None,
-               ) -> xr.Dataset:
-    # mention memory footprint in docstring: reindexing leaks and takes a s**t ton of memory. roughly 5-10x l3_data size in total.
-    if any([grouper not in ["basin", "basin_group"] for grouper in per]):
-        raise NotImplementedError
-    if basin_shapes is None:
-        # figure out region. limited to o2 meanwhile
-        print("... loading basin outlines")
-        o2code = find_region_id(ds, scope="o2")
-        basin_shapes = load_o2region(o2code, product="glaciers").to_crs(ds.rio.crs)
-    else:
-        basin_shapes = basin_shapes.to_crs(ds.rio.crs)
-    # remove time steps without any data
-    if "time" in ds.dims:
-        ds = ds.dropna("time", how="all")
-    # polygons will be repaired in later functions. it may be more
-    # transparent to do it here.
-    ds = fill_missing_coords(ds, *basin_shapes.total_bounds)
-    if elev not in ds: # tbi: the ref elevs should always be loaded again after fill missing coords!
-        print("... appending reference DEM to dataset")
-        ds = append_elevation_reference(ds, ref_elev_name=elev)
-    ds[elev] = ds[elev].rio.clip(basin_shapes.make_valid())
-    ref_elev_da = ds[elev].copy()
-    for grouper in per:
-        res = []
-        if grouper=="basin":
-            if "basin_id" not in ds:
-                print("... assigning basin ids to grid cells")
-                ds = append_basin_id(ds, basin_shapes)
-            print("... interpolating per basin")
-            for label, group in (pbar := tqdm.tqdm(ds.groupby(ds.basin_id.where(~ds[elev].isnull()), squeeze=False))):
-                pbar.set_description(f"... current basin id: {label:.0f}")
-                if (
-                    ("time" in group and (~group[main_var].isnull()).any("time").sum() > 100)
-                    or (~group[main_var].isnull()).sum() > 100
-                ):
-                    group = discard_frontal_retreat_zone(group, "basin_id", main_var, elev)
-                res.append(interpolate_hypsometrically(group, main_var=main_var, elev=elev, error=error, outlier_replace=outlier_replace, outlier_limit=outlier_limit, fit_sanity_check=fit_sanity_check))
-        elif grouper=="basin_group":
-            if "group_id" not in ds:
-                print("... assigning basin groups to grid cells")
-                ds = append_basin_group(ds, basin_shapes)
-                if "basin_id" in ds:
-                    ds["group_id"] = xr.where(ds.basin_id.isnull(), np.nan, ds.group_id)
-            print("... interpolating per basin group")
-            for label, group in (pbar := tqdm.tqdm(ds.groupby(ds.group_id.where(~ds[elev].isnull()), squeeze=False))):
-                pbar.set_description(f"... current group id: {label:.0f}")
-                res.append(interpolate_hypsometrically(group, main_var=main_var, elev=elev, error=error, outlier_replace=False, outlier_limit=outlier_limit, fit_sanity_check=fit_sanity_check))
-        ds = xr.concat(res, "stacked_x_y")
-        for each in res:
-            each.close()
-        del res
-        ds = ds.unstack("stacked_x_y")
-        ds = ds.sortby("x").sortby("y")
-        # reindexing fills gaps that were created by the grouping. if there were
-        # gaps, the reference elevations need to be filled/resetted.
-        ds = ds.reindex_like(ref_elev_da, method=None, copy=False)
-        ds[elev] = ref_elev_da
-    # if there are still missing data, temporally interpolate (gaps shorter than 1 year)
-    if "time" in ds.dims:
-        ds[main_var] = ds[main_var].interpolate_na(dim="time", method="linear", max_gap=pd.Timedelta(days=367))
-    # if there are still missing data, interpolate region wide ("global hypsometric interpolation")
-    ds = interpolate_hypsometrically((ds.where(~ds.basin_id.isnull()) if "basin_id" in ds else ds).rio.clip(basin_shapes.make_valid()).stack({"stacked_x_y": ["x", "y"]}).dropna("stacked_x_y", how="all"), main_var=main_var, elev=elev, error=error, outlier_replace=False, outlier_limit=outlier_limit, fit_sanity_check=fit_sanity_check)
-    # if there are STILL missing data, temporally interpolate remaining gaps and fill the margins
-    if "time" in ds.dims:
-        ds[main_var] = ds[main_var].interpolate_na(dim="time", method="linear").bfill("time").ffill("time")
-    ds = fill_missing_coords(ds.unstack("stacked_x_y").sortby("x").sortby("y"))
-    return ds
-__all__.append("fill_voids")
 
 
 __all__ = sorted(__all__)
