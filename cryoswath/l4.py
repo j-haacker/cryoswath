@@ -215,6 +215,21 @@ def fill_voids(ds: xr.Dataset,
 __all__.append("fill_voids")
 
 
+def extract_trend(ds: xr.Dataset) -> xr.Dataset:
+    """Simply reads trend and its std from fit results
+
+    Args:
+        ds (xr.Dataset): Fit results with "trend" model param.
+
+    Returns:
+        xr.Dataset: Input without "curvefit_co*" variables and with "trend".
+    """
+    ds["trend"] = ds.curvefit_coefficients.sel(param="trend")
+    ds["trend_std"] = ds.curvefit_covariance.sel(cov_i="trend", cov_j="trend")**.5
+    return ds.drop_vars(["curvefit_coefficients", "curvefit_covariance", "param", "cov_i", "cov_j"])
+__all__.append("extract_trend")
+
+
 def fit_trend(data: xr.Dataset, *,
             pivot: pd.DateOffset, # ? best class?
             timestep_months: int = 12,
