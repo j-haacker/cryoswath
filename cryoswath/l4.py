@@ -1,3 +1,12 @@
+"""Module to produce level 4 (L4) data"""
+
+__all__ = [
+    "difference_to_reference_dem",
+    "fit_trend_per_cell",
+    "filter_cell_trend_fit_res",
+    "trend_with_seasons",
+]
+
 from datetime import datetime
 import geopandas as gpd
 import numpy as np
@@ -20,8 +29,6 @@ from .misc import (
     load_glacier_outlines,
     nanoseconds_per_year)
 from . import misc, l3
-
-__all__ = list()
 
 # notes for future development of `differential_change` and
 # `relative_change`:
@@ -264,13 +271,38 @@ def difference_to_reference_dem(l3_data: xr.Dataset,
         res.drop_encoding().to_netcdf(os.path.join(misc.l4_path, save_to_disk if isinstance(save_to_disk, str)
                                    else region_id+"__elev_diff_to_ref_at_monthly_intervals.nc"))
     return res
-__all__.append("difference_to_reference_dem")
 
 
-def fit_trend__seasons_removed(l3_ds: xr.Dataset) -> xr.Dataset:
-    l3_ds = l3_ds.where(np.logical_and((~l3_ds._median.isel(time=slice(None, 30)).isnull()).sum("time")>5, (~l3_ds._median.isel(time=slice(-30, None)).isnull()).sum("time")>5))
-    if "chunks" in l3_ds._median:
-        l3_ds = l3_ds.chunk(dict(time=-1))
+def filter_cell_trend_fit_res(
+        fit_res: xr.Dataset,
+        maximum_trend_variance: float = 2,
+        maximum_amplitude_variance: float | dict[str, float] = 100,
+) -> xr.Dataset:
+    mask = fit_res.curvefit_covariance.sel(cov_i="trend", cov_j="trend") \
+           < maximum_trend_variance
+    if (
+        any([var_.lower().startswith("amp") for var_ in fit_res.cov_i])
+        and maximum_amplitude_variance is not None
+    ):
+        for var_ in fit_res.cov_i:
+            if isinstance(maximum_amplitude_variance, float):
+                max_amp = maximum_amplitude_variance
+            else:
+                max_amp = maximum_amplitude_variance[var_]
+            mask = np.logical_and(
+                mask,
+                fit_res.curvefit_covariance.sel(cov_i=var_, cov_j=var_) < max_amp
+            )
+    return fit_res.where(mask)
+
+
+def fit_trend_per_cell(
+        l3_ds: xr.Dataset,
+        outlier_replace: bool = False,
+        outlier_limit: float = 2,
+) -> xr.Dataset:
+    # tbi: allow passing variable names
+    l3_ds = l3.filter_l3(l3_ds, minimum_l2_data_count=5, maximum_l2_spread=30)
     fit_res = l3_ds._median.transpose('time', 'y', 'x').curvefit(
         coords="time",
         func=trend_with_seasons,
@@ -286,26 +318,56 @@ def fit_trend__seasons_removed(l3_ds: xr.Dataset) -> xr.Dataset:
                                 *[fit_res.sel(param=p) for p in fit_res.param],
                                 dask="allowed")
     residuals = l3_ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
-    res_std = residuals.std("time")
-    outlier = np.abs(residuals)-2*res_std>0
-    fit_rm_outl_res = l3_ds._median.where(~outlier).transpose('time', 'y', 'x').curvefit(
-        coords="time",
-        func=trend_with_seasons,
-        param_names=["trend", "offset", "amp_yearly", "phase_yearly", "amp_semiyr", "phase_semiyr"],
-        bounds={"amp_yearly": (0, np.inf),
-                "phase_yearly": [-np.pi, np.pi],
-                "amp_semiyr": (0, np.inf),
-                "phase_semiyr": [-np.pi, np.pi]},
-        errors="ignore"
-    ).rio.write_crs(l3_ds.rio.crs)
-    model_vals = xr.apply_ufunc(trend_with_seasons,
-                                l3_ds.time.astype("int"),
-                                *[fit_rm_outl_res.sel(param=p) for p in fit_rm_outl_res.param],
-                                dask="allowed")
-    residuals = l3_ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
-    fit_rm_outl_res["RMSE"] = (residuals**2).mean("time")**.5
-    return fit_rm_outl_res.rio.write_crs(l3_ds.rio.crs)
-__all__.append("fit_trend__seasons_removed")
+    if outlier_replace:
+        res_std = residuals.std("time")
+        outlier = np.abs(residuals) > outlier_limit * res_std
+        fit_res = l3_ds._median.where(~outlier).transpose('time', 'y', 'x').curvefit(
+            coords="time",
+            func=trend_with_seasons,
+            param_names=["trend", "offset", "amp_yearly", "phase_yearly", "amp_semiyr", "phase_semiyr"],
+            bounds={"amp_yearly": (0, np.inf),
+                    "phase_yearly": [-np.pi, np.pi],
+                    "amp_semiyr": (0, np.inf),
+                    "phase_semiyr": [-np.pi, np.pi]},
+            errors="ignore"
+        )
+        model_vals = xr.apply_ufunc(trend_with_seasons,
+                                    l3_ds.time.astype("int"),
+                                    *[fit_res.sel(param=p) for p in fit_res.param],
+                                    dask="allowed")
+        residuals = l3_ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
+    fit_res["RMSE"] = (residuals**2).mean("time")**.5
+    return fit_res.rio.write_crs(l3_ds.rio.crs)
+
+
+def timeseries_from_gridded(ds: xr.Dataset):  # FIXME revise!!
+    assert(not (ds._iqr > 300).any())
+    assert(ds._iqr.where(ds._count<=3).isnull().all())
+    try:
+        decmp_res = seasonal_decompose(ds._median.mean(["x", "y"]), period=12, extrapolate_trend=True)
+    except ValueError as err:
+        print(str(err))
+    results = pd.DataFrame(columns=["elevation", "uncertainty"])
+    results["elevation"] = ds._median.mean(["x", "y"]).to_series() - decmp_res.trend[0]
+    num_cells = (~ds._median.isnull()).sum(["x", "y"])
+    tmp = []
+    for da, r in [(ds._iqr.where(ds._count>3), 5),
+                  (ds._iqr.where(ds._count.isnull()), 5),
+                  (50 * xr.ones_like(ds._iqr).where(ds._iqr.isnull()).where(~ds._median.isnull()), 11)]:
+        # print("Radius", r)
+        # print(da.count(["x", "y"]).mean())
+        da = da.chunk(time=1, x=-1, y=-1)
+        tmp.append(
+            # ((da * payload**.5).mean(["x", "y"])
+            ((da * (~da.isnull()).rolling(x=r, y=r, center=True, min_periods=r//2).sum()**.5).mean(["x", "y"])
+             / misc._norm_isf_25)**2  # / da.count(["x", "y"]) * da.count(["x", "y"])
+             / num_cells
+        )
+    results["uncertainty"] = (xr.concat(tmp, dim="tmp").sum("tmp")**.5
+                              * 2  # 2sigma-uncertainties
+                              ).to_series()
+    results.sort_index(axis=1, inplace=True)
+    return results
 
 
 def differential_change(data: xr.Dataset,
@@ -337,7 +399,6 @@ def relative_change(l3_data: xr.Dataset,
                     save_to_disk: str|bool = True,
                     ) -> xr.Dataset:
     # ! needs to be tested
-
     if isinstance(basin_shapes, str):
         basin_shapes = gpd.GeoSeries(load_glacier_outlines(basin_shapes, "glaciers", False))
     if glac_ref_year < 2010:
@@ -370,7 +431,6 @@ __all__.append("relative_change")
 def trend_with_seasons(t_ns, trend, offset, amp_yearly, phase_yearly, amp_semiyr, phase_semiyr):
     t_yr = t_ns / (365.25*24*60*60*1e9)
     return offset + t_yr * trend + np.abs(amp_yearly)*np.exp((2*np.pi*t_yr-phase_yearly)*1j).real + np.abs(amp_semiyr)*np.exp((4*np.pi*t_yr-phase_semiyr)*1j).real
-__all__.append("trend_with_seasons")
 
 
 __all__ = sorted(__all__)
