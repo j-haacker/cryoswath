@@ -5,6 +5,7 @@ __all__ = [
     "fit_trend_per_cell",
     "filter_cell_trend_fit_res",
     "trend_with_seasons",
+    "l3_to_trend_raster",
 ]
 
 from datetime import datetime
@@ -17,6 +18,7 @@ import rioxarray as rioxr
 import scipy.special
 from scipy.stats import norm
 from statsmodels.tsa.seasonal import seasonal_decompose
+import sys
 import tqdm
 import xarray as xr
 
@@ -27,6 +29,7 @@ from .misc import (
     get_dem_reader,
     interpolate_hypsometrically,
     load_glacier_outlines,
+    load_o2region,
     nanoseconds_per_year)
 from . import misc, l3
 
@@ -290,16 +293,16 @@ def difference_to_reference_dem(l3_data: xr.Dataset,
 
 def filter_cell_trend_fit_res(
         fit_res: xr.Dataset,
-        maximum_trend_variance: float = 2,
-        maximum_amplitude_variance: float | dict[str, float] = 100,
+        maximum_trend_variance: float = 2.,
+        maximum_amplitude_variance: float | dict[str, float] = 100.,
 ) -> xr.Dataset:
     mask = fit_res.curvefit_covariance.sel(cov_i="trend", cov_j="trend") \
            < maximum_trend_variance
     if (
-        any([var_.lower().startswith("amp") for var_ in fit_res.cov_i])
+        any([var_.lower().startswith("amp") for var_ in fit_res.cov_i.values])
         and maximum_amplitude_variance is not None
     ):
-        for var_ in fit_res.cov_i:
+        for var_ in fit_res.cov_i.values:
             if isinstance(maximum_amplitude_variance, float):
                 max_amp = maximum_amplitude_variance
             else:
@@ -353,6 +356,40 @@ def fit_trend_per_cell(
         residuals = l3_ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
     fit_res["RMSE"] = (residuals**2).mean("time")**.5
     return fit_res.rio.write_crs(l3_ds.rio.crs)
+
+
+def l3_to_trend_raster(
+        in_file: str = None,
+        out_file: str = None,
+        start_time: str = None,
+        end_time: str = None,
+) -> xr.Dataset:
+    import argparse
+    if hasattr(sys, "ps1"):
+        args = argparse.Namespace(**locals())
+    else:
+        parser = argparse.ArgumentParser(description="Calculates trend for each grid cell")
+        parser.add_argument("-f", "--in-file", type=str, help="Path to input file or store")
+        parser.add_argument("-o", "--out-file", type=str, help="Path to output geotiff")
+        parser.add_argument("-s", "--start-time", type=str, help="First time step to evaluate")
+        parser.add_argument("-e", "--end-time", type=str, help="First time step to evaluate")
+        args = parser.parse_args()
+
+    out = (
+        xr.open_zarr(args.in_file, decode_coords="all")\
+            .sel(time=slice(args.start_time, args.end_time))
+            .load()
+            .pipe(l3.filter_l3, valid_timesteps_n_of_m=(3, 12))
+            .pipe(fit_trend_per_cell, True)
+            .pipe(filter_cell_trend_fit_res)
+            .pipe(extract_trend)
+            .pipe(fill_voids, "trend", "trend_std", outlier_limit=2)
+    )
+
+    if args.out_file is not None:
+        out[["trend", "trend_std"]].transpose("y", "x").rio.to_raster(args.out_file)
+    if hasattr(sys, "ps1"):
+        return out
 
 
 def timeseries_from_gridded(ds: xr.Dataset):  # FIXME revise!!

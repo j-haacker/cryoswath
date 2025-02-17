@@ -59,6 +59,7 @@ Issues = "https://github.com/j-haacker/cryoswath/issues"
 
 [project.scripts]
 cryoswath-init = "cryoswath.misc:init_project"
+l3-to-trend-raster = "cryoswath.l4:l3_to_trend_raster"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
