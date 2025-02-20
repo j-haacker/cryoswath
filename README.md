@@ -123,6 +123,7 @@ cryoswath will point you to the required resources.
 
 ## 🐛 known issues
 
+- ESA's data server is not available from all internet service providers
 - projected RGI basins sometimes "invalid"
     -> add `.make_valid()` if it is missing somewhere
 - it has mostly been tested for the Arctic
