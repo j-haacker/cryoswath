@@ -175,6 +175,29 @@ class L1bData(xr.Dataset):
                                                         lats2=tmp.lat_20_ku[1:], lons2=tmp.lon_20_ku[1:])[0],
                                      3)
         tmp = tmp.assign(azimuth=("time_20_ku", np.poly1d(poly3fit_params)(np.arange(len(tmp.time_20_ku)-.5))%360))
+        if not use_original_noise_estimates:
+            # consider noise estimates over periods on the scale of
+            # multiple tracking cycles to avoid loss-of-lock issues
+            tracking_cycles = 5
+            # the implemented algorithm uses a forward and a backward
+            # rolling minimum. to work it needs at least twice the
+            # window width (however, it is designed for much longer
+            # tracks)
+            if len(tmp.time_20_ku) > 2*(tracking_cycles*20):
+                noise = xr.apply_ufunc(noise_val, tmp.power_waveform_20_ku.isel(ns_20_ku=slice(int(len(tmp.ns_20_ku)/4))), input_core_dims=[["ns_20_ku"]], output_core_dims=[[]], vectorize=True)
+                def noise_floor(noise):
+                    # construct a lower envelope of the noise values
+                    window_size = 5*20 # on the scale of the tracking loop (1 Hz)
+                    fwd = noise.rolling(time_20_ku=window_size).min()
+                    bwd = noise.isel(time_20_ku=slice(None,None,-1)).rolling(time_20_ku=window_size).min()\
+                               .isel(time_20_ku=slice(None,None,-1))
+                    # the upper envelope of the two lower envelope builds
+                    # the collective lower envelope
+                    upper_envelope = xr.concat([fwd, bwd], "tmp").max("tmp")
+                    return upper_envelope.fillna(upper_envelope.max())
+                tmp["noise_power_20_ku"] = noise_floor(noise)
+        else:
+            tmp["noise_power_20_ku"] = tmp.transmit_pwr_20_ku*10**(tmp.noise_power_20_ku/10)
         # waveform selection is meant to be versatile. however the handling seems fragile
         if waveform_selection is not None:
             if not isinstance(waveform_selection, slice) \
@@ -201,29 +224,6 @@ class L1bData(xr.Dataset):
             # print("drop bad. cur buf:", buffer)
             for flag_var, flag_val_list in drop_waveforms_by_flag.items():
                 tmp = drop_waveform(tmp, build_flag_mask(tmp[flag_var], flag_val_list))
-        if not use_original_noise_estimates:
-            # consider noise estimates over periods on the scale of
-            # multiple tracking cycles to avoid loss-of-lock issues
-            tracking_cycles = 5
-            # the implemented algorithm uses a forward and a backward
-            # rolling minimum. to work it needs at least twice the
-            # window width (however, it is designed for much longer
-            # tracks)
-            if len(tmp.time_20_ku) > 2*(tracking_cycles*20):
-                noise = xr.apply_ufunc(noise_val, tmp.power_waveform_20_ku.isel(ns_20_ku=slice(int(len(tmp.ns_20_ku)/4))), input_core_dims=[["ns_20_ku"]], output_core_dims=[[]], vectorize=True)
-                def noise_floor(noise):
-                    # construct a lower envelope of the noise values
-                    window_size = 5*20 # on the scale of the tracking loop (1 Hz)
-                    fwd = noise.rolling(time_20_ku=window_size).min()
-                    bwd = noise.isel(time_20_ku=slice(None,None,-1)).rolling(time_20_ku=window_size).min()\
-                               .isel(time_20_ku=slice(None,None,-1))
-                    # the upper envelope of the two lower envelope builds
-                    # the collective lower envelope
-                    upper_envelope = xr.concat([fwd, bwd], "tmp").max("tmp")
-                    return upper_envelope.fillna(upper_envelope.max())
-                tmp["noise_power_20_ku"] = noise_floor(noise)
-        else:
-            tmp["noise_power_20_ku"] = tmp.transmit_pwr_20_ku*10**(tmp.noise_power_20_ku/10)
         if drop_outside is not None and drop_outside != False:
             # ! needs to be tidied up:
             # (also: simplify needed?)
@@ -261,6 +261,8 @@ class L1bData(xr.Dataset):
             except IndexError:
                 warnings.warn("No waveforms left on glacier. Proceeding with empty dataset.")
                 tmp = tmp.isel(time_20_ku=[])
+        if len(tmp.time_20_ku) == 0:
+            pass  # implement clearly signalling that track did not return data while not breaking pipelines
         tmp = tmp.assign_attrs(coherence_threshold=coherence_threshold,
                                power_threshold=power_threshold,
                                smooth_phase_difference=smooth_phase_difference)
