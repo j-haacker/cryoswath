@@ -12,6 +12,7 @@ import shutil
 from tables import NaturalNameWarning
 # from threading import Event, Thread
 import warnings
+import xarray as xr
 
 from .misc import *
 from . import l1b
@@ -244,7 +245,7 @@ def from_id(track_idx: pd.DatetimeIndex|str, *,
 __all__.append("from_id")
 
 
-def from_processed_l1b(l1b_data: l1b.L1bData = None,
+def from_processed_l1b(l1b_data: xr.Dataset = None,
                        max_elev_diff: float = None,
                        **gdf_kwargs) -> gpd.GeoDataFrame:
     # kwargs: crs, max_elev_diff, input to GeoDataFrame
@@ -376,12 +377,12 @@ def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwar
             cs_full_file_names = kwargs["cs_full_file_names"]
         else:
             cs_full_file_names = load_cs_full_file_names(update="no")
-        l1b_kwargs = filter_kwargs(l1b.L1bData, kwargs)
-        to_l2_kwargs = filter_kwargs(l1b.L1bData.to_l2, kwargs, blacklist=["swath_or_poca"],
+        l1b_kwargs = filter_kwargs(l1b.read_esa_l1b, kwargs)
+        to_l2_kwargs = filter_kwargs(l1b.to_l2, kwargs, blacklist=["swath_or_poca"],
                                      whitelist=["crs", "max_elev_diff"])
         # print("debug 1", idx, flush=True)
         try:
-            tmp = l1b.L1bData.from_id(cs_time_to_id(idx), **l1b_kwargs)
+            tmp = l1b.from_id(cs_time_to_id(idx), **l1b_kwargs)
             # print("debug 2", idx, flush=True)
             # the below is necessary to pass a specific dem file. skipped by default.
             if "dem_file_name_or_path" in kwargs:
