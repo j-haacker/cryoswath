@@ -43,6 +43,14 @@ __all__ = list()
 # requires implicitly rasterio(?), flox(?), dask(?)
 
 
+def if_not_empty(func):
+    def wrapper(l1b_data, *args, **kwargs):
+        if len(l1b_data.time_20_ku) == 0:
+            return l1b_data
+        return func(l1b_data, *args, **kwargs)
+    return wrapper
+
+
 def noise_val(vec: ArrayLike) -> float:
     """calculate average noise values for waveform
 
@@ -175,6 +183,9 @@ class L1bData(xr.Dataset):
                                                         lats2=tmp.lat_20_ku[1:], lons2=tmp.lon_20_ku[1:])[0],
                                      3)
         tmp = tmp.assign(azimuth=("time_20_ku", np.poly1d(poly3fit_params)(np.arange(len(tmp.time_20_ku)-.5))%360))
+        tmp["power_waveform_20_ku"] = tmp.pwr_waveform_20_ku \
+                                       * tmp.echo_scale_factor_20_ku \
+                                       * 2**tmp.echo_scale_pwr_20_ku
         if not use_original_noise_estimates:
             # consider noise estimates over periods on the scale of
             # multiple tracking cycles to avoid loss-of-lock issues
@@ -216,9 +227,6 @@ class L1bData(xr.Dataset):
                               tolerance=np.timedelta64(25, "ms"))
         if mask_coherence_gt1:
             tmp["coherence_waveform_20_ku"] = tmp.coherence_waveform_20_ku.where(tmp.coherence_waveform_20_ku <= 1)
-        tmp["power_waveform_20_ku"] = tmp.pwr_waveform_20_ku \
-                                       * tmp.echo_scale_factor_20_ku \
-                                       * 2**tmp.echo_scale_pwr_20_ku
         if drop_waveforms_by_flag:
             # see available flags using data.flag.attrs["flag_meanings"]
             # print("drop bad. cur buf:", buffer)
@@ -261,24 +269,24 @@ class L1bData(xr.Dataset):
             except IndexError:
                 warnings.warn("No waveforms left on glacier. Proceeding with empty dataset.")
                 tmp = tmp.isel(time_20_ku=[])
-        if len(tmp.time_20_ku) == 0:
-            pass  # implement clearly signalling that track did not return data while not breaking pipelines
         tmp = tmp.assign_attrs(coherence_threshold=coherence_threshold,
                                power_threshold=power_threshold,
                                smooth_phase_difference=smooth_phase_difference)
-        # find and store POCAs and swath-starts
-        tmp = append_poca_and_swath_idxs(tmp)
-        # use lowpass-filtered phase difference at POCA
-        tmp = append_smoothed_complex_phase(tmp)
-        tmp["ph_diff_waveform_20_ku"] = xr.where(
-            tmp.ns_20_ku==tmp.poca_idx,
-            xr.apply_ufunc(np.angle, tmp.ph_diff_complex_smoothed),
-            tmp.ph_diff_waveform_20_ku
-        )
         # add potential phase wrap factor for later use
         tmp = tmp.assign_coords({"phase_wrap_factor": np.arange(-3, 4)})
+        if len(tmp.time_20_ku) > 0:
+            # find and store POCAs and swath-starts
+            tmp = append_poca_and_swath_idxs(tmp)
+            # use lowpass-filtered phase difference at POCA
+            tmp = append_smoothed_complex_phase(tmp)
+            tmp["ph_diff_waveform_20_ku"] = xr.where(
+                tmp.ns_20_ku==tmp.poca_idx,
+                xr.apply_ufunc(np.angle, tmp.ph_diff_complex_smoothed),
+                tmp.ph_diff_waveform_20_ku
+            )
         super().__init__(data_vars=tmp.data_vars, coords=tmp.coords, attrs=tmp.attrs)
     
+    @if_not_empty
     def append_ambiguous_reference_elevation(self, dem_file_name_or_path: str = None):
         # !! This function causes much of the computation time. I suspect that
         # sparse memory accessing can be minimized with some tricks. However,
@@ -309,6 +317,7 @@ class L1bData(xr.Dataset):
         #                                              self.xph_lats.shape)))
         return self
 
+    @if_not_empty
     def append_best_fit_phase_index(self, best_column: callable = None) -> Self:
         """Resolve phase difference ambiguity
 
@@ -357,6 +366,7 @@ class L1bData(xr.Dataset):
         self["ph_idx"] = xr.where(self.group_id.isnull(), np.abs(self.xph_elev_diffs).idxmin("phase_wrap_factor"), self.ph_idx)
         return self
     
+    @if_not_empty
     def append_elev_diff_to_ref(self):
         if not "xph_ref_elevs" in self.data_vars:
             self = self.append_ambiguous_reference_elevation()
@@ -391,11 +401,14 @@ class L1bData(xr.Dataset):
         Returns:
             str: RGI v7 `long_code`
         """
+        if len(self.time_20_ku) == 0:
+            return "no region; empty track"
         rgi_o2_gpdf = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
         return rgi_o2_gpdf[rgi_o2_gpdf.contains(
                 gpd.points_from_xy(self.lon_20_ku, self.lat_20_ku, crs=4326).unary_all(method="coverage").centroid
             )].long_code.values[0]
 
+    @if_not_empty
     def phase_jump(self):
         ph_diff_diff = self.ph_diff_complex_smoothed.diff("ns_20_ku")
         # ! implement choosing tolerance
@@ -406,6 +419,7 @@ class L1bData(xr.Dataset):
             self = append_exclude_mask(self)
         return xr.where(self.exclude_mask.sel(ns_20_ku=jump_mask.ns_20_ku), False, jump_mask)
 
+    @if_not_empty
     def phase_outlier(self, tol: float|None = None):
         # inputs have to be complex unit vectors
         # if no tol provided calc equivalent of 300 m at nadir
@@ -418,6 +432,7 @@ class L1bData(xr.Dataset):
         # ph_diff_tol is small, so approx equal to secant length
         return np.abs(np.exp(1j*self.ph_diff_waveform_20_ku) - self.ph_diff_complex_smoothed) > tol
 
+    @if_not_empty
     # ! rename to something like retrieve_ambiguous_origins
     def locate_ambiguous_origin(self):
         """Calculates all "possible" echo origins.
@@ -470,6 +485,7 @@ class L1bData(xr.Dataset):
         return self.window_del_20_ku/np.timedelta64(1, 's') / 2 * speed_of_light \
                + np.interp(self.time_20_ku, self.time_cor_01, corrections)
     
+    @if_not_empty
     def tag_groups(self) -> Self:
         """Identifies and tags wafeform sample groups.
 
@@ -585,6 +601,7 @@ class L1bData(xr.Dataset):
         l2_data = l2.from_processed_l1b(tmp.drop_vars(drop_coords), **kwargs)
         return l2_data
 
+    @if_not_empty
     def unwrap_phase_diff(self) -> Self:
         """Replaces phase difference by unwrapped version.
 
