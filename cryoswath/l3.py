@@ -91,20 +91,11 @@ def cache_l2_data(region_of_interest: str|shapely.Polygon,
     # implicit `simplify`` which would come at the cost of data if not
     # buffered
     bbox = gpd.GeoSeries(buffer_4326_shp(region_of_interest, 3_000), crs=4326).to_crs(crs)
-
-    # l2 backs up the cache when writing to it. however, there should not be a backup, yet. if there is, throw an error
-    if os.path.isfile(cache_fullname+"__backup"):
-        raise Exception(f"Backup exists unexpectedly at {cache_fullname+'__backup'}. This may point to a running process. If this is a relict, remove it manually.")
-    try:
-        l2.from_id(cs_tracks.index, reprocess=reprocess, save_or_return="save", cache_fullname=cache_fullname, crs=crs,
+    with sandbox_write_to(cache_fullname) as target:
+        l2.from_id(cs_tracks.index, reprocess=reprocess, save_or_return="save", cache_fullname=target, crs=crs,
                    bbox=bbox, max_elev_diff=max_elev_diff,
                    **filter_kwargs(l2.from_id, l2_from_id_kwargs,
                                    blacklist=["cache", "max_elev_diff", "save_or_return", "reprocess"]))
-    finally:
-        # remove l2's cache backup. it is not needed as no more writing takes
-        # place but it occupies some 10 Gb disk space.
-        if os.path.isfile(cache_fullname+"__backup"):
-            os.remove(cache_fullname+"__backup")
     print("Successfully finished caching for",
           "the region "+region_of_interest if isinstance(region_of_interest, str) else "a custom area",
           f"from {start_datetime} to {end_datetime} +-{relativedelta(months=time_buffer_months)}.")
@@ -201,19 +192,11 @@ def build_dataset(region_of_interest: str|shapely.Polygon,
     # buffered
     region_of_interest = gpd.GeoSeries(buffer_4326_shp(region_of_interest, 3_000), crs=4326).to_crs(crs).make_valid()
 
-    # l2 backs up the cache when writing to it. however, there should not be a backup, yet. if there is, throw an error
-    if os.path.isfile(cache_fullname+"__backup"):
-        raise Exception(f"Backup exists unexpectedly at {cache_fullname+'__backup'}. This may point to a running process. If this is a relict, remove it manually.")
-    try:
-        l2.from_id(cs_tracks.index, reprocess=reprocess, save_or_return="save", cache_fullname=cache_fullname, crs=crs,
+    with sandbox_write_to(cache_fullname) as target:
+        l2.from_id(cs_tracks.index, reprocess=reprocess, save_or_return="save", cache_fullname=target, crs=crs,
                    bbox=region_of_interest, max_elev_diff=max_elev_diff,
                    **filter_kwargs(l2.from_id, l2_from_id_kwargs,
                                    blacklist=["cache", "max_elev_diff", "save_or_return", "reprocess"]))
-    finally:
-        # remove l2's cache backup. it is not needed as no more writing takes
-        # place but it occupies some 10 Gb disk space.
-        if os.path.isfile(cache_fullname+"__backup"):
-            os.remove(cache_fullname+"__backup")
     ext_t_axis = pd.date_range(start_datetime-pd.DateOffset(months=time_buffer_months),
                                end_datetime+pd.DateOffset(months=time_buffer_months),
                                freq=f"{timestep_months}MS")
