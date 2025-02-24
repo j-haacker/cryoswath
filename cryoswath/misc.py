@@ -1,3 +1,54 @@
+"""Miscellaneous helper functions"""
+
+__all__ = [
+    # functions
+    "binary_chache",
+    "convert_all_esri_to_feather",
+    "cs_id_to_time",
+    "cs_time_to_id",
+    "define_elev_band_edges",
+    "discard_frontal_retreat_zone",
+    "extend_filename",
+    "fill_missing_coords",
+    "filter_kwargs",
+    "find_region_id",
+    "flag_outliers",
+    "flag_translator",
+    "ftp_cs2_server",
+    "gauss_filter_DataArray",
+    "get_dem_reader",
+    "interpolate_hypsometrically",
+    "load_basins",
+    "load_cs_full_file_names",
+    "load_cs_ground_tracks",
+    "load_glacier_outlines",
+    "load_o1region",
+    "load_o2region",
+    "merge_l2_cache",
+    "nan_unique",
+    "request_workers",
+    "repair_l2_cache",
+    "rgi_code_translator",
+    "rgi_o1region_translator",
+    "rgi_o2region_translator",
+    "sandbox_write_to",
+    "warn_with_traceback",
+    "weighted_mean_excl_outliers",
+    "xycut",
+    # variables
+    "antenna_baseline",
+    "cryosat_id_pattern",
+    "Ku_band_freq",
+    "nanoseconds_per_year",
+    "sample_width",
+    "speed_of_light",
+    "WGS84_ellpsoid",
+    # patches
+    "monkeypatch",
+    "patched_xr_decode_tDel",
+    "patched_xr_decode_scaling",
+]  # path variables are currently defined below
+
 from configparser import ConfigParser
 from contextlib import contextmanager
 from dateutil.relativedelta import relativedelta
@@ -33,46 +84,6 @@ import warnings
 import xarray as xr
 
 from . import gis
-
-# make contents accessible
-__all__ = [  # variables
-    "antenna_baseline",
-    "cryosat_id_pattern",
-    "Ku_band_freq",
-    "nanoseconds_per_year",
-    "sample_width",
-    "speed_of_light",
-    "WGS84_ellpsoid",
-]
-
-__all__.extend(
-    [  # functions
-        "cs_id_to_time",
-        "cs_time_to_id",
-        "define_elev_band_edges",
-        "discard_frontal_retreat_zone",
-        "find_region_id",
-        "flag_translator",
-        "ftp_cs2_server",
-        "gauss_filter_DataArray",
-        "get_dem_reader",
-        "interpolate_hypsometrically",
-        "load_basins",
-        "load_cs_full_file_names",
-        "load_cs_ground_tracks",
-        "load_o1region",
-        "load_o2region",
-        "sandbox_write_to",
-    ]
-)
-
-__all__.extend(
-    [  # patches
-        "monkeypatch",
-        "patched_xr_decode_tDel",
-        "patched_xr_decode_scaling",
-    ]
-)
 
 
 def init_project():
@@ -170,16 +181,12 @@ _norm_sf_1 = norm.sf(1)
 class binary_chache:
     """Helper class to download via ftp."""
 
-    __all__ = []
-
     def __init__(self):
         self._cache = bytearray()
 
     @property
     def cache(self):
         return self._cache.decode()
-
-    __all__.append("cache")
 
     @cache.deleter
     def cache(self):
@@ -192,11 +199,6 @@ class binary_chache:
             new_part (binary): New part.
         """
         self._cache.extend(new_part)
-
-    __all__.append("add")
-
-
-__all__.append("binary_chache")
 
 
 def cs_id_to_time(cs_id: str) -> pd.Timestamp:
@@ -249,9 +251,6 @@ def convert_all_esri_to_feather(dir_path: str = None) -> None:
                         print("Error message:", str(err))
                     else:
                         print("Removed", associated_file)
-
-
-__all__.append("convert_all_esri_to_feather")
 
 
 def dataframe_to_rioxr(df, crs):
@@ -397,9 +396,6 @@ def extend_filename(file_name: str, extension: str) -> str:
     )
 
 
-__all__.append("extend_filename")
-
-
 def fill_missing_coords(
     l3_data, minx: int = 9e7, miny: int = 9e7, maxx: int = -9e7, maxy: int = -9e7
 ) -> xr.Dataset:
@@ -429,9 +425,6 @@ def fill_missing_coords(
         maxy = int(maxy - (maxy - l3_data["y"].max().values) % resy + resy)
     coords = {"x": range(minx, maxx + 1, resx), "y": range(miny, maxy + 1, resy)}
     return l3_data.reindex(coords, fill_value=np.nan)
-
-
-__all__.append("fill_missing_coords")
 
 
 # ! make recursive
@@ -475,9 +468,6 @@ def filter_kwargs(
         for k, v in kwargs.items()
         if (k in params and k not in blacklist) or k in whitelist
     }
-
-
-__all__.append("filter_kwargs")
 
 
 def find_region_id(location: any, scope: str = "o2") -> str:
@@ -604,9 +594,6 @@ def flag_outliers(
         )
     # print(deviation_limit)
     return deviation > deviation_limit
-
-
-__all__.append("flag_outliers")
 
 
 def flag_translator(cs_l1b_flag):
@@ -1205,9 +1192,6 @@ def interpolate_hypsometrically(
     )
 
 
-__all__.append("interpolate_hypsometrically")
-
-
 def load_cs_full_file_names(update: str = "no") -> pd.Series:
     """Loads a pandas.Series of the original CryoSat-2 L1b file names.
 
@@ -1672,9 +1656,6 @@ def load_glacier_outlines(
     return out
 
 
-__all__.append("load_glacier_outlines")
-
-
 def merge_l2_cache(
     source_glob: str,
     destination_file_name: str,
@@ -1718,9 +1699,6 @@ def merge_l2_cache(
                         # print(name, "is not an end node")
 
                 h5_src.visititems(collect_groups)
-
-
-__all__.append("merge_l2_cache")
 
 
 def patch_gatekeeper(module_version: str, rules: list[dict]):
@@ -1867,9 +1845,6 @@ def nan_unique(data: np.typing.ArrayLike) -> list:
     return [element for element in np.unique(data) if not np.isnan(element)]
 
 
-__all__.append("nan_unique")
-
-
 def request_workers(
     task_func: callable, n_workers: int, result_queue: queue.Queue = None
 ) -> queue.Queue:
@@ -1902,9 +1877,6 @@ def request_workers(
         worker_thread = threading.Thread(target=worker, daemon=True)
         worker_thread.start()
     return task_queue
-
-
-__all__.append("request_workers")
 
 
 def repair_l2_cache(
@@ -1993,9 +1965,6 @@ def repair_l2_cache(
             os.remove(tmp_h5)
 
 
-__all__.append("repair_l2_cache")
-
-
 def rgi_code_translator(input: str | list[str], out_type: str = "full_name") -> str:
     """Translate o1 or o2 codes to region names
 
@@ -2021,9 +1990,6 @@ def rgi_code_translator(input: str | list[str], out_type: str = "full_name") -> 
     raise ValueError(f"Input {input} not understood. Pass RGI o1- or o2region codes.")
 
 
-__all__.append("rgi_code_translator")
-
-
 def rgi_o1region_translator(input: int, out_type: str = "full_name") -> str:
     """Finds region name for given RGI o1 number.
 
@@ -2042,9 +2008,6 @@ def rgi_o1region_translator(input: int, out_type: str = "full_name") -> str:
         columns=["o1region", "full_name", "long_code"],
     ).set_index("o1region")
     return lut.loc[f"{input:02d}", out_type]
-
-
-__all__.append("rgi_o1region_translator")
 
 
 def rgi_o2region_translator(o1: int, o2: int, out_type: str = "full_name") -> str:
@@ -2082,9 +2045,6 @@ def rgi_o2region_translator(o1: int, o2: int, out_type: str = "full_name") -> st
     return lut.loc[f"{o1:02d}-{o2:02d}", out_type]
 
 
-__all__.append("rgi_o2region_translator")
-
-
 @contextmanager
 def sandbox_write_to(target: str):
     # ! other functions depend on the "__backup" extension
@@ -2114,9 +2074,6 @@ def warn_with_traceback(message, category, filename, lineno, file=None, line=Non
     log = file if hasattr(file, "write") else sys.stderr
     traceback.print_stack(file=log)
     log.write(warnings.formatwarning(message, category, filename, lineno, line))
-
-
-__all__.append("warn_with_traceback")
 
 
 def weighted_mean_excl_outliers(
@@ -2181,9 +2138,6 @@ def weighted_mean_excl_outliers(
     return avg, _var, effective_sample_size
 
 
-__all__.append("weighted_mean_excl_outliers")
-
-
 def xycut(
     data: gpd.GeoDataFrame,
     x_chunk_meter=3 * 4 * 5 * 1_000,
@@ -2225,9 +2179,6 @@ def xycut(
                 )
             )
     return chunks
-
-
-__all__.append("xycut")
 
 
 __all__ = sorted(__all__)
