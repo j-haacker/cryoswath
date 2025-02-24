@@ -61,6 +61,7 @@ __all__.extend([  # functions
     "load_cs_ground_tracks",
     "load_o1region",
     "load_o2region",
+    "sandbox_write_to",
 ])
 
 __all__.extend([  # patches
@@ -1713,6 +1714,18 @@ def rgi_o2region_translator(o1: int, o2: int, out_type: str = "full_name") -> st
                           ).set_index("o2region")
     return lut.loc[f"{o1:02d}-{o2:02d}", out_type]
 __all__.append("rgi_o2region_translator")
+
+
+@contextmanager
+def sandbox_write_to(target: str):
+    # ! other functions depend on the "__backup" extension
+    if os.path.isfile(target+"__backup"):
+        raise Exception(f"Backup exists unexpectedly at {target+'__backup'}. This may point to a running process. If this is a relict, remove it manually.")
+    try:
+        yield target
+    finally:
+        if os.path.isfile(target+"__backup"):
+            os.remove(target+"__backup")
 
 
 def update_email(email):
