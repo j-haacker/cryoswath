@@ -45,47 +45,57 @@ __all__ = [  # variables
     "WGS84_ellpsoid",
 ]
 
-__all__.extend([  # functions
-    "cs_id_to_time",
-    "cs_time_to_id",
-    "define_elev_band_edges",
-    "discard_frontal_retreat_zone",
-    "find_region_id",
-    "flag_translator",
-    "ftp_cs2_server",
-    "gauss_filter_DataArray",
-    "get_dem_reader",
-    "interpolate_hypsometrically",
-    "load_basins",
-    "load_cs_full_file_names", 
-    "load_cs_ground_tracks",
-    "load_o1region",
-    "load_o2region",
-    "sandbox_write_to",
-])
+__all__.extend(
+    [  # functions
+        "cs_id_to_time",
+        "cs_time_to_id",
+        "define_elev_band_edges",
+        "discard_frontal_retreat_zone",
+        "find_region_id",
+        "flag_translator",
+        "ftp_cs2_server",
+        "gauss_filter_DataArray",
+        "get_dem_reader",
+        "interpolate_hypsometrically",
+        "load_basins",
+        "load_cs_full_file_names",
+        "load_cs_ground_tracks",
+        "load_o1region",
+        "load_o2region",
+        "sandbox_write_to",
+    ]
+)
 
-__all__.extend([  # patches
-    "monkeypatch",
-    "patched_xr_decode_tDel",
-    "patched_xr_decode_scaling",
-])
+__all__.extend(
+    [  # patches
+        "monkeypatch",
+        "patched_xr_decode_tDel",
+        "patched_xr_decode_scaling",
+    ]
+)
 
 
 def init_project():
-    if not (
-        os.path.exists("data")
-        or os.path.exists("scripts")
-    ):
+    if not (os.path.exists("data") or os.path.exists("scripts")):
         try:
             from git.repo import Repo
-            Repo.clone_from("https://github.com/j-haacker/cryoswath.git", "data", branch="data")
-            Repo.clone_from("https://github.com/j-haacker/cryoswath.git", "scripts", branch="scripts")
+
+            Repo.clone_from(
+                "https://github.com/j-haacker/cryoswath.git", "data", branch="data"
+            )
+            Repo.clone_from(
+                "https://github.com/j-haacker/cryoswath.git",
+                "scripts",
+                branch="scripts",
+            )
         except:
             os.makedirs("scripts")
     else:
-        warnings.warn("Make sure \"data\" and \"scripts\" have a structure like the corresponding "
-                      "repository branches. If your unsure, move your directories to a backup, "
-                      "run `init_project()` again, and restore your backups.")
+        warnings.warn(
+            'Make sure "data" and "scripts" have a structure like the corresponding '
+            "repository branches. If your unsure, move your directories to a backup, "
+            "run `init_project()` again, and restore your backups."
+        )
     config_file = os.path.join("scripts", "config.ini")
     config = ConfigParser()
     if os.path.isfile(config_file):
@@ -107,28 +117,34 @@ if os.path.isfile("config.ini"):
     l4_path = os.path.join(data_path, "L4")
     tmp_path = os.path.join(data_path, "tmp")
     aux_path = os.path.join(data_path, "auxiliary")
-    cs_ground_tracks_path = os.path.join(aux_path, "CryoSat-2_SARIn_ground_tracks.feather")
+    cs_ground_tracks_path = os.path.join(
+        aux_path, "CryoSat-2_SARIn_ground_tracks.feather"
+    )
     rgi_path = os.path.join(aux_path, "RGI")
     dem_path = os.path.join(aux_path, "DEM")
 
-    __all__.extend([  # pathes
-        "aux_path",
-        "cs_ground_tracks_path",
-        "data_path",
-        "dem_path",
-        "l1b_path",
-        "l2_swath_path",
-        "l2_poca_path",
-        "l3_path",
-        "l4_path",
-        "rgi_path",
-        "tmp_path",
-    ])
+    __all__.extend(
+        [  # pathes
+            "aux_path",
+            "cs_ground_tracks_path",
+            "data_path",
+            "dem_path",
+            "l1b_path",
+            "l2_swath_path",
+            "l2_poca_path",
+            "l3_path",
+            "l4_path",
+            "rgi_path",
+            "tmp_path",
+        ]
+    )
 
 else:
-    warnings.warn("Failed to define path variables. You will not be able to use many cryoswath "
-                  "functions. Make sure have run `cryoswath-init` and your working directory"
-                  " is \"scripts\".")
+    warnings.warn(
+        "Failed to define path variables. You will not be able to use many cryoswath "
+        "functions. Make sure have run `cryoswath-init` and your working directory"
+        ' is "scripts".'
+    )
 
 ## Config #############################################################
 WGS84_ellpsoid = Geod(ellps="WGS84")
@@ -138,26 +154,31 @@ pd.options.mode.copy_on_write = True
 ## Constants ##########################################################
 antenna_baseline = 1.1676
 Ku_band_freq = 13.575e9
-sample_width = speed_of_light/(320e6*2)/2
-cryosat_id_pattern = re.compile("20[12][0-9][01][0-9][0-3][0-9]T[0-2][0-9]([0-5][0-9]){2}")
-nanoseconds_per_year = 365.25*24*60*60*1e9
-_norm_isf_025 = norm.isf(.025)
-_norm_isf_25 = norm.isf(.25)
+sample_width = speed_of_light / (320e6 * 2) / 2
+cryosat_id_pattern = re.compile(
+    "20[12][0-9][01][0-9][0-3][0-9]T[0-2][0-9]([0-5][0-9]){2}"
+)
+nanoseconds_per_year = 365.25 * 24 * 60 * 60 * 1e9
+_norm_isf_025 = norm.isf(0.025)
+_norm_isf_25 = norm.isf(0.25)
 _norm_sf_1 = norm.sf(1)
 
 ## Functions ##########################################################
 
+
 # security issue?
-class binary_chache():
-    """Helper class to download via ftp.
-    """
+class binary_chache:
+    """Helper class to download via ftp."""
+
     __all__ = []
+
     def __init__(self):
         self._cache = bytearray()
-    
+
     @property
     def cache(self):
         return self._cache.decode()
+
     __all__.append("cache")
 
     @cache.deleter
@@ -171,7 +192,10 @@ class binary_chache():
             new_part (binary): New part.
         """
         self._cache.extend(new_part)
+
     __all__.append("add")
+
+
 __all__.append("binary_chache")
 
 
@@ -216,7 +240,7 @@ def convert_all_esri_to_feather(dir_path: str = None) -> None:
         else:
             print("Converted", shp_file)
             basename = os.path.extsep.join(shp_file.split(os.path.extsep)[:-1])
-            for associated_file in glob.glob(basename+".*", root_dir=dir_path):
+            for associated_file in glob.glob(basename + ".*", root_dir=dir_path):
                 if associated_file.split(os.path.extsep)[-1] != "feather":
                     try:
                         os.remove(os.path.join(dir_path, associated_file))
@@ -225,6 +249,8 @@ def convert_all_esri_to_feather(dir_path: str = None) -> None:
                         print("Error message:", str(err))
                     else:
                         print("Removed", associated_file)
+
+
 __all__.append("convert_all_esri_to_feather")
 
 
@@ -233,21 +259,25 @@ def dataframe_to_rioxr(df, crs):
 
 
 def define_elev_band_edges(elevations: xr.DataArray) -> np.ndarray:
-    elev_range_80pctl = float(elevations.quantile([.1, .9]).diff(dim="quantile").values.item(0))
+    elev_range_80pctl = float(
+        elevations.quantile([0.1, 0.9]).diff(dim="quantile").values.item(0)
+    )
     if elev_range_80pctl >= 500:
         elev_bin_width = 50
     else:
-        elev_bin_width = elev_range_80pctl/10
-    return np.arange(elevations.min(), elevations.max()+elev_bin_width, elev_bin_width)
+        elev_bin_width = elev_range_80pctl / 10
+    return np.arange(
+        elevations.min(), elevations.max() + elev_bin_width, elev_bin_width
+    )
 
 
 def discard_frontal_retreat_zone(
-        ds,
-        replace_vars: list,
-        main_var: str = "_median",
-        elev: str = "ref_elev",
-        mode: str = None,
-        threshold: float = None
+    ds,
+    replace_vars: list,
+    main_var: str = "_median",
+    elev: str = "ref_elev",
+    mode: str = None,
+    threshold: float = None,
 ) -> xr.Dataset:
     """Unsets values in zone of frontal retreat
 
@@ -271,13 +301,13 @@ def discard_frontal_retreat_zone(
     Returns:
         xr.Dataset: _description_
     """
-    
+
     if mode is None:
         if "time" in ds:
             mode = "temporal"
         else:
             mode = "trend"
-    
+
     if threshold is None:
         if mode == "temporal":
             threshold = 10
@@ -287,35 +317,33 @@ def discard_frontal_retreat_zone(
             ValueError("Value for 'mode' not allowed.")
 
     def custom_count(data, **kwargs):
-        return ((~np.isnan(data)).sum(0)>5).sum()>4
-    
+        return ((~np.isnan(data)).sum(0) > 5).sum() > 4
+
     def median_mad(data, **kwargs):
         return np.nanmedian(median_abs_deviation(data, 0, **kwargs))
 
     try:
         # print(define_elev_band_edges(ds[elev]))
-        bands = ds[main_var].groupby_bins(ds[elev], define_elev_band_edges(ds[elev])[:5], include_lowest=True)
+        bands = ds[main_var].groupby_bins(
+            ds[elev], define_elev_band_edges(ds[elev])[:5], include_lowest=True
+        )
     except ValueError as err:
         if str(err) == "arange: cannot compute length":
             return ds
         raise
 
     if mode == "temporal":
-        if (
-            (ds[main_var].count("time") > 5).sum() < 5
-             or not bands.reduce(custom_count, ...).all()
-        ):
+        if (ds[main_var].count("time") > 5).sum() < 5 or not bands.reduce(
+            custom_count, ...
+        ).all():
             return ds
         tmp = bands.reduce(median_mad, ..., nan_policy="omit")
     else:
-        if (
-            ds[main_var].count() < 5
-            or not (bands.count() > 4).all()
-        ):
+        if ds[main_var].count() < 5 or not (bands.count() > 4).all():
             # print(ds[main_var].count(), bands.count())
             return ds
         tmp = np.abs(bands.mean())
-    
+
     if not (tmp > threshold).any():
         # print(ds.basin_id.values.item(0), "too small.", ds[elev].count().values.item(0), "cells in total")
         return ds
@@ -331,7 +359,7 @@ def discard_frontal_retreat_zone(
         replace_vars = [replace_vars]
     for var_ in replace_vars:
         ds[var_] = xr.where(ds[elev] < front_bin.left, np.nan, ds[var_])
-    
+
     return ds
 
 
@@ -344,10 +372,10 @@ def discard_frontal_retreat_zone(
 #     with requests.get(url, stream=True) as r:
 #         r.raise_for_status()
 #         with open(local_filename, 'wb') as f:
-#             for chunk in r.iter_content(chunk_size=8192): 
+#             for chunk in r.iter_content(chunk_size=8192):
 #                 # If you have chunk encoded response uncomment if
 #                 # and set chunk_size parameter to None.
-#                 #if chunk: 
+#                 #if chunk:
 #                 f.write(chunk)
 #     return local_filename
 # __all__.append("download_file")
@@ -364,48 +392,56 @@ def extend_filename(file_name: str, extension: str) -> str:
         str: As input, including extension.
     """
     fn_parts = file_name.split(os.path.extsep)
-    return os.path.extsep.join(fn_parts[:-1]) + extension + os.path.extsep + fn_parts[-1]
+    return (
+        os.path.extsep.join(fn_parts[:-1]) + extension + os.path.extsep + fn_parts[-1]
+    )
+
+
 __all__.append("extend_filename")
 
 
-def fill_missing_coords(l3_data, minx: int = 9e7, miny: int = 9e7,
-                                 maxx: int = -9e7, maxy: int = -9e7
-                        ) -> xr.Dataset:
+def fill_missing_coords(
+    l3_data, minx: int = 9e7, miny: int = 9e7, maxx: int = -9e7, maxy: int = -9e7
+) -> xr.Dataset:
     # previous version inspired by user9413641
     # https://stackoverflow.com/questions/68207994/fill-in-missing-index-positions-in-xarray-dataarray
     # ! resx, resy = [int(r) for r in l3_data.rio.resolution()]
     # don't use `rio.resolution()`: this assumes no holes which renders this function obsolete
-    l3_data = l3_data.sortby("x").sortby("y") # ensure monotonix x and y
+    l3_data = l3_data.sortby("x").sortby("y")  # ensure monotonix x and y
     resx, resy = [l3_data[k].diff(k).min().values.astype("int") for k in ["x", "y"]]
-    minx, miny = int(minx+resx/2), int(miny+resy/2)
-    maxx, maxy = int(maxx-resx/2), int(maxy-resy/2)
+    minx, miny = int(minx + resx / 2), int(miny + resy / 2)
+    maxx, maxy = int(maxx - resx / 2), int(maxy - resy / 2)
     if l3_data["x"].min().values < minx:
         minx = l3_data["x"].min().values.astype("int")
     else:
-        minx = int(minx + (l3_data["x"].min().values - minx)%resx - resx)
+        minx = int(minx + (l3_data["x"].min().values - minx) % resx - resx)
     if l3_data["y"].min().values < miny:
         miny = l3_data["y"].min().values.astype("int")
     else:
-        miny = int(miny + (l3_data["y"].min().values - miny)%resy - resy)
+        miny = int(miny + (l3_data["y"].min().values - miny) % resy - resy)
     if l3_data["x"].max().values > maxx:
         maxx = l3_data["x"].max().values.astype("int")
     else:
-        maxx = int(maxx - (maxx - l3_data["x"].max().values)%resx + resx)
+        maxx = int(maxx - (maxx - l3_data["x"].max().values) % resx + resx)
     if l3_data["y"].max().values > maxy:
         maxy = l3_data["y"].max().values.astype("int")
     else:
-        maxy = int(maxy - (maxy - l3_data["y"].max().values)%resy + resy)
-    coords = {"x": range(minx, maxx+1, resx), "y": range(miny, maxy+1, resy)}
+        maxy = int(maxy - (maxy - l3_data["y"].max().values) % resy + resy)
+    coords = {"x": range(minx, maxx + 1, resx), "y": range(miny, maxy + 1, resy)}
     return l3_data.reindex(coords, fill_value=np.nan)
+
+
 __all__.append("fill_missing_coords")
 
 
 # ! make recursive
-def filter_kwargs(func: callable,
-                  kwargs: dict, *,
-                  blacklist: list[str] = None,
-                  whitelist: list[str] = None,
-                  ) -> dict:
+def filter_kwargs(
+    func: callable,
+    kwargs: dict,
+    *,
+    blacklist: list[str] = None,
+    whitelist: list[str] = None,
+) -> dict:
     """Automatically reduces dict to accepted inputs
 
     Detects expected key-word arguments of a function and only passes
@@ -422,14 +458,25 @@ def filter_kwargs(func: callable,
     Returns:
         dict: Filtered kw-args.
     """
+
     def ensure_list(tmp_list):
-        if tmp_list is None: return []
-        elif isinstance(tmp_list, str): return [tmp_list]
-        else: return tmp_list
+        if tmp_list is None:
+            return []
+        elif isinstance(tmp_list, str):
+            return [tmp_list]
+        else:
+            return tmp_list
+
     blacklist = ensure_list(blacklist)
     whitelist = ensure_list(whitelist)
     params = inspect.signature(func).parameters
-    return {k: v for k, v in kwargs.items() if (k in params and k not in blacklist) or k in whitelist}
+    return {
+        k: v
+        for k, v in kwargs.items()
+        if (k in params and k not in blacklist) or k in whitelist
+    }
+
+
 __all__.append("filter_kwargs")
 
 
@@ -456,46 +503,65 @@ def find_region_id(location: any, scope: str = "o2") -> str:
     """
     if isinstance(location, xr.DataArray) or isinstance(location, xr.Dataset):
         left, lower, right, upper = location.rio.transform_bounds(4326)
-        location = shapely.Point(left+(right-left)/2, lower+(upper-lower)/2)
+        location = shapely.Point(left + (right - left) / 2, lower + (upper - lower) / 2)
     if isinstance(location, gpd.GeoDataFrame):
         location = location.geometry
     if isinstance(location, gpd.GeoSeries):
         location = location.to_crs(4326).union_all("coverage")
     if not isinstance(location, shapely.Geometry):
-        if isinstance(location, tuple) or (isinstance(location, list) and len(location)<3):
+        if isinstance(location, tuple) or (
+            isinstance(location, list) and len(location) < 3
+        ):
             location = shapely.Point(location[1], location[0])
         else:
             location = shapely.Polygon([(coord[1], coord[0]) for coord in location])
-    rgi_o2_gpdf = gpd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"))
+    rgi_o2_gpdf = gpd.read_feather(
+        os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather")
+    )
     rgi_region = rgi_o2_gpdf[rgi_o2_gpdf.contains(location.centroid)]
     if scope == "o1":
         return rgi_region["o1region"].values[0]
     elif scope == "o2":
         out = rgi_region["o2region"].values[0]
         if out == "05-01":
-            sub_o2 = gpd.GeoSeries([load_o2region(f"05-1{i+1}").union_all("coverage").envelope for i in range(5)], crs=4326)
+            sub_o2 = gpd.GeoSeries(
+                [
+                    load_o2region(f"05-1{i+1}").union_all("coverage").envelope
+                    for i in range(5)
+                ],
+                crs=4326,
+            )
             contains_location = sub_o2.contains(location)
             if not any(contains_location):
-                raise Exception(f"Location {location} not in any of Greenlands subregions (N,W,SW,SE,E).")
+                raise Exception(
+                    f"Location {location} not in any of Greenlands subregions (N,W,SW,SE,E)."
+                )
             elif sum(contains_location) > 1:
-                raise Exception(f"Location {location} is in multiple subregions (N,W,SW,SE,E).")
+                raise Exception(
+                    f"Location {location} is in multiple subregions (N,W,SW,SE,E)."
+                )
             out = f"05-1{int(sub_o2[contains_location].index.values)+1}"
         return out
     elif scope == "basin":
         rgi_glacier_gpdf = load_o2region(rgi_region["o2region"].values[0], "glaciers")
-        return rgi_glacier_gpdf[rgi_glacier_gpdf.contains(location.centroid)]["rgi_id"].values[0]
-    raise Exception("`scope` can be one of \"o1\", \"o2\", or \"basin\".")
+        return rgi_glacier_gpdf[rgi_glacier_gpdf.contains(location.centroid)][
+            "rgi_id"
+        ].values[0]
+    raise Exception('`scope` can be one of "o1", "o2", or "basin".')
 
     # ! tbi: if only small region/one glacier, make get its
     # to_planar = Transformer.from_crs(CRS.from_epsg(4326), CRS.from_epsg(3413))
-    # if shapely.ops.transform(to_planar.transform, region_outlines).area > 
+    # if shapely.ops.transform(to_planar.transform, region_outlines).area >
 
 
-def flag_outliers(data, *,
-                  weights = None,
-                  stat: callable = np.median,
-                  deviation_factor: float = 3,
-                  scaling_factor: float = 2*2**.5*scipy.special.erfinv(.5)):
+def flag_outliers(
+    data,
+    *,
+    weights=None,
+    stat: callable = np.median,
+    deviation_factor: float = 3,
+    scaling_factor: float = 2 * 2**0.5 * scipy.special.erfinv(0.5),
+):
     """Flags data that is considered outlier given a set of assumptions
 
     Data too far from a reference point is marked. Works analogous comparing
@@ -533,15 +599,19 @@ def flag_outliers(data, *,
     if weights is None:
         deviation_limit = stat(deviation) * deviation_factor * scaling_factor
     else:
-        deviation_limit = stat(deviation, weights=weights) * deviation_factor * scaling_factor
+        deviation_limit = (
+            stat(deviation, weights=weights) * deviation_factor * scaling_factor
+        )
     # print(deviation_limit)
     return deviation > deviation_limit
+
+
 __all__.append("flag_outliers")
 
 
 def flag_translator(cs_l1b_flag):
     """Retrieves the meaning of a flag from the attributes.
-    
+
     If attributes contain "flag_masks", it converts the value to a
     binary mask and returns a list of flags. Else it expects
     "flag_values" and interprets and returns the flag as one of a set of
@@ -558,9 +628,12 @@ def flag_translator(cs_l1b_flag):
         flag.
     """
     if "flag_masks" in cs_l1b_flag.attrs:
-        flag_dictionary = pd.Series(data=cs_l1b_flag.attrs["flag_meanings"].split(" "),
-                                    index=np.log2(np.abs(cs_l1b_flag.attrs["flag_masks"].astype("int64")
-                                                        )).astype("int")).sort_index()
+        flag_dictionary = pd.Series(
+            data=cs_l1b_flag.attrs["flag_meanings"].split(" "),
+            index=np.log2(
+                np.abs(cs_l1b_flag.attrs["flag_masks"].astype("int64"))
+            ).astype("int"),
+        ).sort_index()
         bin_str = bin(int(cs_l1b_flag.values))[2:]
         flag_list = []
         for i, b in enumerate(reversed(bin_str)):
@@ -568,11 +641,15 @@ def flag_translator(cs_l1b_flag):
                 try:
                     flag_list.append(flag_dictionary.loc[i])
                 except KeyError:
-                    raise(f"Unkown flag: {2**i}! This points to a bug either in the code or in the data!")
+                    raise (
+                        f"Unkown flag: {2**i}! This points to a bug either in the code or in the data!"
+                    )
         return flag_list
     else:
-        flag_dictionary = pd.Series(data=cs_l1b_flag.attrs["flag_meanings"].split(" "),
-                                    index=cs_l1b_flag.attrs["flag_values"])
+        flag_dictionary = pd.Series(
+            data=cs_l1b_flag.attrs["flag_meanings"].split(" "),
+            index=cs_l1b_flag.attrs["flag_values"],
+        )
         return flag_dictionary.loc[int(cs_l1b_flag.values)]
 
 
@@ -583,15 +660,19 @@ def ftp_cs2_server(**kwargs):
         config.read("config.ini")
         email = config["user"]["email"]
     except KeyError:
-        print("\n\nPlease call `misc.update_email()` to provide your email address as ESA asks",
-              "for it as password when downloading data via ftp.\n\n")
+        print(
+            "\n\nPlease call `misc.update_email()` to provide your email address as ESA asks",
+            "for it as password when downloading data via ftp.\n\n",
+        )
         raise
     with ftplib.FTP("science-pds.cryosat.esa.int", **kwargs) as ftp:
         ftp.login(passwd=email)
         yield ftp
-    
 
-def gauss_filter_DataArray(da: xr.DataArray, dim: str, window_extent: int, std: int) -> xr.DataArray:
+
+def gauss_filter_DataArray(
+    da: xr.DataArray, dim: str, window_extent: int, std: int
+) -> xr.DataArray:
     """Low-pass filters input array.
 
     Convolves each vector of an array along the specified dimension with a
@@ -607,15 +688,27 @@ def gauss_filter_DataArray(da: xr.DataArray, dim: str, window_extent: int, std: 
         xr.DataArray: _description_
     """
     # force window_extent to be uneven to ensure center to be where expected
-    half_window_extent = window_extent//2
-    window_extent = 2*half_window_extent+1
-    gauss_weights = scipy.stats.norm.pdf(np.arange(-half_window_extent, half_window_extent+1), scale=std)
-    gauss_weights = xr.DataArray(gauss_weights/np.sum(gauss_weights), dims=["window_dim"])
+    half_window_extent = window_extent // 2
+    window_extent = 2 * half_window_extent + 1
+    gauss_weights = scipy.stats.norm.pdf(
+        np.arange(-half_window_extent, half_window_extent + 1), scale=std
+    )
+    gauss_weights = xr.DataArray(
+        gauss_weights / np.sum(gauss_weights), dims=["window_dim"]
+    )
     if np.iscomplexobj(da):
-        helper = da.rolling({dim: window_extent}, center=True, min_periods=1).construct("window_dim").dot(gauss_weights)
-        return helper/np.abs(helper)
+        helper = (
+            da.rolling({dim: window_extent}, center=True, min_periods=1)
+            .construct("window_dim")
+            .dot(gauss_weights)
+        )
+        return helper / np.abs(helper)
     else:
-        return da.rolling({dim: window_extent}, center=True, min_periods=1).construct("window_dim").dot(gauss_weights)
+        return (
+            da.rolling({dim: window_extent}, center=True, min_periods=1)
+            .construct("window_dim")
+            .dot(gauss_weights)
+        )
 
 
 def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
@@ -635,13 +728,15 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
         rasterio.DatasetReader: Reader pointing to the file.
     """
 
-    raster_extensions = ['tif', 'nc']
+    raster_extensions = ["tif", "nc"]
 
     if isinstance(data, shapely.Geometry):
         lat = np.mean(data.bounds[1::2])
-    elif isinstance(data, float) \
-            or isinstance(data, int) \
-            or (isinstance(data, np.ndarray) and data.size==1):
+    elif (
+        isinstance(data, float)
+        or isinstance(data, int)
+        or (isinstance(data, np.ndarray) and data.size == 1)
+    ):
         lat = data
     elif "lat_20_ku" in data:
         lat = data.lat_20_ku.values[0]
@@ -659,7 +754,9 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
         elif any([data.split(".")[-1] in raster_extensions]):
             return rasterio.open(os.path.join(dem_path, data))
     if "lat" not in locals():
-        raise NotImplementedError(f"`get_dem_reader` could not handle the input of type {data.__class__}. See doc for further info.")
+        raise NotImplementedError(
+            f"`get_dem_reader` could not handle the input of type {data.__class__}. See doc for further info."
+        )
     if lat > 0:
         # return rasterio.open(os.path.join(dem_path, "arcticdem_mosaic_100m_v4.1_dem.tif"))
         dem_filename = "arcticdem_mosaic_100m_v4.1_dem.tif"
@@ -668,24 +765,27 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
     if not os.path.isfile(os.path.join(dem_path, dem_filename)):
         raster_file_list = []
         for ext in raster_extensions:
-            raster_file_list.extend(glob.glob('*.'+ext, root_dir=dem_path))
-        print("DEM not found with default filename. Please select from the following:\n",
-              ", ".join(raster_file_list), flush=True)
+            raster_file_list.extend(glob.glob("*." + ext, root_dir=dem_path))
+        print(
+            "DEM not found with default filename. Please select from the following:\n",
+            ", ".join(raster_file_list),
+            flush=True,
+        )
         dem_filename = input("Enter filename:")
     return rasterio.open(os.path.join(dem_path, dem_filename))
 
 
-
-def interpolate_hypsometrically(ds: xr.Dataset,
-                                main_var: str,
-                                error: str,
-                                elev: str = "ref_elev",
-                                weights: str = "weights",
-                                outlier_replace: bool = False,
-                                outlier_limit: float = 2,
-                                return_coeffs: bool = False,
-                                fit_sanity_check: dict = None,
-                                ) -> xr.Dataset:
+def interpolate_hypsometrically(
+    ds: xr.Dataset,
+    main_var: str,
+    error: str,
+    elev: str = "ref_elev",
+    weights: str = "weights",
+    outlier_replace: bool = False,
+    outlier_limit: float = 2,
+    return_coeffs: bool = False,
+    fit_sanity_check: dict = None,
+) -> xr.Dataset:
     """Fills data gaps by hypsometrical interpolation
 
     If sufficient data is provided, this routine sorts and bins the data
@@ -738,39 +838,57 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     """
 
     def select_returns(return_coeffs, ds, coeffs):
-        if return_coeffs: return ds, coeffs
-        else: return ds
+        if return_coeffs:
+            return ds, coeffs
+        else:
+            return ds
 
     def design_matrix(x_vals):
         return np.hstack([x_vals, x_vals**2, x_vals**3])
 
     def invert_3rd_order_coeff_scaling(scaler, coeffs):
         mu, sig = scaler.mean_[0], scaler.scale_[0]
-        p0, p1, p2, p3 = coeffs/np.hstack([1, design_matrix(sig)])[::-1]
-        return np.array([
-            p0,
-            p1-3*mu*p0,
-            p2-2*mu*p1+3*mu**2*p0,
-            p3-mu*p2+mu**2*p1-mu**3*p0
-        ])
+        p0, p1, p2, p3 = coeffs / np.hstack([1, design_matrix(sig)])[::-1]
+        return np.array(
+            [
+                p0,
+                p1 - 3 * mu * p0,
+                p2 - 2 * mu * p1 + 3 * mu**2 * p0,
+                p3 - mu * p2 + mu**2 * p1 - mu**3 * p0,
+            ]
+        )
 
     if "time" in ds.dims and len(ds.time) > 1:
         # note: `groupby("time")` creates time depencies for all data_vars. this
         #       requires taking note of those data_vars that do not depend on
         #       time and reset those after the operation
-        no_time_dep = [data_var for data_var in ds.data_vars if not "time" in ds[data_var].dims]
+        no_time_dep = [
+            data_var for data_var in ds.data_vars if not "time" in ds[data_var].dims
+        ]
         if fit_sanity_check == True:
             # set default sanity check for elevation differences wrt. ref. DEM
-            fit_sanity_check = {"max_allowed_gradient": 10/100}  # [10 m elev.diff. per 100 m of elevation]
-        ds = ds.groupby("time", squeeze=False).map(interpolate_hypsometrically, main_var=main_var, elev=elev, error=error, outlier_replace=outlier_replace, return_coeffs=return_coeffs, fit_sanity_check=fit_sanity_check)
+            fit_sanity_check = {
+                "max_allowed_gradient": 10 / 100
+            }  # [10 m elev.diff. per 100 m of elevation]
+        ds = ds.groupby("time", squeeze=False).map(
+            interpolate_hypsometrically,
+            main_var=main_var,
+            elev=elev,
+            error=error,
+            outlier_replace=outlier_replace,
+            return_coeffs=return_coeffs,
+            fit_sanity_check=fit_sanity_check,
+        )
         for var_name in no_time_dep:
             ds[var_name] = ds[var_name].isel(time=0)
-        return select_returns(return_coeffs, ds, np.array([np.nan]*4))
+        return select_returns(return_coeffs, ds, np.array([np.nan] * 4))
     else:
         if fit_sanity_check == True:
             # set default sanity check for elevation change rate
-            fit_sanity_check = {"max_allowed_gradient": 5/100}  # [10 m/yr elev.trend per 100 m of elevation]
-    
+            fit_sanity_check = {
+                "max_allowed_gradient": 5 / 100
+            }  # [10 m/yr elev.trend per 100 m of elevation]
+
     # this function uses boolean indexing which is not possible with dask
     # arrays. so if ds contains dask arrays, compute them.
     if ds.chunks is not None:
@@ -778,31 +896,66 @@ def interpolate_hypsometrically(ds: xr.Dataset,
 
     # tbi: currently the data needs to have the single dimension "stacked_x_y".
     #      implement automatic stacking and remove the hard coded dim name.
-    
+
     # abort if too little data (checking elevation and data validity).
     # necessary to prevent errors but also introduces data gaps
-    if ds[elev].where(ds[error]>0).count() < 24:
+    if ds[elev].where(ds[error] > 0).count() < 24:
         # print("too little data")
-        return select_returns(return_coeffs, ds, np.array([np.nan]*4))
+        return select_returns(return_coeffs, ds, np.array([np.nan] * 4))
     # also, abort if there isn't anything to do
     if not ds[error].isnull().any() and not outlier_replace:
         # print("nothing to do")
-        return select_returns(return_coeffs, ds, np.array([np.nan]*4))
+        return select_returns(return_coeffs, ds, np.array([np.nan] * 4))
 
     # below might need fill_missing_coords. naively: should not be important
-    neighbours = ds[main_var].unstack().sortby("x").sortby("y").rolling(x=5, y=5, min_periods=3, center=True)
+    neighbours = (
+        ds[main_var]
+        .unstack()
+        .sortby("x")
+        .sortby("y")
+        .rolling(x=5, y=5, min_periods=3, center=True)
+    )
+
     def local_stats(groups):
         _cnt = groups.count()
-        _mean = groups.mean().where(_cnt >= 6).stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
-        _std = groups.std().where(_cnt >= 6).stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
+        _mean = (
+            groups.mean()
+            .where(_cnt >= 6)
+            .stack(stacked_x_y=["x", "y"])
+            .reindex_like(ds[main_var])
+        )
+        _std = (
+            groups.std()
+            .where(_cnt >= 6)
+            .stack(stacked_x_y=["x", "y"])
+            .reindex_like(ds[main_var])
+        )
         _cnt = _cnt.stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
         return _mean, _std, _cnt
+
     neighbour_mean, neighbour_std, neighbour_count = local_stats(neighbours)
     if outlier_replace:
-        neighbour_elev = ds[elev].unstack().sortby("x").sortby("y").rolling(x=5, y=5, min_periods=3, center=True)
-        neighbour_elev_mean = neighbour_elev.mean().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
-        neighbour_elev_std = neighbour_elev.std().stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
-        noise = (np.abs(ds[main_var]-neighbour_mean)/neighbour_std - np.abs(ds[elev]-neighbour_elev_mean)/neighbour_elev_std) > outlier_limit
+        neighbour_elev = (
+            ds[elev]
+            .unstack()
+            .sortby("x")
+            .sortby("y")
+            .rolling(x=5, y=5, min_periods=3, center=True)
+        )
+        neighbour_elev_mean = (
+            neighbour_elev.mean()
+            .stack(stacked_x_y=["x", "y"])
+            .reindex_like(ds[main_var])
+        )
+        neighbour_elev_std = (
+            neighbour_elev.std()
+            .stack(stacked_x_y=["x", "y"])
+            .reindex_like(ds[main_var])
+        )
+        noise = (
+            np.abs(ds[main_var] - neighbour_mean) / neighbour_std
+            - np.abs(ds[elev] - neighbour_elev_mean) / neighbour_elev_std
+        ) > outlier_limit
         # print(neighbour_count>=6, noise)
         # # debugging plot:
         # import matplotlib.pyplot as plt
@@ -810,8 +963,16 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         # # (np.abs(ds[main_var]-neighbour_mean)/neighbour_std - outlier_limit - np.abs(ds[elev]-neighbour_elev_mean)/neighbour_elev_std).unstack().sortby("x").sortby("y").T.plot(cmap="cool")
         # neighbour_count.unstack().sortby("x").sortby("y").T.plot(cmap="cool")
         # plt.show()
-        ds[main_var] = xr.where(np.logical_and(neighbour_count>=6, noise), np.nan, ds[main_var])
-        neighbours = ds[main_var].unstack().sortby("x").sortby("y").rolling(x=5, y=5, min_periods=3, center=True)
+        ds[main_var] = xr.where(
+            np.logical_and(neighbour_count >= 6, noise), np.nan, ds[main_var]
+        )
+        neighbours = (
+            ds[main_var]
+            .unstack()
+            .sortby("x")
+            .sortby("y")
+            .rolling(x=5, y=5, min_periods=3, center=True)
+        )
         neighbour_mean, neighbour_std, neighbour_count = local_stats(neighbours)
     # # if the reference elevations contain nan values, this leads to errors
     # index_with_nan_in_elev = ds[ds[elev].dims[0]]
@@ -819,25 +980,37 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     # assign weights if not present. use previously assigned weights to
     # prevent using previously filled cells from inform a new average.
     if weights not in ds:
-        ds[weights] = 1/ds[error]**2
-    group_obj = ds.groupby_bins(elev, define_elev_band_edges(ds[elev]), include_lowest=True)
+        ds[weights] = 1 / ds[error] ** 2
+    group_obj = ds.groupby_bins(
+        elev, define_elev_band_edges(ds[elev]), include_lowest=True
+    )
     elev_bin_means = pd.Series(index=group_obj.groups)
     elev_bin_errs = pd.Series(index=group_obj.groups)
-    fill_mask = -1*xr.ones_like(ds[main_var])
+    fill_mask = -1 * xr.ones_like(ds[main_var])
     for label, group in group_obj:
         if (group[weights] > 0).sum() < 6:
             continue
-        vals = group[main_var].fillna(-9999).squeeze() # make it obvious if anything goes wrong
+        vals = (
+            group[main_var].fillna(-9999).squeeze()
+        )  # make it obvious if anything goes wrong
         w = group[weights].fillna(0).squeeze()
         avg, _var, effective_samp_size, to_be_filled_mask = weighted_mean_excl_outliers(
-            values=vals, weights=w, deviation_factor=outlier_limit, return_mask=True)
-        err = student_t.isf(_norm_sf_1, effective_samp_size) * (_var/effective_samp_size)**.5
+            values=vals, weights=w, deviation_factor=outlier_limit, return_mask=True
+        )
+        err = (
+            student_t.isf(_norm_sf_1, effective_samp_size)
+            * (_var / effective_samp_size) ** 0.5
+        )
         if outlier_replace:
-            to_be_filled_mask = np.logical_or(group[main_var].isnull().squeeze(), to_be_filled_mask)
+            to_be_filled_mask = np.logical_or(
+                group[main_var].isnull().squeeze(), to_be_filled_mask
+            )
         else:
             to_be_filled_mask = group[main_var].isnull().squeeze()
-        to_be_filled_mask = xr.align(fill_mask, to_be_filled_mask, join="left", fill_value=-1)[1]
-        fill_mask = xr.where(to_be_filled_mask!=-1, to_be_filled_mask, fill_mask)
+        to_be_filled_mask = xr.align(
+            fill_mask, to_be_filled_mask, join="left", fill_value=-1
+        )[1]
+        fill_mask = xr.where(to_be_filled_mask != -1, to_be_filled_mask, fill_mask)
         if np.isnan(avg):
             # print("calc weighted avg failed (probably insufficient data)", label)
             continue
@@ -849,37 +1022,48 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     elev_bin_means.dropna(inplace=True)
     elev_bin_errs.dropna(inplace=True)
     # print(elev_range_80pctl)
-    if (
-        elev_bin_means.empty
-        or len(elev_bin_means.index) < 5
-    ):
+    if elev_bin_means.empty or len(elev_bin_means.index) < 5:
         print("data doesn't cover sufficient elevation bands", elev_bin_means)
-        return select_returns(return_coeffs, ds, np.array([np.nan]*4))
+        return select_returns(return_coeffs, ds, np.array([np.nan] * 4))
     ## fit polynomial
     # print(elev_bin_means, elev_bin_errs)
     try:
         x_vals = np.array([[idx.mid for idx in elev_bin_means.index]]).T
-        scaler = preprocessing.StandardScaler().fit(x_vals, sample_weight=1/elev_bin_errs.values)
+        scaler = preprocessing.StandardScaler().fit(
+            x_vals, sample_weight=1 / elev_bin_errs.values
+        )
         # print(x_vals, scaler.transform(x_vals))
         # print(x_vals, design_matrix(x_vals), elev_bin_means.values, 1/elev_bin_errs.values)
         # cov = covariance.EmpiricalCovariance().fit(design_matrix(scaler.transform(x_vals))).covariance_
-        fit = linear_model.Ridge(1, solver="svd").fit(design_matrix(scaler.transform(x_vals)), elev_bin_means.values, 1/elev_bin_errs.values)
+        fit = linear_model.Ridge(1, solver="svd").fit(
+            design_matrix(scaler.transform(x_vals)),
+            elev_bin_means.values,
+            1 / elev_bin_errs.values,
+        )
         coeffs = np.hstack((fit.intercept_, fit.coef_))[::-1]
-    except np.linalg.LinAlgError: # not sure what error sklearn raises
+    except np.linalg.LinAlgError:  # not sure what error sklearn raises
         print(elev_bin_means)
         print(elev_bin_errs)
-        return select_returns(return_coeffs, ds, np.array([np.nan]*4))
+        return select_returns(return_coeffs, ds, np.array([np.nan] * 4))
     if fit_sanity_check is not None:
         if (
-            np.abs(np.polyval(np.polyder(coeffs),
-                              scaler.transform(np.array([elev_bin_means.index[0].mid,
-                                                         elev_bin_means.index[-1].mid])[:,None]))).max()
-            > fit_sanity_check["max_allowed_gradient"]*scaler.var_**.5
+            np.abs(
+                np.polyval(
+                    np.polyder(coeffs),
+                    scaler.transform(
+                        np.array(
+                            [elev_bin_means.index[0].mid, elev_bin_means.index[-1].mid]
+                        )[:, None]
+                    ),
+                )
+            ).max()
+            > fit_sanity_check["max_allowed_gradient"] * scaler.var_**0.5
         ):
             # warnings.warn("discarding fit because unrealistic - !note: this is usually not the"
             #               + "desired behavior const./linear extrapolation is used instead of"
             #               + "the fit which renders this check obsolete!")
-            return select_returns(return_coeffs, ds, np.array([np.nan]*4))
+            return select_returns(return_coeffs, ds, np.array([np.nan] * 4))
+
     def scale(x):
         if isinstance(x, xr.DataArray):
             x = x.values
@@ -888,47 +1072,80 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         if len(x.shape) < 2:
             x = x.reshape(-1, 1)
         return scaler.transform(x)
+
     def const_extrapol(data, pivot):
         return np.polyval(coeffs, scale(pivot).flatten()) + xr.zeros_like(data)
+
     def linear_extrapol(data, pivot):
-        return (np.polyval(np.polyder(coeffs), scale(pivot))*(scale(data)-scale(pivot))).flatten() + const_extrapol(data, pivot)
+        return (
+            np.polyval(np.polyder(coeffs), scale(pivot)) * (scale(data) - scale(pivot))
+        ).flatten() + const_extrapol(data, pivot)
+
     extrap_below = ds[elev] < elev_bin_means.index[0].mid
     extrap_above = ds[elev] > elev_bin_means.index[-1].mid
-    modelled_list = [xr.DataArray(fit.predict(design_matrix(scale(ds[elev]))), coords={"stacked_x_y": ds.stacked_x_y}, dims="stacked_x_y")[~np.logical_or(extrap_below, extrap_above)]]
+    modelled_list = [
+        xr.DataArray(
+            fit.predict(design_matrix(scale(ds[elev]))),
+            coords={"stacked_x_y": ds.stacked_x_y},
+            dims="stacked_x_y",
+        )[~np.logical_or(extrap_below, extrap_above)]
+    ]
     if extrap_below.any():
-        modelled_list.append(linear_extrapol(ds[elev][extrap_below], elev_bin_means.index[0].mid))
+        modelled_list.append(
+            linear_extrapol(ds[elev][extrap_below], elev_bin_means.index[0].mid)
+        )
     if extrap_above.any():
-        modelled_list.append(linear_extrapol(ds[elev][extrap_above], elev_bin_means.index[-1].mid))
-    modelled = xr.concat(modelled_list, "stacked_x_y").reindex_like(ds[main_var]).astype(ds[main_var].dtype)
+        modelled_list.append(
+            linear_extrapol(ds[elev][extrap_above], elev_bin_means.index[-1].mid)
+        )
+    modelled = (
+        xr.concat(modelled_list, "stacked_x_y")
+        .reindex_like(ds[main_var])
+        .astype(ds[main_var].dtype)
+    )
     fit_x_range = elev_bin_means.index[-1].mid - elev_bin_means.index[0].mid
-    modelled = xr.where(ds[elev]<elev_bin_means.index[0].mid - fit_x_range/3,
-                        xr.zeros_like(ds[elev])+linear_extrapol(xr.zeros_like(ds[elev][:1])+elev_bin_means.index[0].mid - fit_x_range/3, elev_bin_means.index[0].mid).values[0],
-                        modelled)
-    modelled = xr.where(ds[elev]>elev_bin_means.index[-1].mid + fit_x_range/3,
-                        xr.zeros_like(ds[elev])+linear_extrapol(xr.zeros_like(ds[elev][:1])+elev_bin_means.index[-1].mid + fit_x_range/3, elev_bin_means.index[-1].mid).values[0],
-                        modelled)
-    elev_bin_min = elev_bin_means.min()-2*elev_bin_errs.iloc[elev_bin_means.argmin()]
-    elev_bin_max = elev_bin_means.max()+2*elev_bin_errs.iloc[elev_bin_means.argmax()]
-    modelled = xr.where(modelled>elev_bin_max,
-                        elev_bin_max,
-                        modelled)
-    modelled = xr.where(modelled<elev_bin_min,
-                        elev_bin_min,
-                        modelled)
+    modelled = xr.where(
+        ds[elev] < elev_bin_means.index[0].mid - fit_x_range / 3,
+        xr.zeros_like(ds[elev])
+        + linear_extrapol(
+            xr.zeros_like(ds[elev][:1]) + elev_bin_means.index[0].mid - fit_x_range / 3,
+            elev_bin_means.index[0].mid,
+        ).values[0],
+        modelled,
+    )
+    modelled = xr.where(
+        ds[elev] > elev_bin_means.index[-1].mid + fit_x_range / 3,
+        xr.zeros_like(ds[elev])
+        + linear_extrapol(
+            xr.zeros_like(ds[elev][:1])
+            + elev_bin_means.index[-1].mid
+            + fit_x_range / 3,
+            elev_bin_means.index[-1].mid,
+        ).values[0],
+        modelled,
+    )
+    elev_bin_min = (
+        elev_bin_means.min() - 2 * elev_bin_errs.iloc[elev_bin_means.argmin()]
+    )
+    elev_bin_max = (
+        elev_bin_means.max() + 2 * elev_bin_errs.iloc[elev_bin_means.argmax()]
+    )
+    modelled = xr.where(modelled > elev_bin_max, elev_bin_max, modelled)
+    modelled = xr.where(modelled < elev_bin_min, elev_bin_min, modelled)
     # # debugging plot:
     # import matplotlib.pyplot as plt
     # _, ax = plt.subplots(ncols=2, figsize=(18,6))
     # ds[main_var].unstack().sortby("x").sortby("y").T.plot(ax=ax[0], robust=True, cmap="RdYlBu")
     # modelled.unstack().sortby("x").sortby("y").T.plot(ax=ax[1], robust=True, cmap="RdYlBu")
     # plt.show()
-    residuals = ds[main_var]-modelled
+    residuals = ds[main_var] - modelled
     # # debugging plot:
     # import matplotlib.pyplot as plt
     # (np.abs(neighbour_mean-modelled) - outlier_limit*neighbour_std.mean()).unstack().sortby("x").sortby("y").T.plot(robust=True, cmap="RdYlBu")
     # plt.show()
     local_deviation = np.logical_and(
         neighbour_count >= 6,
-        np.abs(neighbour_mean-modelled) > outlier_limit*neighbour_std.mean()
+        np.abs(neighbour_mean - modelled) > outlier_limit * neighbour_std.mean(),
     )
     modelled = xr.where(local_deviation, neighbour_mean, modelled)
     if outlier_replace:
@@ -937,9 +1154,12 @@ def interpolate_hypsometrically(ds: xr.Dataset,
         # normal distributed errors anyway. however, maybe it would be
         # better to use the MAD (and maybe go for some max.likelihood
         # optimizer)
-        fill_mask = np.logical_or(ds[main_var].isnull(),
-                                  np.logical_and(fill_mask!=0,
-                                                 np.abs(residuals) > outlier_limit * residuals.std()))
+        fill_mask = np.logical_or(
+            ds[main_var].isnull(),
+            np.logical_and(
+                fill_mask != 0, np.abs(residuals) > outlier_limit * residuals.std()
+            ),
+        )
     else:
         fill_mask = ds[main_var].isnull()
     # # debugging plot:
@@ -965,11 +1185,11 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     except:
         # print(modelled)
         raise
-    RMSE = (residuals.where(~fill_mask)**2).mean()**.5
+    RMSE = (residuals.where(~fill_mask) ** 2).mean() ** 0.5
     if "std" in error.lower():
         pass
     elif "iqr" in error.lower():
-        RMSE *= 2*_norm_isf_25
+        RMSE *= 2 * _norm_isf_25
     elif "mad" in error.lower():
         RMSE *= _norm_isf_25
     elif "95" in error.lower():
@@ -980,14 +1200,18 @@ def interpolate_hypsometrically(ds: xr.Dataset,
     # # restore data gaps
     # ds = ds.reindex_like(index_with_nan_in_elev)
     # tbi: if initially stacked, unstack here
-    return select_returns(return_coeffs, ds, invert_3rd_order_coeff_scaling(scaler, coeffs))
+    return select_returns(
+        return_coeffs, ds, invert_3rd_order_coeff_scaling(scaler, coeffs)
+    )
+
+
 __all__.append("interpolate_hypsometrically")
 
 
 def load_cs_full_file_names(update: str = "no") -> pd.Series:
     """Loads a pandas.Series of the original CryoSat-2 L1b file names.
 
-    Having the file names available can be handy to organize your local 
+    Having the file names available can be handy to organize your local
     data.
 
     This function can be used to update your local list by setting `update`.
@@ -1009,16 +1233,18 @@ def load_cs_full_file_names(update: str = "no") -> pd.Series:
         return file_names
     elif update == "quick":
         last_lta_idx = file_names.index[-1]
-        print(last_lta_idx+pd.offsets.MonthBegin(-1, normalize=True))
+        print(last_lta_idx + pd.offsets.MonthBegin(-1, normalize=True))
     elif update == "version":
         # implement, also, to actually update the files or remove outdated - or
         # think of something to prevent that old data receives a new name
-        raise Exception("Functionality to update L1b file version (e.g. ...E001.nc"
-                        + "vs ...E003.nc) is not yet implemented.")
+        raise Exception(
+            "Functionality to update L1b file version (e.g. ...E001.nc"
+            + "vs ...E003.nc) is not yet implemented."
+        )
     if update in ["regular", "version"]:
         # ! "regular" should also be baseline and version aware
-        last_lta_idx = file_names[(fn[3:7]=="LTA_" for fn in file_names)].index[-1]
-        print(last_lta_idx+pd.offsets.MonthBegin(-1, normalize=True))
+        last_lta_idx = file_names[(fn[3:7] == "LTA_" for fn in file_names)].index[-1]
+        print(last_lta_idx + pd.offsets.MonthBegin(-1, normalize=True))
 
     with ftp_cs2_server() as ftp:
         ftp.cwd("/SIR_SIN_L1")
@@ -1030,8 +1256,9 @@ def load_cs_full_file_names(update: str = "no") -> pd.Series:
                 ftp.cwd(f"/SIR_SIN_L1/{year}")
                 print(f"entered /SIR_SIN_L1/{year}")
                 for month in ftp.nlst():
-                    if update != "full" and pd.to_datetime(f"{year}-{month}") \
-                                            < last_lta_idx+pd.offsets.MonthBegin(-1, normalize=True):
+                    if update != "full" and pd.to_datetime(
+                        f"{year}-{month}"
+                    ) < last_lta_idx + pd.offsets.MonthBegin(-1, normalize=True):
                         print("skip", month)
                         continue
                     print(f"cwd /SIR_SIN_L1/{year}/{month}")
@@ -1040,25 +1267,35 @@ def load_cs_full_file_names(update: str = "no") -> pd.Series:
                     for remote_file in ftp.nlst():
                         if remote_file[-3:] == ".nc":
                             remote_idx = pd.to_datetime(remote_file[19:34])
-                            if update == "regular" and remote_idx in file_names.index \
-                                    and (file_names.loc[remote_idx][3:7]=="LTA_" or remote_file[3:7]=="OFFL"):
+                            if (
+                                update == "regular"
+                                and remote_idx in file_names.index
+                                and (
+                                    file_names.loc[remote_idx][3:7] == "LTA_"
+                                    or remote_file[3:7] == "OFFL"
+                                )
+                            ):
                                 continue
                             file_names.loc[remote_idx] = remote_file[:-3]
             except Exception:
-                warnings.warn(f"Error occurred in remote directory /SIR_SIN_L1/{year}/{month}.")
+                warnings.warn(
+                    f"Error occurred in remote directory /SIR_SIN_L1/{year}/{month}."
+                )
 
     file_names.to_pickle(file_names_path)
     return file_names
 
 
-def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
-                          start_datetime: str|pd.Timestamp = "2010",
-                          end_datetime: str|pd.Timestamp = "2030", *,
-                          buffer_period_by: relativedelta = None,
-                          buffer_region_by: float = None,
-                          update: str = "no",
-                          n_threads: int = 8,
-                          ) -> gpd.GeoDataFrame:
+def load_cs_ground_tracks(
+    region_of_interest: str | shapely.Polygon = None,
+    start_datetime: str | pd.Timestamp = "2010",
+    end_datetime: str | pd.Timestamp = "2030",
+    *,
+    buffer_period_by: relativedelta = None,
+    buffer_region_by: float = None,
+    update: str = "no",
+    n_threads: int = 8,
+) -> gpd.GeoDataFrame:
     """Read the GeoDataFrame of CryoSat-2 tracks from disk.
 
     If desired, you can query certain extents or periods by specifying
@@ -1071,21 +1308,21 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
     Args:
         region_of_interest (str | shapely.Polygon, optional): Can be any RGI
             code or a polygon in lat/lon (CRS EPSG:4326). If requesting o1
-            regions, provide the long code, e.g., "01_alaska". Defaults to None.  
-        start_datetime (str | pd.Timestamp, optional): Defaults to "2010".  
-        end_datetime (str | pd.Timestamp, optional): Defaults to "2030".  
+            regions, provide the long code, e.g., "01_alaska". Defaults to None.
+        start_datetime (str | pd.Timestamp, optional): Defaults to "2010".
+        end_datetime (str | pd.Timestamp, optional): Defaults to "2030".
         buffer_period_by (relativedelta, optional): Extends the period to
             both sides. Handy if you use this function to query tracks for an
-            aggregated product. Defaults to None.  
+            aggregated product. Defaults to None.
         buffer_region_by (float, optional): Handy to also query tracks in the
             proximity that may return elevation estimates for your region of
             interest. Unit are meters here. CryoSat's footprint is +- 7.5 km to
             both sides, anything above 30_000 does not make much sense. Defaults
-            to None.  
+            to None.
         update (str, optional): If you are interested in the latest tracks,
             update frequently with `update="regular"`. If you believe tracks are
             missing for some reason, choose `update="full"` (be aware this takes
-            a while). Defaults to "no".  
+            a while). Defaults to "no".
         n_threads (int, optional): Number of parallel ftp connections. If you
             choose too many, ESA will refuse the connection. Defaults to 8.
 
@@ -1095,13 +1332,15 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
     Returns:
         gpd.GeoDataFrame: CryoSat-2 tracks.
     """
-    advance_end = isinstance(end_datetime, str) and re.match(r"^20[0-9]{2}.?[01][0-9]$", end_datetime)
+    advance_end = isinstance(end_datetime, str) and re.match(
+        r"^20[0-9]{2}.?[01][0-9]$", end_datetime
+    )
     start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
     if advance_end:
         end_datetime = end_datetime + pd.DateOffset(months=1)
     if os.path.isfile(cs_ground_tracks_path):
         cs_tracks = gpd.read_feather(cs_ground_tracks_path)
-        if "index" in cs_tracks.columns: 
+        if "index" in cs_tracks.columns:
             cs_tracks.set_index("index", inplace=True)
         cs_tracks.index = pd.to_datetime(cs_tracks.index)
         cs_tracks.sort_index(inplace=True)
@@ -1114,22 +1353,31 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
     elif update == "regular":
         last_idx = pd.to_datetime(cs_tracks.index[-1])
     elif update != "no":
-        raise ValueError("Allowed values for `update` are \"full\". \"regular\". or \"no\". "
-                         +f"You set it to \"{update}\".")
+        raise ValueError(
+            'Allowed values for `update` are "full". "regular". or "no". '
+            + f'You set it to "{update}".'
+        )
     if update != "no":
 
         # the next two function have only a local purpose.
         def save_current_track_list(new_track_series: gpd.GeoSeries):
             """saves the tracklist; backing up the old if older than 5 days."""
-            if not os.path.isfile(extend_filename(cs_ground_tracks_path, "__backup"))\
-                    or time.time() - os.path.getmtime(cs_ground_tracks_path)  > 5 * 24*60*60:
-                print("backing up \"old\" track file")
-                shutil.copyfile(cs_ground_tracks_path, extend_filename(cs_ground_tracks_path, "__backup"))
+            if (
+                not os.path.isfile(extend_filename(cs_ground_tracks_path, "__backup"))
+                or time.time() - os.path.getmtime(cs_ground_tracks_path)
+                > 5 * 24 * 60 * 60
+            ):
+                print('backing up "old" track file')
+                shutil.copyfile(
+                    cs_ground_tracks_path,
+                    extend_filename(cs_ground_tracks_path, "__backup"),
+                )
             print("saving current track list to file")
             new_track_series.to_feather(cs_ground_tracks_path)
 
-        def collect_missing_tracks(remote_files: list[str],
-                                   present_tracks: gpd.GeoSeries) -> gpd.GeoSeries:
+        def collect_missing_tracks(
+            remote_files: list[str], present_tracks: gpd.GeoSeries
+        ) -> gpd.GeoSeries:
             """Gets track if not in list already.
 
             Args:
@@ -1140,26 +1388,52 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
                 gpd.GeoSeries: Missing tracks to be added to the collection.
             """
             with ftp_cs2_server() as ftp:
-                ftp.cwd("/SIR_SIN_L1/"+pd.to_datetime(remote_files[0][19:34]).strftime("%Y/%m"))
-                tracks_to_be_added = gpd.GeoDataFrame(columns=["geometry"]).rename_axis("index")
+                ftp.cwd(
+                    "/SIR_SIN_L1/"
+                    + pd.to_datetime(remote_files[0][19:34]).strftime("%Y/%m")
+                )
+                tracks_to_be_added = gpd.GeoDataFrame(columns=["geometry"]).rename_axis(
+                    "index"
+                )
                 for rf_name in remote_files:
                     if fnmatch.fnmatch(rf_name, "CS_????_SIR_SIN_1B_*.HDR"):
                         if pd.to_datetime(rf_name[19:34]) in present_tracks.index:
                             continue
                         cache = binary_chache()
-                        ftp.retrbinary('RETR '+rf_name, cache.add)
+                        ftp.retrbinary("RETR " + rf_name, cache.add)
                         et = ET_from_str(cache.cache)
                         root = et.find("Variable_Header/SPH/Product_Location")
-                        coordinates = {coord: int(root.find(coord).text)/1e6 for coord in ["Start_Long", "Start_Lat", "Stop_Long", "Stop_Lat"]}
-                        tracks_to_be_added.loc[pd.to_datetime(rf_name[19:34])] = shapely.LineString((
-                            [coordinates["Start_Long"], coordinates["Start_Lat"]],
-                            [coordinates["Stop_Long"], coordinates["Stop_Lat"]]))
-                        if not all([(v > -180) and (v < 360) for k, v in coordinates.items()]):
+                        coordinates = {
+                            coord: int(root.find(coord).text) / 1e6
+                            for coord in [
+                                "Start_Long",
+                                "Start_Lat",
+                                "Stop_Long",
+                                "Stop_Lat",
+                            ]
+                        }
+                        tracks_to_be_added.loc[pd.to_datetime(rf_name[19:34])] = (
+                            shapely.LineString(
+                                (
+                                    [
+                                        coordinates["Start_Long"],
+                                        coordinates["Start_Lat"],
+                                    ],
+                                    [coordinates["Stop_Long"], coordinates["Stop_Lat"]],
+                                )
+                            )
+                        )
+                        if not all(
+                            [(v > -180) and (v < 360) for k, v in coordinates.items()]
+                        ):
                             warnings.warn(f"whats with {rf_name} giving {coordinates}?")
                             print("track is:", tracks_to_be_added.loc[rf_name[19:34]])
                     elif rf_name[-3:].lower() != ".nc":
-                        warnings.warn("Encountered unexpected file:"+rf_name
-                                      +"\n\tShould this appear more often, adapt this function.")
+                        warnings.warn(
+                            "Encountered unexpected file:"
+                            + rf_name
+                            + "\n\tShould this appear more often, adapt this function."
+                        )
             return tracks_to_be_added
 
         result_queue = queue.SimpleQueue()
@@ -1169,14 +1443,17 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
         while True:
             with ftp_cs2_server() as ftp:
                 try:
-                    ftp.cwd("/SIR_SIN_L1/"+last_idx.strftime("%Y/%m"))
+                    ftp.cwd("/SIR_SIN_L1/" + last_idx.strftime("%Y/%m"))
                 except ftplib.error_perm:
-                    print("couldn't switch to month(?)", last_idx.strftime("%Y/%m"),
-                          "This should only concern you, if you do expect tracks there.")
+                    print(
+                        "couldn't switch to month(?)",
+                        last_idx.strftime("%Y/%m"),
+                        "This should only concern you, if you do expect tracks there.",
+                    )
                     break
                 remote_files = ftp.nlst()
             # cut the file list into chunks and dispatch to workers
-            batch_size = len(remote_files)//(n_threads*3)+1
+            batch_size = len(remote_files) // (n_threads * 3) + 1
             while remote_files:
                 try:
                     task_queue.put((remote_files[:batch_size], cs_tracks))
@@ -1188,7 +1465,7 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
             new_tracks_collection = []
             while not task_queue.empty() or not result_queue.empty():
                 try:
-                    tmp = result_queue.get(block=True, timeout=10*60)
+                    tmp = result_queue.get(block=True, timeout=10 * 60)
                     if not tmp.empty:
                         new_tracks_collection.append(tmp)
                 except queue.Empty:
@@ -1196,7 +1473,9 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
                     time.sleep(10)
             # append to local collection and save the result, if any
             if new_tracks_collection:
-                cs_tracks = pd.concat([cs_tracks, pd.concat(new_tracks_collection)], sort=True)
+                cs_tracks = pd.concat(
+                    [cs_tracks, pd.concat(new_tracks_collection)], sort=True
+                )
                 duplicate = cs_tracks.index.duplicated(keep="last")
                 if duplicate.sum() > 0:
                     warnings.warn(f"{duplicate.sum()} duplicates found; dropping them.")
@@ -1215,11 +1494,17 @@ def load_cs_ground_tracks(region_of_interest: str|shapely.Polygon = None,
     if region_of_interest is not None:
         if isinstance(region_of_interest, str):
             # union=False neccessary for Greenland and large regions
-            region_of_interest = load_glacier_outlines(region_of_interest, "glaciers", union=False).geometry.values
+            region_of_interest = load_glacier_outlines(
+                region_of_interest, "glaciers", union=False
+            ).geometry.values
         if buffer_region_by is not None:
-            region_of_interest = gis.buffer_4326_shp(region_of_interest, buffer_region_by)
+            region_of_interest = gis.buffer_4326_shp(
+                region_of_interest, buffer_region_by
+            )
         else:
-            region_of_interest = gis.simplify_4326_shp(shapely.ops.unary_union(region_of_interest))
+            region_of_interest = gis.simplify_4326_shp(
+                shapely.ops.unary_union(region_of_interest)
+            )
         # find all tracks that intersect the buffered region of interest.
         # mind that this are calculations on a sphere. currently, the
         # polygon is transformed to ellipsoidal coordinates. not a 100 %
@@ -1248,7 +1533,9 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
     elif product in ["glaciers", "basins"]:
         product = "G"
     else:
-        raise ValueError(f"Argument product should be either glaciers or complexes not \"{product}\".")
+        raise ValueError(
+            f'Argument product should be either glaciers or complexes not "{product}".'
+        )
     rgi_files = os.listdir(rgi_path)
     for file in rgi_files:
         if re.match(f"RGI2000-v7\\.0-{product}-{o1code[:2]}_.*", file):
@@ -1263,12 +1550,14 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
                 continue
             break
     if "o1region" not in locals():
-        print(f"RGI file RGI2000-v7.0-{product}-{o1code[:2]}_... couldn't be found.",
-              "Make sure RGI files are available in data/auxiliary/RGI. If you did",
-              "not download them already, you can find them at",
-              f"https://daacdata.apps.nsidc.org/pub/DATASETS/nsidc0770_rgi_v7/regional_files/RGI2000-v7.0-{product}/.",
-              "Mind that you need to unzip them. If you decide to put them into a",
-              "directory, name it as the file is named (e.g. RGI2000-v7.0-G-01_alaska).")
+        print(
+            f"RGI file RGI2000-v7.0-{product}-{o1code[:2]}_... couldn't be found.",
+            "Make sure RGI files are available in data/auxiliary/RGI. If you did",
+            "not download them already, you can find them at",
+            f"https://daacdata.apps.nsidc.org/pub/DATASETS/nsidc0770_rgi_v7/regional_files/RGI2000-v7.0-{product}/.",
+            "Mind that you need to unzip them. If you decide to put them into a",
+            "directory, name it as the file is named (e.g. RGI2000-v7.0-G-01_alaska).",
+        )
         raise FileNotFoundError
     if product == "C":
         # ! work-around: drop small glaciers
@@ -1278,7 +1567,9 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
         # already. observed for the Alps.
         small_glacier_mask = o1region.area_km2 < 1
         if sum(small_glacier_mask) != 0:
-            warnings.warn(f"Dropping {sum(small_glacier_mask)} glaciers < 1 km² from RGI o1 region.")
+            warnings.warn(
+                f"Dropping {sum(small_glacier_mask)} glaciers < 1 km² from RGI o1 region."
+            )
         o1region = o1region[~small_glacier_mask]
     return o1region
 
@@ -1298,8 +1589,14 @@ def load_o2region(o2code: str, product: str = "complexes") -> gpd.GeoDataFrame:
     o1region = load_o1region(o2code[:2], product)
     # special handling for greenland periphery
     if o2code.startswith("05") and not o2code.endswith("01"):
-        return o1region[o1region.intersects(gpd.read_feather(os.path.join(rgi_path, o2code+".feather")).union_all("coverage"))]
-    return o1region[o1region["o2region"]==o2code[:5]]
+        return o1region[
+            o1region.intersects(
+                gpd.read_feather(os.path.join(rgi_path, o2code + ".feather")).union_all(
+                    "coverage"
+                )
+            )
+        ]
+    return o1region[o1region["o2region"] == o2code[:5]]
 
 
 def load_basins(rgi_ids: list[str]) -> gpd.GeoDataFrame:
@@ -1313,18 +1610,21 @@ def load_basins(rgi_ids: list[str]) -> gpd.GeoDataFrame:
         the outlines.
     """
     if len(rgi_ids) > 1:
-        assert(all([id[:17]==rgi_ids[0][:17]] for id in rgi_ids))
+        assert all([id[:17] == rgi_ids[0][:17]] for id in rgi_ids)
     product_code, o1_code = rgi_ids[0].split("-")[2:4]
-    rgi_o1_gpdf = load_o1region(o1_code, product="glaciers" if product_code=="G" else "complexes")
+    rgi_o1_gpdf = load_o1region(
+        o1_code, product="glaciers" if product_code == "G" else "complexes"
+    )
     id_to_index_series = pd.Series(data=rgi_o1_gpdf.index, index=rgi_o1_gpdf.rgi_id)
     return rgi_o1_gpdf.loc[id_to_index_series.loc[rgi_ids].values]
 
 
-def load_glacier_outlines(identifier: str|list[str],
-                          product: str = "complexes",
-                          union: bool = True,
-                          crs: int|CRS = None,
-                          ) -> shapely.MultiPolygon:
+def load_glacier_outlines(
+    identifier: str | list[str],
+    product: str = "complexes",
+    union: bool = True,
+    crs: int | CRS = None,
+) -> shapely.MultiPolygon:
     """Loads RGI v7 basin or complex outlines and meta data
 
     Args:
@@ -1347,7 +1647,11 @@ def load_glacier_outlines(identifier: str|list[str],
     """
     if isinstance(identifier, list):
         out = load_basins(identifier)
-    elif len(identifier) == (7+4+1+2+5+4) and identifier.split("-")[:3] == ["RGI2000", "v4.1", "G"]:
+    elif len(identifier) == (7 + 4 + 1 + 2 + 5 + 4) and identifier.split("-")[:3] == [
+        "RGI2000",
+        "v4.1",
+        "G",
+    ]:
         out = load_basins([identifier])
     # the pattern is rather allowing, set it to "^(-?[012][0-9]){2}(_[a-z]+){1,5}(_[0-9][a-z][0-9]?)?$" to make it tight
     elif len(identifier) >= 5 and re.match("^(-?[0-3][0-9]){2}$", identifier[:5]):
@@ -1355,28 +1659,33 @@ def load_glacier_outlines(identifier: str|list[str],
     elif re.match("[012][0-9](_[a-z]+)?", identifier):
         out = load_o1region(identifier[:2], product=product)
     else:
-        raise ValueError(f"Provided o1, o2, or RGI identifiers. \"{identifier}\" not understood.")
+        raise ValueError(
+            f'Provided o1, o2, or RGI identifiers. "{identifier}" not understood.'
+        )
     if crs is not None:
         out = out.to_crs(crs)
-    if union: # former default
+    if union:  # former default
         try:
             out = out.union_all(method="coverage")
         except:
             out = out.union_all(method="unary")
     return out
+
+
 __all__.append("load_glacier_outlines")
 
 
-def merge_l2_cache(source_glob: str,
-                   destination_file_name: str,
-                   exclude_endswith: list[str] = ["backup", "collection"],
-                   ) -> None:
+def merge_l2_cache(
+    source_glob: str,
+    destination_file_name: str,
+    exclude_endswith: list[str] = ["backup", "collection"],
+) -> None:
     """Append cached l2 data from various hdf files into one.
 
     Tests whether data is present in destination; if not, copies the data.
 
     This function is very specifically for cached l2 data as created by
-    `l3.build_dataset`. 
+    `l3.build_dataset`.
 
     Args:
         source_glob (str): Unix-like glob pattern to match source files
@@ -1396,17 +1705,21 @@ def merge_l2_cache(source_glob: str,
             if any([source_path.endswith(ending) for ending in exclude_endswith]):
                 continue
             with h5py.File(source_path, "r") as h5_src:
+
                 def collect_groups(name, node):
                     if name.split("/")[-1].startswith("t_"):
                         if name not in h5_dest:
                             print(name, "will be copied ...")
-                            h5_src.copy(h5_src["/"+name], h5_dest, "/"+name)
+                            h5_src.copy(h5_src["/" + name], h5_dest, "/" + name)
                         else:
                             print(name, "exists in collection")
                     else:
                         pass
                         # print(name, "is not an end node")
+
                 h5_src.visititems(collect_groups)
+
+
 __all__.append("merge_l2_cache")
 
 
@@ -1433,7 +1746,7 @@ def patch_gatekeeper(module_version: str, rules: list[dict]):
     for rule in rules:
         if rule["comperator"](Version(module_version), Version(rule["version"])):
             return rule["action"]
-            
+
 
 @contextmanager
 def monkeypatch(dictlist: list[dict]):
@@ -1462,7 +1775,7 @@ def monkeypatch(dictlist: list[dict]):
             "target":       "obj2",
             "replacement":  patch2
         }]
-        
+
         with monkeypatch(patchdicts):
             <your code>
 
@@ -1478,7 +1791,9 @@ def monkeypatch(dictlist: list[dict]):
             elif verdict == "raise":
                 raise
             elif verdict == "warn":
-                warnings.warn(f"Patch not meant for {d['module']} version {d['version']}.")
+                warnings.warn(
+                    f"Patch not meant for {d['module']} version {d['version']}."
+                )
         d.update({"original": getattr(d["module"], d["target"])})
         setattr(d["module"], d["target"], d["replacement"])
     try:
@@ -1489,7 +1804,9 @@ def monkeypatch(dictlist: list[dict]):
                 setattr(d["module"], d["target"], d["original"])
 
 
-def patched_xr_decode_scaling(data, scale_factor, add_offset, dtype: np.typing.DTypeLike):
+def patched_xr_decode_scaling(
+    data, scale_factor, add_offset, dtype: np.typing.DTypeLike
+):
     data = data.astype(dtype=dtype, copy=True)
     if scale_factor is not None:
         data = data * scale_factor
@@ -1498,13 +1815,18 @@ def patched_xr_decode_scaling(data, scale_factor, add_offset, dtype: np.typing.D
     return data
 
 
-def patched_xr_decode_tDel(
-        num_timedeltas, units: str, time_unit="ns"
-    ) -> np.ndarray:
+def patched_xr_decode_tDel(num_timedeltas, units: str, time_unit="ns") -> np.ndarray:
     """Given an array of numeric timedeltas in netCDF format, convert it into a
     numpy timedelta64 ["s", "ms", "us", "ns"] array.
     """
-    from xarray.coding.times import _netcdf_to_numpy_timeunit, _check_timedelta_range, _numbers_to_timedelta, ravel, reshape
+    from xarray.coding.times import (
+        _netcdf_to_numpy_timeunit,
+        _check_timedelta_range,
+        _numbers_to_timedelta,
+        ravel,
+        reshape,
+    )
+
     num_timedeltas = np.asarray(num_timedeltas)
     unit = _netcdf_to_numpy_timeunit(units)
 
@@ -1543,10 +1865,14 @@ def nan_unique(data: np.typing.ArrayLike) -> list:
         list: List of unique values.
     """
     return [element for element in np.unique(data) if not np.isnan(element)]
+
+
 __all__.append("nan_unique")
 
 
-def request_workers(task_func: callable, n_workers: int, result_queue: queue.Queue = None) -> queue.Queue:
+def request_workers(
+    task_func: callable, n_workers: int, result_queue: queue.Queue = None
+) -> queue.Queue:
     """Creates workers and provides queue to assign work
 
     Args:
@@ -1559,6 +1885,7 @@ def request_workers(task_func: callable, n_workers: int, result_queue: queue.Que
         queue.Queue: Task queue.
     """
     task_queue = queue.Queue()
+
     def worker():
         while True:
             try:
@@ -1570,19 +1897,27 @@ def request_workers(task_func: callable, n_workers: int, result_queue: queue.Que
                 if result_queue is not None:
                     result_queue.put(result)
                 task_queue.task_done()
+
     for i in range(n_workers):
         worker_thread = threading.Thread(target=worker, daemon=True)
         worker_thread.start()
     return task_queue
+
+
 __all__.append("request_workers")
 
 
-def repair_l2_cache(filepath: str, *, region_of_interest: shapely.MultiPolygon = None, force: bool = False) -> None:
+def repair_l2_cache(
+    filepath: str,
+    *,
+    region_of_interest: shapely.MultiPolygon = None,
+    force: bool = False,
+) -> None:
     """Attempts to repair corrupted l2 cache files.
 
     The caching logic is not 100% safe. To repair a cache, this function
     removes duplicates and sorts the data index.
-    If the note names for some reason 
+    If the note names for some reason
 
     Args:
         filepath (str): Path to l2 cache file.
@@ -1594,14 +1929,22 @@ def repair_l2_cache(filepath: str, *, region_of_interest: shapely.MultiPolygon =
     """
     if region_of_interest is not None:
         crs = gis.find_planar_crs(shp=region_of_interest)
-        bbox = shapely.box(*gpd.GeoSeries(region_of_interest, crs=4326).to_crs(crs).bounds.values[0])
+        bbox = shapely.box(
+            *gpd.GeoSeries(region_of_interest, crs=4326).to_crs(crs).bounds.values[0]
+        )
+
     def move_node(name, node):
         if isinstance(node, h5py.Dataset):
             pass
         elif "_i_table" in node:
             tmp = pd.read_hdf(tmp_h5, key=node.name)
-            if "bbox" not in locals() or any(shapely.within(shapely.points(tmp.x, tmp.y), bbox)):
-                tmp.drop_duplicates(keep="first").sort_index().to_hdf(filepath, key=node.name, format="table")
+            if "bbox" not in locals() or any(
+                shapely.within(shapely.points(tmp.x, tmp.y), bbox)
+            ):
+                tmp.drop_duplicates(keep="first").sort_index().to_hdf(
+                    filepath, key=node.name, format="table"
+                )
+
     tmp_h5 = os.path.join(data_path, "tmp", "tmp")
     if os.path.exists(tmp_h5):
         if os.path.isfile(tmp_h5):
@@ -1613,23 +1956,29 @@ def repair_l2_cache(filepath: str, *, region_of_interest: shapely.MultiPolygon =
     # I expect `shutil.move` to be safe and believe: either it succeeds or nothing happens
     shutil.move(filepath, tmp_h5)
     try:
-        print("Starting to repair file. This may take several minutes. You can",
-             f"monitor the progress by viewing the file sizes of {filepath} and",
-             f"{tmp_h5}. They will be similar at the end of the process. It should",
-              "be reasonably safe to abort.")
+        print(
+            "Starting to repair file. This may take several minutes. You can",
+            f"monitor the progress by viewing the file sizes of {filepath} and",
+            f"{tmp_h5}. They will be similar at the end of the process. It should",
+            "be reasonably safe to abort.",
+        )
         # below hides warnings about a minus sign in node names. this can safely be ignored.
-        warnings.filterwarnings('ignore', category=NaturalNameWarning)
+        warnings.filterwarnings("ignore", category=NaturalNameWarning)
         with h5py.File(tmp_h5, "r") as h5:
             h5.visititems(move_node)
-        warnings.filterwarnings('default', category=NaturalNameWarning)
+        warnings.filterwarnings("default", category=NaturalNameWarning)
         try:
-            clean_data_fraction = os.path.getsize(filepath)/os.path.getsize(tmp_h5)
+            clean_data_fraction = os.path.getsize(filepath) / os.path.getsize(tmp_h5)
         except FileNotFoundError:
-            print("No data remain - this will show as FileNotFoundError. The initial",
-                  "file will be restored. Delete it, if you're sure about it.")
+            print(
+                "No data remain - this will show as FileNotFoundError. The initial",
+                "file will be restored. Delete it, if you're sure about it.",
+            )
             raise
-        if not force and clean_data_fraction < .67:
-            raise Exception(f"Only {clean_data_fraction:%} of the original file size remain. If this seems plausible to you, rerun setting `force=True`.")
+        if not force and clean_data_fraction < 0.67:
+            raise Exception(
+                f"Only {clean_data_fraction:%} of the original file size remain. If this seems plausible to you, rerun setting `force=True`."
+            )
     except:
         print("Restoring original (potentially corrupt) file because error occurred.")
         if os.path.isfile(filepath):
@@ -1642,10 +1991,12 @@ def repair_l2_cache(filepath: str, *, region_of_interest: shapely.MultiPolygon =
     finally:
         if os.path.isfile(tmp_h5):
             os.remove(tmp_h5)
+
+
 __all__.append("repair_l2_cache")
 
 
-def rgi_code_translator(input: str|list[str], out_type: str = "full_name") -> str:
+def rgi_code_translator(input: str | list[str], out_type: str = "full_name") -> str:
     """Translate o1 or o2 codes to region names
 
     Args:
@@ -1664,8 +2015,12 @@ def rgi_code_translator(input: str|list[str], out_type: str = "full_name") -> st
     if isinstance(input, int) or len(input) <= 2 and int(input) < 20:
         return rgi_o1region_translator(input, out_type)
     if re.match(r"\d\d-\d\d", input):
-        return rgi_o2region_translator(*[int(x) for x in input.split("-")], out_type=out_type)
+        return rgi_o2region_translator(
+            *[int(x) for x in input.split("-")], out_type=out_type
+        )
     raise ValueError(f"Input {input} not understood. Pass RGI o1- or o2region codes.")
+
+
 __all__.append("rgi_code_translator")
 
 
@@ -1682,10 +2037,13 @@ def rgi_o1region_translator(input: int, out_type: str = "full_name") -> str:
     """
     if isinstance(input, list):
         return [rgi_o1region_translator(element, out_type) for element in input]
-    lut = pd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o1regions.feather"),
-                          columns=["o1region", "full_name", "long_code"],
-                          ).set_index("o1region")
+    lut = pd.read_feather(
+        os.path.join(rgi_path, "RGI2000-v7.0-o1regions.feather"),
+        columns=["o1region", "full_name", "long_code"],
+    ).set_index("o1region")
     return lut.loc[f"{input:02d}", out_type]
+
+
 __all__.append("rgi_o1region_translator")
 
 
@@ -1708,24 +2066,37 @@ def rgi_o2region_translator(o1: int, o2: int, out_type: str = "full_name") -> st
     if o1 == 5 and o2 in range(11, 16):
         if out_type != "full_name":
             raise NotImplementedError()
-        return dict([(11, "North Greenland"), (12, "West Greenland"), (13, "South West Greenland"), (14, "South East Greenland"), (15, "East Greenland")])[o2]
-    lut = pd.read_feather(os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"),
-                          columns=["o2region", "full_name", "long_code"],
-                          ).set_index("o2region")
+        return dict(
+            [
+                (11, "North Greenland"),
+                (12, "West Greenland"),
+                (13, "South West Greenland"),
+                (14, "South East Greenland"),
+                (15, "East Greenland"),
+            ]
+        )[o2]
+    lut = pd.read_feather(
+        os.path.join(rgi_path, "RGI2000-v7.0-o2regions.feather"),
+        columns=["o2region", "full_name", "long_code"],
+    ).set_index("o2region")
     return lut.loc[f"{o1:02d}-{o2:02d}", out_type]
+
+
 __all__.append("rgi_o2region_translator")
 
 
 @contextmanager
 def sandbox_write_to(target: str):
     # ! other functions depend on the "__backup" extension
-    if os.path.isfile(target+"__backup"):
-        raise Exception(f"Backup exists unexpectedly at {target+'__backup'}. This may point to a running process. If this is a relict, remove it manually.")
+    if os.path.isfile(target + "__backup"):
+        raise Exception(
+            f"Backup exists unexpectedly at {target+'__backup'}. This may point to a running process. If this is a relict, remove it manually."
+        )
     try:
         yield target
     finally:
-        if os.path.isfile(target+"__backup"):
-            os.remove(target+"__backup")
+        if os.path.isfile(target + "__backup"):
+            os.remove(target + "__backup")
 
 
 def update_email(email):
@@ -1740,18 +2111,22 @@ def update_email(email):
 
 # CREDIT: mgab https://stackoverflow.com/a/22376126
 def warn_with_traceback(message, category, filename, lineno, file=None, line=None):
-    log = file if hasattr(file,'write') else sys.stderr
+    log = file if hasattr(file, "write") else sys.stderr
     traceback.print_stack(file=log)
     log.write(warnings.formatwarning(message, category, filename, lineno, line))
+
+
 __all__.append("warn_with_traceback")
 
 
-def weighted_mean_excl_outliers(df: pd.DataFrame|xr.Dataset = None,
-                                weights: np.ndarray|str = "weights", *,
-                                values: np.ndarray|str = None,
-                                deviation_factor: int = 5,
-                                return_mask: bool = False,
-                                ) -> float:
+def weighted_mean_excl_outliers(
+    df: pd.DataFrame | xr.Dataset = None,
+    weights: np.ndarray | str = "weights",
+    *,
+    values: np.ndarray | str = None,
+    deviation_factor: int = 5,
+    return_mask: bool = False,
+) -> float:
     """Calculates the weighted average after excluding outliers.
 
     Note: This function uses `np.average` which expects weights similar
@@ -1778,26 +2153,42 @@ def weighted_mean_excl_outliers(df: pd.DataFrame|xr.Dataset = None,
         values = df[values].values
         if isinstance(weights, str):
             weights = df[weights].values
-    outlier_mask = flag_outliers(values, weights=weights, stat=np.average, deviation_factor=deviation_factor,
-                                 scaling_factor=1)
-    effective_sample_size = float(weights[~outlier_mask].sum()**2/(weights[~outlier_mask]**2).sum())
+    outlier_mask = flag_outliers(
+        values,
+        weights=weights,
+        stat=np.average,
+        deviation_factor=deviation_factor,
+        scaling_factor=1,
+    )
+    effective_sample_size = float(
+        weights[~outlier_mask].sum() ** 2 / (weights[~outlier_mask] ** 2).sum()
+    )
     # print(outlier_mask)
     if effective_sample_size > 6:
         avg = float(np.average(values[~outlier_mask], weights=weights[~outlier_mask]))
-        _var = float(np.average((values[~outlier_mask]-avg)**2, weights=weights[~outlier_mask]))
+        _var = float(
+            np.average(
+                (values[~outlier_mask] - avg) ** 2, weights=weights[~outlier_mask]
+            )
+        )
         if return_mask:
             return avg, _var, effective_sample_size, outlier_mask
     else:
         avg = np.nan
         _var = np.nan
         if return_mask:
-            return avg, _var, effective_sample_size, outlier_mask == -1 # all False
+            return avg, _var, effective_sample_size, outlier_mask == -1  # all False
     return avg, _var, effective_sample_size
+
+
 __all__.append("weighted_mean_excl_outliers")
 
 
-def xycut(data: gpd.GeoDataFrame, x_chunk_meter = 3*4*5*1_000, y_chunk_meter = 3*4*5*1_000)\
-    -> list[dict[str, Union[float, gpd.GeoDataFrame]]]:
+def xycut(
+    data: gpd.GeoDataFrame,
+    x_chunk_meter=3 * 4 * 5 * 1_000,
+    y_chunk_meter=3 * 4 * 5 * 1_000,
+) -> list[dict[str, Union[float, gpd.GeoDataFrame]]]:
     """Chunk point data in planar reference system
 
     This mainly is a helper function for `l3.build_dataset()` that takes
@@ -1812,21 +2203,30 @@ def xycut(data: gpd.GeoDataFrame, x_chunk_meter = 3*4*5*1_000, y_chunk_meter = 3
     # ! only implemented for l2 data. however, easily convertible for l1b and l3 data
 
     def lower_x(x):
-        return (x//x_chunk_meter)*x_chunk_meter
+        return (x // x_chunk_meter) * x_chunk_meter
+
     def lower_y(y):
-        return (y//y_chunk_meter)*y_chunk_meter
+        return (y // y_chunk_meter) * y_chunk_meter
+
     minx, miny, maxx, maxy = data.total_bounds
     chunks = []
-    for x in np.arange(lower_x(minx), lower_x(maxx)+1, x_chunk_meter):
-        for y in np.arange(lower_y(miny), lower_y(maxy)+1, y_chunk_meter):
-            tmp = data.cx[x:x+x_chunk_meter,y:y+y_chunk_meter]
-            if tmp.empty: continue
-            chunks.append(dict(x_interval_start = x,
-                               x_interval_stop = x + x_chunk_meter,
-                               y_interval_start = y,
-                               y_interval_stop = y + y_chunk_meter,
-                               data = tmp))
+    for x in np.arange(lower_x(minx), lower_x(maxx) + 1, x_chunk_meter):
+        for y in np.arange(lower_y(miny), lower_y(maxy) + 1, y_chunk_meter):
+            tmp = data.cx[x : x + x_chunk_meter, y : y + y_chunk_meter]
+            if tmp.empty:
+                continue
+            chunks.append(
+                dict(
+                    x_interval_start=x,
+                    x_interval_stop=x + x_chunk_meter,
+                    y_interval_start=y,
+                    y_interval_stop=y + y_chunk_meter,
+                    data=tmp,
+                )
+            )
     return chunks
+
+
 __all__.append("xycut")
 
 
