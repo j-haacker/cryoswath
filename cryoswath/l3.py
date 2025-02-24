@@ -1,3 +1,13 @@
+"""Functions to aggregate point elevation estimates into a regular grid"""
+
+__all__ = [
+    "cache_l2_data",
+    "med_iqr_cnt",
+    "build_path",
+    "build_dataset",
+    "preallocate_zarr",
+]
+
 import dask.array
 import datetime
 from dateutil.relativedelta import relativedelta
@@ -16,8 +26,6 @@ from . import l2
 from .misc import *
 from .gis import buffer_4326_shp, ensure_pyproj_crs, find_planar_crs
 
-__all__ = list()
-
 
 # numba does not do help here easily. using the numpy functions is as fast as it gets.
 def med_iqr_cnt(data):
@@ -26,9 +34,6 @@ def med_iqr_cnt(data):
         [[quartiles[1], quartiles[2] - quartiles[0], len(data)]],
         columns=["_median", "_iqr", "_count"],
     )
-
-
-__all__.append("med_iqr_cnt")
 
 
 def cache_l2_data(
@@ -49,8 +54,8 @@ def cache_l2_data(
         old_window = window_ntimesteps
         window_ntimesteps = window_ntimesteps // 2 + 1
         warnings.warn(
-            f"The window should be a uneven number of time steps. You asked for {old_window}, but it has "
-            + f"been changed to {window_ntimesteps}."
+            f"The window should be a uneven number of time steps. You asked for "
+            f"{old_window}, but it has been changed to {window_ntimesteps}."
         )
     # ! end time step should be included.
     start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
@@ -150,9 +155,6 @@ def cache_l2_data(
     )
 
 
-__all__.append("cache_l2_data")
-
-
 def preallocate_zarr(path, bbox, crs, time_index, data_vars) -> None:
     x_dummy = np.arange(
         (bbox.bounds[0] // 500 + 0.5) * 500, bbox.bounds[2], 500, dtype="i4"
@@ -173,9 +175,6 @@ def preallocate_zarr(path, bbox, crs, time_index, data_vars) -> None:
         .rio.write_crs(crs)
         .to_zarr(path, compute=False)
     )
-
-
-__all__.append("preallocate_zarr")
 
 
 def build_dataset(
@@ -421,9 +420,9 @@ def build_dataset(
             for i in range(window_ntimesteps):
 
                 def local_closure(roll_iteration):
-                    # note: consider calculating the kurtosis of the data between the 25th
-                    #       and the 75th percentile. this could help later on to identify
-                    #       the approximate distribution shape
+                    # note: consider calculating the kurtosis of the data between the
+                    #       25th and the 75th percentile. this could help later on to
+                    #       identify the approximate distribution shape
                     return (
                         l2_df.rename(columns={f"roll_{i}": "time_idx"})
                         .groupby(["time_idx", "x", "y"])
@@ -505,9 +504,6 @@ def build_dataset(
     return xr.open_zarr(outfilepath, decode_coords="all")
 
 
-__all__.append("build_dataset")
-
-
 def build_path(
     region_of_interest, timestep_months, spatial_res_meter, aggregation_period=None
 ):
@@ -531,9 +527,3 @@ def build_path(
     return os.path.join(
         data_path, "L3", "_".join([region_id, timestep_str, spatial_res_str + ".zarr"])
     )
-
-
-__all__.append("build_path")
-
-
-__all__ = sorted(__all__)
