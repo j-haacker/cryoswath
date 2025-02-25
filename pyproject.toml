@@ -54,7 +54,7 @@ notebooks = ["ipykernel"]
 
 [project.urls]
 Repository = "https://github.com/j-haacker/cryoswath.git"
-Documentation = "https://j-haacker.github.io/cryoswath"
+Documentation = "https://cryoswath.readthedocs.io/"
 Issues = "https://github.com/j-haacker/cryoswath/issues"
 
 [project.scripts]

@@ -48,7 +48,7 @@ def linkcode_resolve(domain, info):
         return None
     filename = info['module'].replace('.', '/')
     print(info, filename)
-    return "https://github.com/j-haacker/cryoswath/blob/main/%s.py" % filename
+    return "https://github.com/j-haacker/cryoswath/blob/develop/%s.py" % filename
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -70,3 +70,5 @@ html_theme = 'sphinx_rtd_theme'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+html_baseurl = os.environ.get("READTHEDOCS_CANONICAL_URL", "/")
