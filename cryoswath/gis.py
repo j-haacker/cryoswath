@@ -22,9 +22,11 @@ import rasterio
 import shapely
 import warnings
 
-from .misc import *
-
-__all__ = list()
+from .misc import (
+    load_glacier_outlines,
+    load_o2region,
+    rgi_path,
+)
 
 # ! tbi:
 rgi_o1_epsg_dict = dict()
@@ -48,7 +50,10 @@ def buffer_4326_shp(
     # # geopandas used to be more stable. however the below was improved and
     # # may be equally good now.
     # transformer = Transformer.from_crs("EPSG:4326", planar_crs)
-    # shp = shapely.ops.transform(transformer.invert().transform, shapely.ops.transform(transformer.transform, shp).simplify(100).buffer(radius)).make_valid()
+    # shp = shapely.ops.transform(transformer.invert().transform,
+    #                             shapely.ops.transform(
+    #       transformer.transform, shp
+    # ).simplify(100).buffer(radius)).make_valid()
     if isinstance(shp, shapely.geometry.base.BaseMultipartGeometry):
         shp = list(shp.geoms)
     elif isinstance(shp, shapely.geometry.base.BaseGeometry):
@@ -165,7 +170,8 @@ def simplify_4326_shp(
         else:
             tolerance = 300
     planar_crs = find_planar_crs(shp=shp)
-    # simplify can create holes outside of the polygon. this is fixed by buffer(0) or make_valid()
+    # simplify can create holes outside of the polygon. this is fixed by
+    # buffer(0) or make_valid()
     if isinstance(shp, shapely.Geometry):
         shp = gpd.GeoSeries(shp, crs=4326)
     return (
