@@ -23,7 +23,16 @@ import warnings
 import xarray as xr
 
 from . import l2
-from .misc import *
+from .misc import (
+    data_path,
+    dataframe_to_rioxr,
+    filter_kwargs,
+    find_region_id,
+    load_cs_ground_tracks,
+    load_glacier_outlines,
+    sandbox_write_to,
+    tmp_path
+)
 from .gis import buffer_4326_shp, ensure_pyproj_crs, find_planar_crs
 
 
@@ -76,7 +85,8 @@ def cache_l2_data(
             if isinstance(region_of_interest, str)
             else "a custom area"
         ),
-        f"from {start_datetime} to {end_datetime} +-{relativedelta(months=time_buffer_months)}.",
+        f"from {start_datetime} to {end_datetime}",
+        f"+-{relativedelta(months=time_buffer_months)}.",
     )
     cs_tracks = load_cs_ground_tracks(
         region_of_interest,
@@ -94,7 +104,8 @@ def cache_l2_data(
         "date. Consider pulling the latest version from the repository.",
     )
 
-    # ! exclude data out of regions total_bounds in l2.from_id (?possible/logically consistent?)
+    # ! exclude data out of regions total_bounds in l2.from_id
+    # (?possible/logically consistent?)
     print(
         "Storing the essential L2 data in hdf5, downloading and",
         "processing L1b files if not available...",
@@ -118,9 +129,11 @@ def cache_l2_data(
         crs = find_planar_crs(shp=region_of_interest)
     else:
         crs = ensure_pyproj_crs(crs)
-    # cutting to actual glacier outlines takes very long. if needed, implement multiprocessing.
+    # cutting to actual glacier outlines takes very long. if needed,
+    # implement multiprocessing.
     # bbox = gpd.GeoSeries(
-    #     shapely.box(*gpd.GeoSeries(region_of_interest, crs=4326).to_crs(crs).bounds.values[0]),
+    #     shapely.box(*gpd.GeoSeries(region_of_interest,
+    #                 crs=4326).to_crs(crs).bounds.values[0]),
     #     crs=crs)
     # below tries to balance a large cache file with speed. it is not meant
     # to retain data in the suroundings - this is merely needed for the
@@ -151,7 +164,8 @@ def cache_l2_data(
             if isinstance(region_of_interest, str)
             else "a custom area"
         ),
-        f"from {start_datetime} to {end_datetime} +-{relativedelta(months=time_buffer_months)}.",
+        f"from {start_datetime} to {end_datetime}",
+        f"+-{relativedelta(months=time_buffer_months)}.",
     )
 
 
@@ -202,8 +216,8 @@ def build_dataset(
         old_window = window_ntimesteps
         window_ntimesteps = window_ntimesteps // 2 + 1
         warnings.warn(
-            f"The window should be a uneven number of time steps. You asked for {old_window}, but it has "
-            + f"been changed to {window_ntimesteps}."
+            "The window should be a uneven number of time steps. You asked for "
+            f"{old_window}, but it has been changed to {window_ntimesteps}."
         )
     # ! end time step should be included.
     start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
@@ -243,7 +257,8 @@ def build_dataset(
         "date. Consider pulling the latest version from the repository.",
     )
 
-    # ! exclude data out of regions total_bounds in l2.from_id (?possible/logically consistent?)
+    # ! exclude data out of regions total_bounds in l2.from_id
+    # (?possible/logically consistent?)
     print(
         "Storing the essential L2 data in hdf5, downloading and",
         "processing L1b files if not available...",
@@ -267,9 +282,11 @@ def build_dataset(
         crs = find_planar_crs(shp=region_of_interest)
     else:
         crs = ensure_pyproj_crs(crs)
-    # cutting to actual glacier outlines takes very long. if needed, implement multiprocessing.
+    # cutting to actual glacier outlines takes very long. if needed,
+    # implement multiprocessing.
     # bbox = gpd.GeoSeries(
-    #     shapely.box(*gpd.GeoSeries(region_of_interest, crs=4326).to_crs(crs).bounds.values[0]),
+    #     shapely.box(*gpd.GeoSeries(region_of_interest,
+    #                 crs=4326).to_crs(crs).bounds.values[0]),
     #     crs=crs)
     # below tries to balance a large cache file with speed. it is not meant
     # to retain data in the suroundings - this is merely needed for the
@@ -488,7 +505,7 @@ def build_dataset(
                     warnings.warn(
                         "Failed to do an emergency dump!" + " Rethrowing errors:"
                     )
-                    raise
+                    raise err_inner
                 else:
                     print(
                         "\n",
@@ -498,7 +515,7 @@ def build_dataset(
                     print("\n", "Original error is printed below.", str(err), "\n")
             else:
                 print(datetime.datetime.now())
-                print(f"processed and stored cell", chunk_name)
+                print("processed and stored cell", chunk_name)
                 print(l3_data.head())
     print("\n\n+++++++++++++ successfully build dataset ++++++++++++++\n\n")
     return xr.open_zarr(outfilepath, decode_coords="all")
