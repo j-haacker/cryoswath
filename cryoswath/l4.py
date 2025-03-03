@@ -20,9 +20,6 @@ import os
 import pandas as pd
 import rasterio.warp
 import rioxarray as rioxr
-import scipy.special
-from scipy.stats import norm
-from statsmodels.tsa.seasonal import seasonal_decompose
 import tqdm
 import xarray as xr
 
@@ -33,11 +30,10 @@ from .misc import (
     get_dem_reader,
     interpolate_hypsometrically,
     load_glacier_outlines,
+    load_o2region,
     nanoseconds_per_year,
 )
 from . import misc, l3
-
-__all__ = list()
 
 # notes for future development of `differential_change` and
 # `relative_change`:
@@ -64,8 +60,8 @@ def append_basin_id(
     if isinstance(ds, xr.DataArray):
         ds = ds.to_dataset()
     ds["basin_id"] = xr.DataArray(
-        -1.0,  # should be float. is converted later anyway and if defined here, _FillValue
-        # can be nan
+        -1.0,  # should be float. is converted later anyway and if defined here,
+        # _FillValue can be nan
         coords={k: v for k, v in ds.coords.items() if k in ["x", "y"]},
         dims=["x", "y"],
         attrs={"_FillValue": np.nan},
@@ -94,8 +90,8 @@ def append_basin_group(
     if isinstance(ds, xr.DataArray):
         ds = ds.to_dataset()
     ds["group_id"] = xr.DataArray(
-        -1.0,  # should be float. is converted later anyway and if defined here, _FillValue
-        # can be nan
+        -1.0,  # should be float. is converted later anyway and if defined here,
+        # _FillValue can be nan
         coords={k: v for k, v in ds.coords.items() if k in ["x", "y"]},
         dims=["x", "y"],
         attrs={"_FillValue": np.nan},
@@ -133,7 +129,7 @@ def append_basin_group(
                 lat = basin_lat_group[0].mid
                 lon = basin_lon_group[0].mid
                 group_id = int(
-                    f"{np.sign(lat)*term_type:.0f}{np.abs(lat):02.0f}{lon%360:03.0f}"
+                    f"{np.sign(lat)*term_type:.0f}{np.abs(lat):02.0f}{lon % 360:03.0f}"
                 )
                 mask = xr.where(
                     mask.isnull(), ds.group_id.loc[dict(x=mask.x, y=mask.y)], group_id
@@ -188,7 +184,8 @@ def fill_voids(
     outlier_iterations: int = 1,
     fit_sanity_check: dict = None,
 ) -> xr.Dataset:
-    # mention memory footprint in docstring: reindexing leaks and takes a s**t ton of memory. roughly 5-10x l3_data size in total.
+    # mention memory footprint in docstring: reindexing leaks and takes a s**t ton of
+    # memory. roughly 5-10x l3_data size in total.
     if any([grouper not in ["basin", "basin_group"] for grouper in per]):
         raise NotImplementedError
     if basin_shapes is None:
@@ -281,7 +278,8 @@ def fill_voids(
         ds[main_var] = ds[main_var].interpolate_na(
             dim="time", method="linear", max_gap=pd.Timedelta(days=367)
         )
-    # if there are still missing data, interpolate region wide ("global hypsometric interpolation")
+    # if there are still missing data, interpolate region wide ("global
+    # hypsometric interpolation")
     ds = interpolate_hypsometrically(
         (ds.where(~ds.basin_id.isnull()) if "basin_id" in ds else ds)
         .rio.clip(basin_shapes.make_valid())
@@ -294,7 +292,8 @@ def fill_voids(
         outlier_limit=outlier_limit,
         fit_sanity_check=fit_sanity_check,
     )
-    # if there are STILL missing data, temporally interpolate remaining gaps and fill the margins
+    # if there are STILL missing data, temporally interpolate remaining
+    # gaps and fill the margins
     if "time" in ds.dims:
         ds[main_var] = (
             ds[main_var]
@@ -313,7 +312,8 @@ def fit_trend(
     timestep_months: int = 12,
     return_raw: bool = False,
 ) -> xr.Dataset:
-    # using resample(time="...").nearest(pd.Timedelta(..., "days")).dropna("time", "all")
+    # using resample(time="...").nearest(pd.Timedelta(..., "days"))\
+    #   .dropna("time", "all")
     # it could theoretically be implemented to select a valid value in the
     # proximity of the desired time stamp. because the required frequency is
     # difficult to define flexibly and for the benefit of a well-defined
@@ -604,6 +604,3 @@ def trend_with_seasons(
         + np.abs(amp_yearly) * np.exp((2 * np.pi * t_yr - phase_yearly) * 1j).real
         + np.abs(amp_semiyr) * np.exp((4 * np.pi * t_yr - phase_semiyr) * 1j).real
     )
-
-
-__all__ = sorted(__all__)
