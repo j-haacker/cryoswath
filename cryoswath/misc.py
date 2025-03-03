@@ -73,7 +73,7 @@ from scipy.stats import norm, median_abs_deviation
 from scipy.stats import t as student_t
 import shapely
 import shutil
-from sklearn import covariance, linear_model, preprocessing
+from sklearn import linear_model, preprocessing
 import sys
 from tables import NaturalNameWarning
 import time
@@ -99,7 +99,7 @@ def init_project():
                 "scripts",
                 branch="scripts",
             )
-        except:
+        except Exception:
             os.makedirs("scripts")
     else:
         warnings.warn(
@@ -116,7 +116,7 @@ def init_project():
         config.write(f)
 
 
-## Paths ##############################################################
+# Paths ##############################################################
 if os.path.isfile("config.ini"):
     config = ConfigParser()
     config.read("config.ini")
@@ -157,12 +157,12 @@ else:
         ' is "scripts".'
     )
 
-## Config #############################################################
+# Config #############################################################
 WGS84_ellpsoid = Geod(ellps="WGS84")
 # The following is advised to set for pandas<v3 (default for later versions)
 pd.options.mode.copy_on_write = True
 
-## Constants ##########################################################
+# Constants ##########################################################
 antenna_baseline = 1.1676
 Ku_band_freq = 13.575e9
 sample_width = speed_of_light / (320e6 * 2) / 2
@@ -174,7 +174,7 @@ _norm_isf_025 = norm.isf(0.025)
 _norm_isf_25 = norm.isf(0.25)
 _norm_sf_1 = norm.sf(1)
 
-## Functions ##########################################################
+# Functions ##########################################################
 
 
 # security issue?
@@ -344,7 +344,8 @@ def discard_frontal_retreat_zone(
         tmp = np.abs(bands.mean())
 
     if not (tmp > threshold).any():
-        # print(ds.basin_id.values.item(0), "too small.", ds[elev].count().values.item(0), "cells in total")
+        # print(ds.basin_id.values.item(0), "too small.",
+        #       ds[elev].count().values.item(0), "cells in total")
         return ds
 
     front_bin = ((tmp > tmp.max() / 2).cumsum() != 0).idxmax().values.item(0)
@@ -401,8 +402,9 @@ def fill_missing_coords(
 ) -> xr.Dataset:
     # previous version inspired by user9413641
     # https://stackoverflow.com/questions/68207994/fill-in-missing-index-positions-in-xarray-dataarray
-    # ! resx, resy = [int(r) for r in l3_data.rio.resolution()]
-    # don't use `rio.resolution()`: this assumes no holes which renders this function obsolete
+    # ! resx, resy = [int(r) for r in l3_data.rio.resolution()] don't
+    # use `rio.resolution()`: this assumes no holes which renders this
+    # function obsolete
     l3_data = l3_data.sortby("x").sortby("y")  # ensure monotonix x and y
     resx, resy = [l3_data[k].diff(k).min().values.astype("int") for k in ["x", "y"]]
     minx, miny = int(minx + resx / 2), int(miny + resy / 2)
@@ -524,7 +526,8 @@ def find_region_id(location: any, scope: str = "o2") -> str:
             contains_location = sub_o2.contains(location)
             if not any(contains_location):
                 raise Exception(
-                    f"Location {location} not in any of Greenlands subregions (N,W,SW,SE,E)."
+                    f"Location {location} not in any of Greenlands subregions "
+                    "(N,W,SW,SE,E)."
                 )
             elif sum(contains_location) > 1:
                 raise Exception(
@@ -629,7 +632,8 @@ def flag_translator(cs_l1b_flag):
                     flag_list.append(flag_dictionary.loc[i])
                 except KeyError:
                     raise (
-                        f"Unkown flag: {2**i}! This points to a bug either in the code or in the data!"
+                        f"Unkown flag: {2**i}! This points to a bug either in the code "
+                        "or in the data!"
                     )
         return flag_list
     else:
@@ -648,8 +652,8 @@ def ftp_cs2_server(**kwargs):
         email = config["user"]["email"]
     except KeyError:
         print(
-            "\n\nPlease call `misc.update_email()` to provide your email address as ESA asks",
-            "for it as password when downloading data via ftp.\n\n",
+            "\n\nPlease call `misc.update_email()` to provide your email address as "
+            "ESA asks for it as password when downloading data via ftp.\n\n",
         )
         raise
     with ftplib.FTP("science-pds.cryosat.esa.int", **kwargs) as ftp:
@@ -742,10 +746,12 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
             return rasterio.open(os.path.join(dem_path, data))
     if "lat" not in locals():
         raise NotImplementedError(
-            f"`get_dem_reader` could not handle the input of type {data.__class__}. See doc for further info."
+            f"`get_dem_reader` could not handle the input of type {data.__class__}. "
+            "See doc for further info."
         )
     if lat > 0:
-        # return rasterio.open(os.path.join(dem_path, "arcticdem_mosaic_100m_v4.1_dem.tif"))
+        # return rasterio.open(os.path.join(dem_path,
+        #                                   "arcticdem_mosaic_100m_v4.1_dem.tif"))
         dem_filename = "arcticdem_mosaic_100m_v4.1_dem.tif"
     else:
         dem_filename = "rema_mosaic_100m_v2.0_filled_cop30_dem.tif"
@@ -850,9 +856,9 @@ def interpolate_hypsometrically(
         #       requires taking note of those data_vars that do not depend on
         #       time and reset those after the operation
         no_time_dep = [
-            data_var for data_var in ds.data_vars if not "time" in ds[data_var].dims
+            data_var for data_var in ds.data_vars if "time" not in ds[data_var].dims
         ]
-        if fit_sanity_check == True:
+        if fit_sanity_check is True:
             # set default sanity check for elevation differences wrt. ref. DEM
             fit_sanity_check = {
                 "max_allowed_gradient": 10 / 100
@@ -870,7 +876,7 @@ def interpolate_hypsometrically(
             ds[var_name] = ds[var_name].isel(time=0)
         return select_returns(return_coeffs, ds, np.array([np.nan] * 4))
     else:
-        if fit_sanity_check == True:
+        if fit_sanity_check is True:
             # set default sanity check for elevation change rate
             fit_sanity_check = {
                 "max_allowed_gradient": 5 / 100
@@ -947,7 +953,9 @@ def interpolate_hypsometrically(
         # # debugging plot:
         # import matplotlib.pyplot as plt
         # # noise.astype("int").unstack().sortby("x").sortby("y").T.plot(cmap="cool")
-        # # (np.abs(ds[main_var]-neighbour_mean)/neighbour_std - outlier_limit - np.abs(ds[elev]-neighbour_elev_mean)/neighbour_elev_std).unstack().sortby("x").sortby("y").T.plot(cmap="cool")
+        # # (np.abs(ds[main_var]-neighbour_mean)/neighbour_std - outlier_limit
+        # #  - np.abs(ds[elev]-neighbour_elev_mean)/neighbour_elev_std
+        # # ).unstack().sortby("x").sortby("y").T.plot(cmap="cool")
         # neighbour_count.unstack().sortby("x").sortby("y").T.plot(cmap="cool")
         # plt.show()
         ds[main_var] = xr.where(
@@ -1003,7 +1011,8 @@ def interpolate_hypsometrically(
             continue
         # # debugging notice
         # print("calc weighted avg succeeded", label)
-        # print("avg", avg, "_var", _var, "effective_samp_size", effective_samp_size, "err", err)
+        # print("avg", avg, "_var", _var, "effective_samp_size", effective_samp_size,
+        #       "err", err)
         elev_bin_means.loc[label] = avg
         elev_bin_errs.loc[label] = err
     elev_bin_means.dropna(inplace=True)
@@ -1012,16 +1021,19 @@ def interpolate_hypsometrically(
     if elev_bin_means.empty or len(elev_bin_means.index) < 5:
         print("data doesn't cover sufficient elevation bands", elev_bin_means)
         return select_returns(return_coeffs, ds, np.array([np.nan] * 4))
-    ## fit polynomial
     # print(elev_bin_means, elev_bin_errs)
+    # fit polynomial
     try:
         x_vals = np.array([[idx.mid for idx in elev_bin_means.index]]).T
         scaler = preprocessing.StandardScaler().fit(
             x_vals, sample_weight=1 / elev_bin_errs.values
         )
         # print(x_vals, scaler.transform(x_vals))
-        # print(x_vals, design_matrix(x_vals), elev_bin_means.values, 1/elev_bin_errs.values)
-        # cov = covariance.EmpiricalCovariance().fit(design_matrix(scaler.transform(x_vals))).covariance_
+        # print(x_vals, design_matrix(x_vals), elev_bin_means.values,
+        #       1/elev_bin_errs.values)
+        # cov = covariance.EmpiricalCovariance().fit(design_matrix(scaler.transform(
+        #       x_vals
+        # ))).covariance_
         fit = linear_model.Ridge(1, solver="svd").fit(
             design_matrix(scaler.transform(x_vals)),
             elev_bin_means.values,
@@ -1046,9 +1058,10 @@ def interpolate_hypsometrically(
             ).max()
             > fit_sanity_check["max_allowed_gradient"] * scaler.var_**0.5
         ):
-            # warnings.warn("discarding fit because unrealistic - !note: this is usually not the"
-            #               + "desired behavior const./linear extrapolation is used instead of"
-            #               + "the fit which renders this check obsolete!")
+            # warnings.warn("discarding fit because unrealistic - !note: this is "
+            #               "usually not the desired behavior const./linear "
+            #               "extrapolation is used instead of the fit which renders "
+            #               "this check obsolete!")
             return select_returns(return_coeffs, ds, np.array([np.nan] * 4))
 
     def scale(x):
@@ -1122,13 +1135,17 @@ def interpolate_hypsometrically(
     # # debugging plot:
     # import matplotlib.pyplot as plt
     # _, ax = plt.subplots(ncols=2, figsize=(18,6))
-    # ds[main_var].unstack().sortby("x").sortby("y").T.plot(ax=ax[0], robust=True, cmap="RdYlBu")
-    # modelled.unstack().sortby("x").sortby("y").T.plot(ax=ax[1], robust=True, cmap="RdYlBu")
+    # ds[main_var].unstack().sortby("x").sortby("y").T.plot(ax=ax[0], robust=True,
+    #                                                       cmap="RdYlBu")
+    # modelled.unstack().sortby("x").sortby("y").T.plot(ax=ax[1], robust=True,
+    #                                                   cmap="RdYlBu")
     # plt.show()
     residuals = ds[main_var] - modelled
     # # debugging plot:
     # import matplotlib.pyplot as plt
-    # (np.abs(neighbour_mean-modelled) - outlier_limit*neighbour_std.mean()).unstack().sortby("x").sortby("y").T.plot(robust=True, cmap="RdYlBu")
+    # (np.abs(
+    #       neighbour_mean-modelled) - outlier_limit * neighbour_std.mean()
+    # ).unstack().sortby("x").sortby("y").T.plot(robust=True, cmap="RdYlBu")
     # plt.show()
     local_deviation = np.logical_and(
         neighbour_count >= 6,
@@ -1151,27 +1168,28 @@ def interpolate_hypsometrically(
         fill_mask = ds[main_var].isnull()
     # # debugging plot:
     # import matplotlib.pyplot as plt
-    # plt.scatter(ds[elev].where(~fill_mask).values.flatten(), ds[main_var].values.flatten())
-    # plt.scatter(ds[elev].where(fill_mask).values.flatten(), ds[main_var].values.flatten(), ec="tab:purple", fc="none")
-    # plt.scatter(ds[elev].where(ds[main_var].isnull()).values.flatten(), modelled, ec="tab:purple", fc="none")
+    # plt.scatter(ds[elev].where(~fill_mask).values.flatten(),
+    #             ds[main_var].values.flatten())
+    # plt.scatter(ds[elev].where(fill_mask).values.flatten(),
+    #             ds[main_var].values.flatten(), ec="tab:purple", fc="none")
+    # plt.scatter(ds[elev].where(ds[main_var].isnull()).values.flatten(), modelled,
+    #             ec="tab:purple", fc="none")
     # tmp_x_vals = np.linspace(ds[elev].min(), ds[elev].max(), 50)[:,None]
-    # plt.plot(tmp_x_vals, fit.predict(design_matrix(scaler.transform(tmp_x_vals))), c="tab:orange")
+    # plt.plot(tmp_x_vals, fit.predict(design_matrix(scaler.transform(tmp_x_vals))),
+    #          c="tab:orange")
     # tmp = 2*neighbour_std.mean().values.item(0)
-    # plt.plot(tmp_x_vals, fit.predict(design_matrix(scaler.transform(tmp_x_vals))) + tmp,
+    # plt.plot(tmp_x_vals,
+    #          fit.predict(design_matrix(scaler.transform(tmp_x_vals))) + tmp,
     #          c="tab:gray", ls="dashed")
-    # plt.plot(tmp_x_vals, fit.predict(design_matrix(scaler.transform(tmp_x_vals))) - tmp,
+    # plt.plot(tmp_x_vals,
+    #          fit.predict(design_matrix(scaler.transform(tmp_x_vals))) - tmp,
     #          c="tab:gray", ls="dashed")
     # plt.errorbar(x_vals, elev_bin_means, elev_bin_errs, ls="none", c="tab:red")
     # if "time" in ds:
     #     plt.title(ds.time.values)#.strftime("%Y-%m-%d")
     # plt.ylim([ds[main_var].min(), ds[main_var].max()])
     # plt.show()
-    try:
-        # print(fill_mask)
-        ds[main_var] = xr.where(fill_mask, modelled, ds[main_var])
-    except:
-        # print(modelled)
-        raise
+    ds[main_var] = xr.where(fill_mask, modelled, ds[main_var])
     RMSE = (residuals.where(~fill_mask) ** 2).mean() ** 0.5
     if "std" in error.lower():
         pass
@@ -1466,9 +1484,9 @@ def load_cs_ground_tracks(
                     cs_tracks = cs_tracks[~duplicate]
                     cs_tracks.sort_index(inplace=True)
                 save_current_track_list(cs_tracks)
-            print(f"scanned all files in", last_idx.strftime("%Y/%m"))
+            print("scanned all files in", last_idx.strftime("%Y/%m"))
             last_idx = last_idx + pd.DateOffset(months=1)
-            print(f"switching to", last_idx.strftime("%Y/%m"))
+            print("switching to", last_idx.strftime("%Y/%m"))
 
     # the local collection has been updated. now, return the tracks
     if buffer_period_by is not None:
@@ -1502,7 +1520,8 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
 
     Args:
         o1code (str): starting with "01".."20"
-        product (str, optional): Either "glaciers" or "complexes". Defaults to "complexes".
+        product (str, optional): Either "glaciers" or "complexes".
+            Defaults to "complexes".
 
     Raises:
         ValueError: If o1code can't be recognized.
@@ -1538,7 +1557,7 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
             f"RGI file RGI2000-v7.0-{product}-{o1code[:2]}_... couldn't be found.",
             "Make sure RGI files are available in data/auxiliary/RGI. If you did",
             "not download them already, you can find them at",
-            f"https://daacdata.apps.nsidc.org/pub/DATASETS/nsidc0770_rgi_v7/regional_files/RGI2000-v7.0-{product}/.",
+            f"https://daacdata.apps.nsidc.org/pub/DATASETS/nsidc0770_rgi_v7/regional_files/RGI2000-v7.0-{product}/.",  # noqa: E501
             "Mind that you need to unzip them. If you decide to put them into a",
             "directory, name it as the file is named (e.g. RGI2000-v7.0-G-01_alaska).",
         )
@@ -1552,7 +1571,8 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
         small_glacier_mask = o1region.area_km2 < 1
         if sum(small_glacier_mask) != 0:
             warnings.warn(
-                f"Dropping {sum(small_glacier_mask)} glaciers < 1 km² from RGI o1 region."
+                f"Dropping {sum(small_glacier_mask)} glaciers < 1 km² from RGI o1 "
+                "region."
             )
         o1region = o1region[~small_glacier_mask]
     return o1region
@@ -1637,7 +1657,8 @@ def load_glacier_outlines(
         "G",
     ]:
         out = load_basins([identifier])
-    # the pattern is rather allowing, set it to "^(-?[012][0-9]){2}(_[a-z]+){1,5}(_[0-9][a-z][0-9]?)?$" to make it tight
+    # the pattern is rather allowing, set it to
+    # "^(-?[012][0-9]){2}(_[a-z]+){1,5}(_[0-9][a-z][0-9]?)?$" to make it tight
     elif len(identifier) >= 5 and re.match("^(-?[0-3][0-9]){2}$", identifier[:5]):
         out = load_o2region(identifier[:5], product=product)
     elif re.match("[012][0-9](_[a-z]+)?", identifier):
@@ -1651,7 +1672,7 @@ def load_glacier_outlines(
     if union:  # former default
         try:
             out = out.union_all(method="coverage")
-        except:
+        except:  # TODO specify exception # noqa: E722
             out = out.union_all(method="unary")
     return out
 
@@ -1925,7 +1946,8 @@ def repair_l2_cache(
             shutil.rmtree(tmp_h5)
         else:
             raise Exception(f"Can't remove {tmp_h5}; neither file nor directory!?")
-    # I expect `shutil.move` to be safe and believe: either it succeeds or nothing happens
+    # I expect `shutil.move` to be safe and believe: either it succeeds
+    # or nothing happens
     shutil.move(filepath, tmp_h5)
     try:
         print(
@@ -1934,7 +1956,8 @@ def repair_l2_cache(
             f"{tmp_h5}. They will be similar at the end of the process. It should",
             "be reasonably safe to abort.",
         )
-        # below hides warnings about a minus sign in node names. this can safely be ignored.
+        # below hides warnings about a minus sign in node names. this
+        # can safely be ignored.
         warnings.filterwarnings("ignore", category=NaturalNameWarning)
         with h5py.File(tmp_h5, "r") as h5:
             h5.visititems(move_node)
@@ -1949,9 +1972,10 @@ def repair_l2_cache(
             raise
         if not force and clean_data_fraction < 0.67:
             raise Exception(
-                f"Only {clean_data_fraction:%} of the original file size remain. If this seems plausible to you, rerun setting `force=True`."
+                f"Only {clean_data_fraction:%} of the original file size remain. If "
+                "this seems plausible to you, rerun setting `force=True`."
             )
-    except:
+    except Exception:
         print("Restoring original (potentially corrupt) file because error occurred.")
         if os.path.isfile(filepath):
             os.remove(filepath)
@@ -2050,7 +2074,8 @@ def sandbox_write_to(target: str):
     # ! other functions depend on the "__backup" extension
     if os.path.isfile(target + "__backup"):
         raise Exception(
-            f"Backup exists unexpectedly at {target+'__backup'}. This may point to a running process. If this is a relict, remove it manually."
+            f"Backup exists unexpectedly at {target+'__backup'}. This may point to a "
+            "running process. If this is a relict, remove it manually."
         )
     try:
         yield target
@@ -2179,6 +2204,3 @@ def xycut(
                 )
             )
     return chunks
-
-
-__all__ = sorted(__all__)
