@@ -4,11 +4,30 @@ It mainly contains the L1bData class, that allows to process ESA
 CryoSat-2 SARIn L1b data to point elevation estimate (L2 data).
 """
 
-helper_functions = [
+__all__ = [
+    "from_id",
+    "read_esa_l1b",
+    "download_wrapper",
+    "append_ambiguous_reference_elevation",
+    "append_best_fit_phase_index",
+    "append_elev_diff_to_ref",
+    "append_exclude_mask",
+    "append_poca_and_swath_idxs",
+    "append_smoothed_complex_phase",
+    "build_flag_mask",
+    "download_files",
+    "download_single_file",
+    "drop_waveform",
+    "get_phase_jump",
+    "get_phase_outlier",
+    "get_rgi_o2",
+    "if_not_empty",
+    "locate_ambiguous_origin",
     "noise_val",
+    "ref_range",
+    "tag_groups",
+    "unwrap_phase_diff",
 ]
-
-__all__ = [*helper_functions]
 
 import fnmatch
 import ftplib
@@ -28,10 +47,34 @@ import time
 import warnings
 import xarray as xr
 
-from .misc import *
-from .gis import buffer_4326_shp, find_planar_crs, ensure_pyproj_crs, subdivide_region
-
-__all__ = list()
+from .misc import (
+    antenna_baseline,
+    cs_time_to_id,
+    data_path,
+    ftp_cs2_server,
+    gauss_filter_DataArray,
+    get_dem_reader,
+    Ku_band_freq,
+    l1b_path,
+    load_cs_full_file_names,
+    load_cs_ground_tracks,
+    load_o2region,
+    monkeypatch,
+    nan_unique,
+    patched_xr_decode_scaling,
+    patched_xr_decode_tDel,
+    request_workers,
+    rgi_path,
+    sample_width,
+    speed_of_light,
+    WGS84_ellpsoid,
+)
+from .gis import (
+    buffer_4326_shp,
+    ensure_pyproj_crs,
+    find_planar_crs,
+    subdivide_region,
+)
 
 # requires implicitly rasterio(?), flox(?), dask(?)
 
@@ -270,7 +313,7 @@ def read_esa_l1b(
         # print("drop bad. cur buf:", buffer)
         for flag_var, flag_val_list in drop_waveforms_by_flag.items():
             ds = drop_waveform(ds, build_flag_mask(ds[flag_var], flag_val_list))
-    if drop_outside is not None and drop_outside != False:
+    if drop_outside is not None and drop_outside is not False:
         # ! needs to be tidied up:
         # (also: simplify needed?)
         planar_crs = find_planar_crs(lon=ds.lon_20_ku, lat=ds.lat_20_ku)
@@ -294,8 +337,8 @@ def read_esa_l1b(
                     if o2 != "05-01":  # Greenland periphery is too large
                         o2region_complexes.append(load_o2region(o2))
                     else:  # cut into 10 subregions, append if crossed
-                        # !tbi: instead of using the arbitrary chunks, use the custom subregions
-                        # 05-11--05-15 (added in commit 2265523)
+                        # !tbi: instead of using the arbitrary chunks, use the custom
+                        # subregions 05-11--05-15 (added in commit 2265523)
                         for grnlnd_part in subdivide_region(
                             load_o2region("05-01"),
                             lat_bin_width_degree=4.5,
@@ -359,7 +402,7 @@ def append_ambiguous_reference_elevation(ds, dem_file_name_or_path: str = None):
     # !! This function causes much of the computation time. I suspect that
     # sparse memory accessing can be minimized with some tricks. However,
     # first tries sorting the spatial data, took even (much) longer.
-    if not "xph_lats" in ds.data_vars:
+    if "xph_lats" not in ds.data_vars:
         ds = locate_ambiguous_origin(ds)
     # ! tbi: auto download ref dem if not present
     with get_dem_reader(
@@ -372,7 +415,8 @@ def append_ambiguous_reference_elevation(ds, dem_file_name_or_path: str = None):
             xph_y=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), y),
         )
         ds.attrs.update({"CRS": ensure_pyproj_crs(dem_reader.crs)})
-        # ! huge improvement potential: instead of the below, rasterio.sample could be used
+        # ! huge improvement potential: instead of the below,
+        # rasterio.sample could be used
         # [edit] use postgis
         try:
             ref_dem = (
@@ -382,14 +426,18 @@ def append_ambiguous_reference_elevation(ds, dem_file_name_or_path: str = None):
             )
         except rioxr.exceptions.NoDataInBounds:
             warnings.warn(
-                f"couldn't find ref dem data in box: {np.nanmin(x)}, {np.nanmin(y)}, {np.nanmax(x)}, {np.nanmax(y)}\nouter lat lon coords: {ds.lat_20_ku.values[[0,-1]]}, {ds.lon_20_ku.values[[0,-1]]}"
+                f"couldn't find ref dem data in box: {np.nanmin(x)}, {np.nanmin(y)}, "
+                f"{np.nanmax(x)}, {np.nanmax(y)}\nouter lat lon coords: "
+                f"{ds.lat_20_ku.values[[0, -1]]}, {ds.lon_20_ku.values[[0, -1]]}"
             )
             raise
         ds["xph_ref_elevs"] = ref_dem.sel(x=ds.xph_x, y=ds.xph_y, method="nearest")
-    # rasterio suggests sorting like `for ind in np.lexsort([y, x]): rv.append((x[ind], y[ind]))`
+    # rasterio suggests sorting like
+    #   `for ind in np.lexsort([y, x]): rv.append((x[ind], y[ind]))`
     # sort_key = np.lexsort([y, x])
     # planar_coords = zip(x[sort_key], y[sort_key])
-    # ref_elev_vector = np.fromiter(dem_reader.sample(planar_coords), "float32")[sort_key.argsort()]
+    # ref_elev_vector = np.fromiter(dem_reader.sample(planar_coords),
+    #                               "float32")[sort_key.argsort()]
     # return ds.assign(xph_ref_elevs=(ds.xph_lats.dims,
     #                                   np.reshape(ref_elev_vector,
     #                                              ds.xph_lats.shape)))
@@ -418,13 +466,13 @@ def append_best_fit_phase_index(ds, best_column: callable = None) -> xr.Dataset:
     """
     # ! Implement opt-out or/and grouping alternatives
     # before locating echos, find groups because also phase is unwrapped
-    if not "group_id" in ds.data_vars:
+    if "group_id" not in ds.data_vars:
         ds = tag_groups(ds)
         # it makes sense to always unwrap the phases immediately after finding
         # the groups. assigning the best fitting indices otherwise messes up
         # your data
         ds = unwrap_phase_diff(ds)
-    if not "xph_elev_diffs" in ds.data_vars:
+    if "xph_elev_diffs" not in ds.data_vars:
         ds = append_elev_diff_to_ref(ds)
     ds = ds.assign(
         ph_idx=(
@@ -464,7 +512,7 @@ def append_best_fit_phase_index(ds, best_column: callable = None) -> xr.Dataset:
 
 @if_not_empty
 def append_elev_diff_to_ref(ds):
-    if not "xph_ref_elevs" in ds.data_vars:
+    if "xph_ref_elevs" not in ds.data_vars:
         ds = append_ambiguous_reference_elevation(ds)
     ds["xph_elev_diffs"] = ds.xph_elevs - ds.xph_ref_elevs
     return ds
@@ -526,7 +574,7 @@ def get_phase_jump(ds):
         np.abs(ph_diff_diff).rolling(ns_20_ku=2).sum()
         > 2 * 0.8 * ph_diff_diff_tolerance,
     )
-    if not "exclude_mask" in ds.data_vars:
+    if "exclude_mask" not in ds.data_vars:
         ds = append_exclude_mask(ds)
     return xr.where(ds.exclude_mask.sel(ns_20_ku=jump_mask.ns_20_ku), False, jump_mask)
 
@@ -535,10 +583,11 @@ def get_phase_jump(ds):
 def get_phase_outlier(ds, tol: float | None = None):
     # inputs have to be complex unit vectors
     # if no tol provided calc equivalent of 300 m at nadir
-    if tol == None:
+    if tol is None:
         temp_x_width = 300  # [m] allow ph_diff to jump by this value (roughly)
         temp_H = 720e3  # [m] rough altitude of CS2
-        # 0s below: set to an arbitrary off nadir angle at which the x_width should actually have the defined value
+        # 0s below: set to an arbitrary off nadir angle at which the x_width should
+        # actually have the defined value
         tol = (
             (np.arctan(np.tan(np.deg2rad(0)) + temp_x_width / temp_H) - np.deg2rad(0))
             * 2
@@ -746,7 +795,7 @@ def to_l2(
             xph_elev_diffs="h_diff",
         )
     # implicitly test whether data was processed. if not, do so
-    if not "ph_idx" in ds.data_vars:
+    if "ph_idx" not in ds.data_vars:
         ds = ds.append_best_fit_phase_index(group_best_column_func)
     if isinstance(out_vars, dict):
         ds = ds.drop_vars(list(out_vars.values()), errors="ignore")
@@ -795,7 +844,8 @@ def to_l2(
     drop_coords = [coord for coord in tmp.coords if coord not in ["time", "sample"]]
     from . import l2  # can't be in preamble as this would lead to circularity
 
-    # ! dropped .squeeze() below to handle issue #19. not sure about 2nd degree consequences.
+    # ! dropped .squeeze() below to handle issue #19. not sure about 2nd
+    # degree consequences.
     # l2_data = l2.from_processed_l1b(tmp.squeeze().drop_vars(drop_coords), **kwargs)
     l2_data = l2.from_processed_l1b(tmp.drop_vars(drop_coords), **kwargs)
     return l2_data
@@ -863,9 +913,6 @@ def append_exclude_mask(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
     return cs_l1b_ds
 
 
-__all__.append("append_exclude_mask")
-
-
 def append_poca_and_swath_idxs(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
     """Adds indices for estimated POCA and begin of swath.
 
@@ -894,7 +941,8 @@ def append_poca_and_swath_idxs(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
         # we can't tell).
         poca_idx = np.argmax(smooth_coh > coh_thr)
         if poca_idx < int(10 / sample_width):
-            # I opted for nan if no poca for transparency. this requires dtype float and is slower
+            # I opted for nan if no poca for transparency. this requires
+            # dtype float and is slower
             return np.nan, 0
         # poca expected 10 m after coherence exceeds threshold (no solid basis)
         poca_idx = (
@@ -913,7 +961,8 @@ def append_poca_and_swath_idxs(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
                 )
                 + swath_start
             )
-        # if swath doesn't start in range window, just indeed set the index behind last element
+        # if swath doesn't start in range window, just indeed set the
+        # index behind last element
         except ValueError:
             swath_start = len(smooth_coh)
         return float(poca_idx), swath_start
@@ -934,9 +983,6 @@ def append_poca_and_swath_idxs(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
     return cs_l1b_ds
 
 
-__all__.append("append_poca_and_swath_idxs")
-
-
 def append_smoothed_complex_phase(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
     cs_l1b_ds["ph_diff_complex_smoothed"] = gauss_filter_DataArray(
         np.exp(1j * cs_l1b_ds.ph_diff_waveform_20_ku),
@@ -945,9 +991,6 @@ def append_smoothed_complex_phase(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
         std=5,
     )
     return cs_l1b_ds
-
-
-__all__.append("append_smoothed_complex_phase")
 
 
 def build_flag_mask(cs_l1b_flag: xr.DataArray, flag_val_list: list) -> xr.DataArray:
@@ -985,7 +1028,8 @@ def build_flag_mask(cs_l1b_flag: xr.DataArray, flag_val_list: list) -> xr.DataAr
                         return True
                 except KeyError:
                     print(
-                        "Flag not found in attributes! Pointing to a bug or an issue in the data."
+                        "Flag not found in attributes! Pointing to a bug or an issue "
+                        "in the data."
                     )
                     raise
             return False
@@ -1004,9 +1048,6 @@ def build_flag_mask(cs_l1b_flag: xr.DataArray, flag_val_list: list) -> xr.DataAr
     return xr.apply_ufunc(
         np.vectorize(flag_func), cs_l1b_flag.astype(int), dask="allowed"
     )
-
-
-__all__.append("build_flag_mask")
 
 
 # ! name is not intuitive
@@ -1068,7 +1109,7 @@ def download_wrapper(
     # wait for threads to finish
     try:
         task_queue.join()
-    except:
+    except Exception:
         stop_event.set()
         with task_queue.mutex:
             task_queue.queue.clear()
@@ -1083,15 +1124,13 @@ def download_wrapper(
                 )
                 return 1
         print(
-            "Forcibly shutting down all download threads. In worst case, leads to fractured nc-files."
+            "Forcibly shutting down all download threads. In worst case, leads to "
+            "fractured nc-files."
         )
         return 2
     else:
         print("All downloads finished.")
         return 0
-
-
-__all__.append("download_wrapper")
 
 
 def download_files(
@@ -1131,17 +1170,15 @@ def download_files(
                     try:
                         with open(local_path, "wb") as local_file:
                             print("downloading", remote_file)
-                            # [enhancement] use `binary_cache` as buffer instead of removing on fail
+                            # [enhancement] use `binary_cache` as buffer instead of
+                            # removing on fail
                             ftp.retrbinary("RETR " + remote_file, local_file.write)
-                    except:
+                    except Exception:
                         print("download failed for", remote_file)
                         if os.path.isfile(local_path):
                             os.remove(local_path)
                         raise
     print("finished downloading tracks for months:\n", year_month_str_list)
-
-
-__all__.append("download_files")
 
 
 def download_single_file(track_id: str) -> str:
@@ -1164,26 +1201,25 @@ def download_single_file(track_id: str) -> str:
                                 print("downloading " + remote_file)
                                 ftp.retrbinary("RETR " + remote_file, local_file.write)
                                 return local_path
-                        except:
+                        except Exception:
                             print("download failed for", remote_file)
                             if os.path.isfile(local_path):
                                 os.remove(local_path)
                             raise
                 print(
-                    f"File for id {track_id} couldn't be found in remote dir {ftp.pwd()}."
+                    f"File for id {track_id} couldn't be found in remote dir "
+                    f"{ftp.pwd()}."
                 )
                 # ! should this raise an error?
                 raise FileNotFoundError()
         except ftplib.error_temp as err:
             print(
                 str(err),
-                f"raised. Retrying to download file with id {track_id} in 10 s for the {11-retries}. time.",
+                f"raised. Retrying to download file with id {track_id} in 10 s for the "
+                f"{11-retries}. time.",
             )
             time.sleep(10)
             retries -= 1
-
-
-__all__.append("download_single_file")
 
 
 def drop_waveform(cs_l1b_ds, time_20_ku_mask):
@@ -1198,15 +1234,16 @@ def drop_waveform(cs_l1b_ds, time_20_ku_mask):
     return cs_l1b_ds.sel(time_20_ku=cs_l1b_ds.time_20_ku[~time_20_ku_mask])
 
 
-__all__.append("drop_waveform")
-
-
 # left here for improvement ideas
 # def choose_group_phase_wrap(waveform):
-#     # this should be possible for all waveforms in parallel (see below). However, this takes much longer for some
-#     # reason. Check again, when using dask (looks like a sparse memory accessing issue).
-#     # ds["ph_idx"][~ds.group_id.isnull()] = ds.xph_swath_h_diff.groupby(ds.group_id).map(lambda x: x.ns_20_ku*0+x.mean("stacked_time_20_ku_ns_20_ku").idxmin("phase_wrap_factor"))
-#     return waveform.xph_elev_diffs.groupby(waveform.group_id).map(lambda x: x.ns_20_ku*0+x.mean("ns_20_ku").idxmin("phase_wrap_factor"))
-
-
-__all__ = sorted(__all__)
+#     # this should be possible for all waveforms in parallel (see below).
+#     # However, this takes much longer for some reason. Check again, when
+#     # using dask (looks like a sparse memory accessing issue).
+#     # ds["ph_idx"][~ds.group_id.isnull()] = ds.xph_swath_h_diff.groupby(
+#     #       ds.group_id
+#     # ).map(lambda x: x.ns_20_ku*0+x.mean("stacked_time_20_ku_ns_20_ku").idxmin(
+#     #       "phase_wrap_factor"
+#     # ))
+#     return waveform.xph_elev_diffs.groupby(waveform.group_id).map(
+#         lambda x: x.ns_20_ku * 0 + x.mean("ns_20_ku").idxmin("phase_wrap_factor")
+#     )
