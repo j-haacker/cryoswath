@@ -119,41 +119,40 @@ if os.path.isfile("config.ini"):
     config = ConfigParser()
     config.read("config.ini")
     data_path = os.path.join(config["path"]["base"], "data")
-    l1b_path = os.path.join(data_path, "L1b")
-    l2_swath_path = os.path.join(data_path, "L2_swath")
-    l2_poca_path = os.path.join(data_path, "L2_poca")
-    l3_path = os.path.join(data_path, "L3")
-    l4_path = os.path.join(data_path, "L4")
-    tmp_path = os.path.join(data_path, "tmp")
-    aux_path = os.path.join(data_path, "auxiliary")
-    cs_ground_tracks_path = os.path.join(
-        aux_path, "CryoSat-2_SARIn_ground_tracks.feather"
-    )
-    rgi_path = os.path.join(aux_path, "RGI")
-    dem_path = os.path.join(aux_path, "DEM")
-
-    __all__.extend(
-        [  # pathes
-            "aux_path",
-            "cs_ground_tracks_path",
-            "data_path",
-            "dem_path",
-            "l1b_path",
-            "l2_swath_path",
-            "l2_poca_path",
-            "l3_path",
-            "l4_path",
-            "rgi_path",
-            "tmp_path",
-        ]
-    )
-
 else:
+    data_path = str(Path.cwd() / "data")
     warnings.warn(
-        "Failed to define path variables. You will not be able to use many cryoswath "
-        "functions. Make sure have run `cryoswath-init` and your working directory"
-        ' is "scripts".'
+        "Base path not defined. Path variables may be wrong. Make sure to have run "
+        '`cryoswath-init` and your working directory is "scripts".'
     )
+l1b_path = os.path.join(data_path, "L1b")
+l2_swath_path = os.path.join(data_path, "L2_swath")
+l2_poca_path = os.path.join(data_path, "L2_poca")
+l3_path = os.path.join(data_path, "L3")
+l4_path = os.path.join(data_path, "L4")
+tmp_path = os.path.join(data_path, "tmp")
+aux_path = os.path.join(data_path, "auxiliary")
+cs_ground_tracks_path = os.path.join(
+    aux_path, "CryoSat-2_SARIn_ground_tracks.feather"
+)
+rgi_path = os.path.join(aux_path, "RGI")
+dem_path = os.path.join(aux_path, "DEM")
+
+__all__.extend(
+    [  # pathes
+        "aux_path",
+        "cs_ground_tracks_path",
+        "data_path",
+        "dem_path",
+        "l1b_path",
+        "l2_swath_path",
+        "l2_poca_path",
+        "l3_path",
+        "l4_path",
+        "rgi_path",
+        "tmp_path",
+    ]
+)
 
 # Config #############################################################
 WGS84_ellpsoid = Geod(ellps="WGS84")
