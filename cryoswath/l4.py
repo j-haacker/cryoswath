@@ -30,7 +30,7 @@ from .misc import (
     get_dem_reader,
     interpolate_hypsometrically,
     load_glacier_outlines,
-    load_o2region,
+    _load_o2region,
     nanoseconds_per_year,
 )
 from . import misc, l3
@@ -192,7 +192,7 @@ def fill_voids(
         # figure out region. limited to o2 meanwhile
         print("... loading basin outlines")
         o2code = find_region_id(ds, scope="o2")
-        basin_shapes = load_o2region(o2code, product="glaciers").to_crs(ds.rio.crs)
+        basin_shapes = _load_o2region(o2code, product="glaciers").to_crs(ds.rio.crs)
     else:
         basin_shapes = basin_shapes.to_crs(ds.rio.crs)
     # remove time steps without any data

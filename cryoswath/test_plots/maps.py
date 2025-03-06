@@ -22,7 +22,7 @@ def coverage(l3_data_or_filepath: xr.Dataset|str,
     l3_data = l3_data.transpose('time', 'y', 'x')
     # print(l3_data)
     o2_code = misc.find_region_id(l3_data, scope="o2")
-    glacier_complexes = gis.load_o2region(o2_code, product="complexes")
+    glacier_complexes = gis._load_o2region(o2_code, product="complexes")
     crs = glacier_complexes.estimate_utm_crs()
     glacier_complexes = glacier_complexes.to_crs(crs)
     ds = l3_data.sel(time=at_time).rio.reproject(crs)

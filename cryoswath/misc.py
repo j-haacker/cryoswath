@@ -18,12 +18,12 @@ __all__ = [
     "gauss_filter_DataArray",
     "get_dem_reader",
     "interpolate_hypsometrically",
-    "load_basins",
+    "_load_basins",
     "load_cs_full_file_names",
     "load_cs_ground_tracks",
     "load_glacier_outlines",
-    "load_o1region",
-    "load_o2region",
+    "_load_o1region",
+    "_load_o2region",
     "merge_l2_cache",
     "nan_unique",
     "request_workers",
@@ -543,7 +543,7 @@ def find_region_id(location: any, scope: str = "o2") -> str:
         if out == "05-01":
             sub_o2 = gpd.GeoSeries(
                 [
-                    load_o2region(f"05-1{i+1}").union_all("coverage").envelope
+                    _load_o2region(f"05-1{i+1}").union_all("coverage").envelope
                     for i in range(5)
                 ],
                 crs=4326,
@@ -561,7 +561,7 @@ def find_region_id(location: any, scope: str = "o2") -> str:
             out = f"05-1{int(sub_o2[contains_location].index.values)+1}"
         return out
     elif scope == "basin":
-        rgi_glacier_gpdf = load_o2region(rgi_region["o2region"].values[0], "glaciers")
+        rgi_glacier_gpdf = _load_o2region(rgi_region["o2region"].values[0], "glaciers")
         return rgi_glacier_gpdf[rgi_glacier_gpdf.contains(location.centroid)][
             "rgi_id"
         ].values[0]
@@ -1540,7 +1540,7 @@ def load_cs_ground_tracks(
     return cs_tracks.set_crs(4326)
 
 
-def load_o1region(
+def _load_o1region(
         o1code: str,
         product: str = "complexes",
         area_threshold: float = 1,  # in km²
@@ -1609,7 +1609,7 @@ def load_o1region(
     return o1region
 
 
-def load_o2region(o2code: str, product: str = "complexes") -> gpd.GeoDataFrame:
+def _load_o2region(o2code: str, product: str = "complexes") -> gpd.GeoDataFrame:
     """Loads RGI v7 basin or complex outlines and meta data
 
     Args:
@@ -1621,7 +1621,7 @@ def load_o2region(o2code: str, product: str = "complexes") -> gpd.GeoDataFrame:
         gpd.GeoDataFrame: Queried RGI data with geometry column containing
         the outlines.
     """
-    o1region = load_o1region(o2code[:2], product)
+    o1region = _load_o1region(o2code[:2], product)
     # special handling for greenland periphery
     if o2code.startswith("05") and not o2code.endswith("01"):
         lut = {
@@ -1642,11 +1642,11 @@ def load_o2region(o2code: str, product: str = "complexes") -> gpd.GeoDataFrame:
         with open(Path(rgi_path, f"RGI_{product}_ID_list__Greenland_Periphery__"
                                  f"{subregion}.txt"), "r") as f:
             rgi_ids = f.read().splitlines()
-        return load_basins(rgi_ids)
+        return _load_basins(rgi_ids)
     return o1region[o1region["o2region"] == o2code[:5]]
 
 
-def load_basins(rgi_ids: list[str]) -> gpd.GeoDataFrame:
+def _load_basins(rgi_ids: list[str]) -> gpd.GeoDataFrame:
     """Loads RGI v7 basin ~or complex~ outlines and meta data
 
     Args:
@@ -1659,7 +1659,7 @@ def load_basins(rgi_ids: list[str]) -> gpd.GeoDataFrame:
     if len(rgi_ids) > 1:
         assert all([id[:17] == rgi_ids[0][:17]] for id in rgi_ids)
     product_code, o1_code = rgi_ids[0].split("-")[2:4]
-    rgi_o1_gpdf = load_o1region(
+    rgi_o1_gpdf = _load_o1region(
         o1_code, product="glaciers" if product_code == "G" else "complexes",
         area_threshold=0
     )
@@ -1698,19 +1698,19 @@ def load_glacier_outlines(
         instead return geopandas.GeoDataFrame including the full data.
     """
     if isinstance(identifier, list):
-        out = load_basins(identifier)
+        out = _load_basins(identifier)
     elif len(identifier) == (7 + 4 + 1 + 2 + 5 + 4) and identifier.split("-")[:3] == [
         "RGI2000",
         "v4.1",
         "G",
     ]:
-        out = load_basins([identifier])
+        out = _load_basins([identifier])
     # the pattern is rather allowing, set it to
     # "^(-?[012][0-9]){2}(_[a-z]+){1,5}(_[0-9][a-z][0-9]?)?$" to make it tight
     elif len(identifier) >= 5 and re.match("^(-?[0-3][0-9]){2}$", identifier[:5]):
-        out = load_o2region(identifier[:5], product=product)
+        out = _load_o2region(identifier[:5], product=product)
     elif re.match("[012][0-9](_[a-z]+)?", identifier):
-        out = load_o1region(identifier[:2], product=product)
+        out = _load_o1region(identifier[:2], product=product)
     else:
         raise ValueError(
             f'Provided o1, o2, or RGI identifiers. "{identifier}" not understood.'
