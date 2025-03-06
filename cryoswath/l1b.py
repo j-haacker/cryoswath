@@ -58,7 +58,7 @@ from .misc import (
     l1b_path,
     load_cs_full_file_names,
     load_cs_ground_tracks,
-    _load_o2region,
+    load_glacier_outlines,
     monkeypatch,
     nan_unique,
     patched_xr_decode_scaling,
@@ -335,12 +335,12 @@ def read_esa_l1b(
                 o2region_complexes = []
                 for o2 in np.unique(o2codes):
                     if o2 != "05-01":  # Greenland periphery is too large
-                        o2region_complexes.append(_load_o2region(o2))
+                        o2region_complexes.append(load_glacier_outlines(o2))
                     else:  # cut into 10 subregions, append if crossed
                         # !tbi: instead of using the arbitrary chunks, use the custom
                         # subregions 05-11--05-15 (added in commit 2265523)
                         for grnlnd_part in subdivide_region(
-                            _load_o2region("05-01"),
+                            load_glacier_outlines("05-01"),
                             lat_bin_width_degree=4.5,
                             lon_bin_width_degree=4.5,
                         ):

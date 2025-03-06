@@ -24,7 +24,6 @@ import warnings
 
 from .misc import (
     load_glacier_outlines,
-    _load_o2region,
     rgi_path,
 )
 
@@ -139,7 +138,7 @@ def points_on_glacier(points: gpd.GeoSeries) -> pd.Index:
     o2code = o2regions[o2regions.geometry.contains(shapely.box(*points.total_bounds))][
         "o2region"
     ].values[0]
-    buffered_glaciered_area_polygon = _load_o2region(o2code)
+    buffered_glaciered_area_polygon = load_glacier_outlines(o2code)
     import time
 
     print(time.time(), "building union")
