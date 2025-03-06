@@ -380,8 +380,8 @@ def discard_frontal_retreat_zone(
 
 
 def drop_small_glaciers(
-        df: pd.DataFrame,
-        area_threshold: float,  # in km²
+    df: pd.DataFrame,
+    area_threshold: float,  # in km²
 ) -> pd.DataFrame:
     """Remove glaciers smaller than threshold
 
@@ -1538,11 +1538,13 @@ def load_cs_ground_tracks(
 
 
 def _load_o1region(
-        o1code: str,
-        product: str = "complexes",
-        area_threshold: float = 1,  # in km²
+    o1code: str,
+    product: str = "complexes",
+    area_threshold: float = 1,  # in km²
 ) -> gpd.GeoDataFrame:
     """Loads RGI v7 basin or complex outlines and meta data
+
+    Use :py:func:`load_glacier_outlines` instead.
 
     Args:
         o1code (str): starting with "01".."20"
@@ -1596,6 +1598,8 @@ def _load_o1region(
 def _load_o2region(o2code: str, product: str = "complexes") -> gpd.GeoDataFrame:
     """Loads RGI v7 basin or complex outlines and meta data
 
+    Use :py:func:`load_glacier_outlines` instead.
+
     Args:
         o2code (str): RGI o2 code.
         product (str, optional): Either "glaciers" or "complexes". Defaults
@@ -1623,8 +1627,13 @@ def _load_o2region(o2code: str, product: str = "complexes") -> gpd.GeoDataFrame:
             product = "glacier"
         elif product == "complexes":
             product = "complex"
-        with open(Path(rgi_path, f"RGI_{product}_ID_list__Greenland_Periphery__"
-                                 f"{subregion}.txt"), "r") as f:
+        with open(
+            Path(
+                rgi_path,
+                f"RGI_{product}_ID_list__Greenland_Periphery__{subregion}.txt",
+            ),
+            "r",
+        ) as f:
             rgi_ids = f.read().splitlines()
         return _load_basins(rgi_ids)
     return o1region[o1region["o2region"] == o2code[:5]]
@@ -1632,6 +1641,8 @@ def _load_o2region(o2code: str, product: str = "complexes") -> gpd.GeoDataFrame:
 
 def _load_basins(rgi_ids: list[str]) -> gpd.GeoDataFrame:
     """Loads RGI v7 basin ~or complex~ outlines and meta data
+
+    Use :py:func:`load_glacier_outlines` instead.
 
     Args:
         rgi_ids (list[str]): RGI basin ids, all within the same RGI o1 region.
@@ -1644,19 +1655,20 @@ def _load_basins(rgi_ids: list[str]) -> gpd.GeoDataFrame:
         assert all([id[:17] == rgi_ids[0][:17]] for id in rgi_ids)
     product_code, o1_code = rgi_ids[0].split("-")[2:4]
     rgi_o1_gpdf = _load_o1region(
-        o1_code, product="glaciers" if product_code == "G" else "complexes",
-        area_threshold=0
+        o1_code,
+        product="glaciers" if product_code == "G" else "complexes",
+        area_threshold=0,
     )
     id_to_index_series = pd.Series(data=rgi_o1_gpdf.index, index=rgi_o1_gpdf.rgi_id)
     return rgi_o1_gpdf.loc[id_to_index_series.loc[rgi_ids].values]
 
 
 def load_glacier_outlines(
-        identifier: str | list[str],
-        product: str = "complexes",
-        union: bool = True,
-        crs: int | CRS = None,
-        area_threshold: float = None,  # in km²
+    identifier: str | list[str],
+    product: str = "complexes",
+    union: bool = True,
+    crs: int | CRS = None,
+    area_threshold: float = None,  # in km²
 ) -> shapely.MultiPolygon:
     """Loads RGI v7 basin or complex outlines and meta data
 
