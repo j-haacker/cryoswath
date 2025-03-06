@@ -381,6 +381,30 @@ def discard_frontal_retreat_zone(
 # __all__.append("download_file")
 
 
+def drop_small_glaciers(
+        df: pd.DataFrame,
+        area_threshold: float = None,  # in km²
+) -> pd.DataFrame:
+    """Remove glaciers smaller than threshold
+
+    Designed for use with RGI data. Requires column "area_km2".
+
+    Args:
+        gdf (pd.DataFrame): RGI glacier/complex (Geo)DataFrame.
+        area_threshold (float, optional): Defaults to 1 km² when used with complexes and to 0 otherwise.
+
+    Returns:
+        pd.DataFrame: As input without rows that do not pass threshold.
+    """
+    small_glacier_mask = df.area_km2 < area_threshold
+    if sum(small_glacier_mask) != 0:
+        warnings.warn(
+            f"Dropping {sum(small_glacier_mask)} glaciers < {area_threshold} km² "
+            "from RGI o1 region."
+        )
+    return df[~small_glacier_mask]
+
+
 def extend_filename(file_name: str, extension: str) -> str:
     """Adds string at end of file name, before last "."
 
@@ -1515,13 +1539,19 @@ def load_cs_ground_tracks(
     return cs_tracks.set_crs(4326)
 
 
-def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
+def load_o1region(
+        o1code: str,
+        product: str = "complexes",
+        area_threshold: float = 1,  # in km²
+) -> gpd.GeoDataFrame:
     """Loads RGI v7 basin or complex outlines and meta data
 
     Args:
         o1code (str): starting with "01".."20"
         product (str, optional): Either "glaciers" or "complexes".
             Defaults to "complexes".
+        area_threshold (float, optional): Glaciers smaller than the
+            threshold will not be returned. Defaults to 1 km².
 
     Raises:
         ValueError: If o1code can't be recognized.
@@ -1568,11 +1598,11 @@ def load_o1region(o1code: str, product: str = "complexes") -> gpd.GeoDataFrame:
         # (assumption) region contains too many small glaciers. this is
         # equally true for o2 regions, which is why I drop them here
         # already. observed for the Alps.
-        small_glacier_mask = o1region.area_km2 < 1
+        small_glacier_mask = o1region.area_km2 < area_threshold
         if sum(small_glacier_mask) != 0:
             warnings.warn(
-                f"Dropping {sum(small_glacier_mask)} glaciers < 1 km² from RGI o1 "
-                "region."
+                f"Dropping {sum(small_glacier_mask)} glaciers < {area_threshold} km² "
+                "from RGI o1 region."
             )
         o1region = o1region[~small_glacier_mask]
     return o1region
@@ -1617,17 +1647,19 @@ def load_basins(rgi_ids: list[str]) -> gpd.GeoDataFrame:
         assert all([id[:17] == rgi_ids[0][:17]] for id in rgi_ids)
     product_code, o1_code = rgi_ids[0].split("-")[2:4]
     rgi_o1_gpdf = load_o1region(
-        o1_code, product="glaciers" if product_code == "G" else "complexes"
+        o1_code, product="glaciers" if product_code == "G" else "complexes",
+        area_threshold=0
     )
     id_to_index_series = pd.Series(data=rgi_o1_gpdf.index, index=rgi_o1_gpdf.rgi_id)
     return rgi_o1_gpdf.loc[id_to_index_series.loc[rgi_ids].values]
 
 
 def load_glacier_outlines(
-    identifier: str | list[str],
-    product: str = "complexes",
-    union: bool = True,
-    crs: int | CRS = None,
+        identifier: str | list[str],
+        product: str = "complexes",
+        union: bool = True,
+        crs: int | CRS = None,
+        area_threshold: float = None,  # in km²
 ) -> shapely.MultiPolygon:
     """Loads RGI v7 basin or complex outlines and meta data
 
@@ -1641,6 +1673,9 @@ def load_glacier_outlines(
             full GeoDataFrame. Defaults to True.
         crs (int | CRS, optional): Convenience option to reproject shape(s)
             to crs. Defaults to None.
+        area_threshold (float, optional): Glaciers smaller than the
+            threshold will not be returned. Defaults to 1 km² when used
+            with complexes and to 0 otherwise.
 
     Raises:
         ValueError: If identifier was not understood.
@@ -1667,6 +1702,11 @@ def load_glacier_outlines(
         raise ValueError(
             f'Provided o1, o2, or RGI identifiers. "{identifier}" not understood.'
         )
+    if (
+        area_threshold > 0
+        or product == "complexes"
+    ):
+        out = drop_small_glaciers(out, area_threshold)
     if crs is not None:
         out = out.to_crs(crs)
     if union:  # former default
