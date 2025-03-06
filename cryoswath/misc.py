@@ -63,6 +63,7 @@ import numpy as np
 import os
 from packaging.version import Version
 import pandas as pd
+from pathlib import Path
 from pyproj import CRS, Geod
 import queue
 import rasterio
@@ -1623,13 +1624,25 @@ def load_o2region(o2code: str, product: str = "complexes") -> gpd.GeoDataFrame:
     o1region = load_o1region(o2code[:2], product)
     # special handling for greenland periphery
     if o2code.startswith("05") and not o2code.endswith("01"):
-        return o1region[
-            o1region.intersects(
-                gpd.read_feather(os.path.join(rgi_path, o2code + ".feather")).union_all(
-                    "coverage"
-                )
-            )
-        ]
+        lut = {
+            "11": "North",
+            "12": "West",
+            "13": "Southwest",
+            "14": "Southeast",
+            "15": "East",
+        }
+        if o2code[-2:] in lut:
+            subregion = lut[o2code[-2:]]
+        else:
+            subregion = re.split("[^A-Za-z]", o2code)[-1].capitalize()
+        if product in ["basins", "glaciers"]:
+            product = "glacier"
+        elif product == "complexes":
+            product = "complex"
+        with open(Path(rgi_path, f"RGI_{product}_ID_list__Greenland_Periphery__"
+                                 f"{subregion}.txt"), "r") as f:
+            rgi_ids = f.read().splitlines()
+        return load_basins(rgi_ids)
     return o1region[o1region["o2region"] == o2code[:5]]
 
 
