@@ -384,7 +384,7 @@ def discard_frontal_retreat_zone(
 
 def drop_small_glaciers(
         df: pd.DataFrame,
-        area_threshold: float = None,  # in km²
+        area_threshold: float,  # in km²
 ) -> pd.DataFrame:
     """Remove glaciers smaller than threshold
 
@@ -392,7 +392,7 @@ def drop_small_glaciers(
 
     Args:
         gdf (pd.DataFrame): RGI glacier/complex (Geo)DataFrame.
-        area_threshold (float, optional): Defaults to 1 km² when used with complexes and to 0 otherwise.
+        area_threshold (float): Minimum glacier size in km².
 
     Returns:
         pd.DataFrame: As input without rows that do not pass threshold.
