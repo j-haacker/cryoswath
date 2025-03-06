@@ -1593,19 +1593,6 @@ def _load_o1region(
             "directory, name it as the file is named (e.g. RGI2000-v7.0-G-01_alaska).",
         )
         raise FileNotFoundError
-    if product == "C":
-        # ! work-around: drop small glaciers
-        # issue: takes long to do computations or kernel crashes if
-        # (assumption) region contains too many small glaciers. this is
-        # equally true for o2 regions, which is why I drop them here
-        # already. observed for the Alps.
-        small_glacier_mask = o1region.area_km2 < area_threshold
-        if sum(small_glacier_mask) != 0:
-            warnings.warn(
-                f"Dropping {sum(small_glacier_mask)} glaciers < {area_threshold} km² "
-                "from RGI o1 region."
-            )
-        o1region = o1region[~small_glacier_mask]
     return o1region
 
 
@@ -1715,10 +1702,15 @@ def load_glacier_outlines(
         raise ValueError(
             f'Provided o1, o2, or RGI identifiers. "{identifier}" not understood.'
         )
-    if (
-        area_threshold > 0
-        or product == "complexes"
-    ):
+    if product == "complexes":
+        if area_threshold is None:
+            # ! work-around: drop small glaciers
+            # issue: takes long to do computations or kernel crashes if
+            # (assumption) region contains too many small glaciers. this is
+            # equally true for o2 regions, which is why I drop them here
+            # already. observed for the Alps.
+            area_threshold = 1
+    if area_threshold is not None:
         out = drop_small_glaciers(out, area_threshold)
     if crs is not None:
         out = out.to_crs(crs)
