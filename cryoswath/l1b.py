@@ -829,11 +829,11 @@ def to_l2(
             .dropna("time_20_ku", how="all")
         )
     elif swath_or_poca == "both":
-        swath = ds.to_l2(
-            out_vars, retain_vars=retain_vars, swath_or_poca="swath", **kwargs
+        swath = to_l2(
+            ds, out_vars, retain_vars=retain_vars, swath_or_poca="swath", **kwargs
         )
-        poca = ds.to_l2(
-            out_vars, retain_vars=retain_vars, swath_or_poca="poca", **kwargs
+        poca = to_l2(
+            ds, out_vars, retain_vars=retain_vars, swath_or_poca="poca", **kwargs
         )
         return swath, poca
     else:

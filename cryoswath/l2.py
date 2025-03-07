@@ -564,12 +564,12 @@ def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwar
                 # tmp = tmp.append_ambiguous_reference_elevation(kwargs.pop(
                 #       "dem_file_name_or_path"
                 # ))
-                tmp = tmp.append_ambiguous_reference_elevation(
-                    kwargs["dem_file_name_or_path"]
+                tmp = l1b.append_ambiguous_reference_elevation(
+                    tmp, kwargs["dem_file_name_or_path"]
                 )
-                tmp = tmp.append_best_fit_phase_index()
+                tmp = l1b.append_best_fit_phase_index(tmp)
                 # print("debug 3", idx, flush=True)
-            swath_poca_tuple = tmp.to_l2(swath_or_poca="both", **to_l2_kwargs)
+            swath_poca_tuple = l1b.to_l2(tmp, swath_or_poca="both", **to_l2_kwargs)
             # print("debug 4", idx, flush=True)
             tmp.close()
         except Exception as err:
