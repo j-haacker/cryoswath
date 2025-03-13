@@ -196,7 +196,7 @@ def fill_voids(
         basin_shapes = basin_shapes.to_crs(ds.rio.crs)
     # remove time steps without any data
     if "time" in ds.dims:
-        ds = ds.dropna("time", how="all")
+        ds = ds.dropna("time", how="all", subset=[main_var])
     # polygons will be repaired in later functions. it may be more
     # transparent to do it here.
     ds = fill_missing_coords(ds, *basin_shapes.total_bounds)
@@ -283,7 +283,7 @@ def fill_voids(
         (ds.where(~ds.basin_id.isnull()) if "basin_id" in ds else ds)
         .rio.clip(basin_shapes.make_valid())
         .stack({"stacked_x_y": ["x", "y"]})
-        .dropna("stacked_x_y", how="all"),
+        .dropna("stacked_x_y", how="any", subset=[elev]),
         main_var=main_var,
         elev=elev,
         error=error,
