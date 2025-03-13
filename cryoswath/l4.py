@@ -354,7 +354,7 @@ def fit_trend(
     ds["weights"] = xr.apply_ufunc(
         trunc_weights, ds.trend_CI95, ds.trend, vectorize=True
     )
-    return l3.fill_voids(ds.rio.write_crs(data.rio.crs), "trend", "trend_CI95")
+    return fill_voids(ds.rio.write_crs(data.rio.crs), "trend", "trend_CI95")
 
 
 def difference_to_reference_dem(
@@ -364,7 +364,9 @@ def difference_to_reference_dem(
 ) -> xr.Dataset:
     if (np.abs(l3_data._median) < 150).any():
         Exception("_median deviates more than 150 m from reference")
-    res = l3.fill_voids(
+    for _var in ["_median", "_iqr", "_count"]:
+        l3_data[_var] = l3_data[_var].astype("f4")
+    res = fill_voids(
         l3_data,
         main_var="_median",
         error="_iqr",
@@ -500,7 +502,7 @@ def differential_change(
             data.ref_elev,
         ]
     )
-    res = l3.fill_voids(
+    res = fill_voids(
         data,
         "elev_change",
         error="elev_change_CI95",
@@ -563,7 +565,7 @@ def relative_change(
     l3_data = xr.merge(
         [values.rename("elevation"), uncertainties.rename("error"), l3_data.ref_elev]
     )
-    res = l3.fill_voids(
+    res = fill_voids(
         l3_data.drop_sel(time=ref_period),
         main_var="elevation",
         error="error",
