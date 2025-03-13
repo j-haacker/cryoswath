@@ -799,6 +799,7 @@ def interpolate_hypsometrically(
     outlier_limit: float = 2,
     return_coeffs: bool = False,
     fit_sanity_check: dict = None,
+    fill_flag: tuple[str, int] = None,
 ) -> xr.Dataset:
     """Fills data gaps by hypsometrical interpolation
 
@@ -847,6 +848,8 @@ def interpolate_hypsometrically(
             with elevation change trends. If you pass a `dict`, the key
             "max_allowed_gradient" will be used. If the gradient is
             steeper than the threshold the model is rejected.
+        fill_flag (tuple[str, int], optional): Defaults to None. If provided,
+            assigns `fill_flag[1]` to `ds[fill_flag[0]]` where filled.
     Returns:
         xr.Dataset: Filled dataset.
     """
@@ -892,6 +895,7 @@ def interpolate_hypsometrically(
             outlier_replace=outlier_replace,
             return_coeffs=return_coeffs,
             fit_sanity_check=fit_sanity_check,
+            fill_flag=fill_flag,
         )
         for var_name in no_time_dep:
             ds[var_name] = ds[var_name].isel(time=0)
@@ -1210,7 +1214,9 @@ def interpolate_hypsometrically(
     #     plt.title(ds.time.values)#.strftime("%Y-%m-%d")
     # plt.ylim([ds[main_var].min(), ds[main_var].max()])
     # plt.show()
-    ds[main_var] = xr.where(fill_mask, modelled, ds[main_var])
+    ds[main_var] = xr.where(~fill_mask, ds[main_var], modelled, keep_attrs=True)
+    if fill_flag is not None:
+        ds[fill_flag[0]] = xr.where(~fill_mask, ds[fill_flag[0]], fill_flag[1], keep_attrs=True)
     RMSE = (residuals.where(~fill_mask) ** 2).mean() ** 0.5
     if "std" in error.lower():
         pass

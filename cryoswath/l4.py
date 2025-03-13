@@ -182,6 +182,7 @@ def fill_voids(
     outlier_replace: bool = False,
     outlier_iterations: int = 1,
     fit_sanity_check: dict = None,
+    filled_flag: str = None,
 ) -> xr.Dataset:
     # mention memory footprint in docstring: reindexing leaks and takes a s**t ton of
     # memory. roughly 5-10x l3_data size in total.
@@ -236,6 +237,9 @@ def fill_voids(
                         outlier_replace=outlier_replace,
                         outlier_limit=outlier_limit,
                         fit_sanity_check=fit_sanity_check,
+                        fill_flag=(
+                            None if filled_flag is None else (filled_flag, 2)
+                        ),
                     )
                 )
         elif grouper == "basin_group":
@@ -260,6 +264,9 @@ def fill_voids(
                         outlier_replace=False,
                         outlier_limit=outlier_limit,
                         fit_sanity_check=fit_sanity_check,
+                        fill_flag=(
+                            None if filled_flag is None else (filled_flag, 3)
+                        ),
                     )
                 )
         ds = xr.concat(res, "stacked_x_y")
@@ -290,6 +297,9 @@ def fill_voids(
         outlier_replace=False,
         outlier_limit=outlier_limit,
         fit_sanity_check=fit_sanity_check,
+        fill_flag=(
+            None if filled_flag is None else (filled_flag, 4)
+        ),
     )
     # if there are STILL missing data, temporally interpolate remaining
     # gaps and fill the margins
@@ -375,6 +385,7 @@ def difference_to_reference_dem(
         per=("basin", "basin_group"),
         outlier_replace=False,
         fit_sanity_check=True,
+        filled_flag="filled_flag",
     )
     if save_to_disk:
         try:
