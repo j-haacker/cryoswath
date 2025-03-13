@@ -955,20 +955,27 @@ def interpolate_hypsometrically(
     )
 
     def local_stats(groups):
-        _cnt = groups.count()
-        _mean = (
-            groups.mean()
-            .where(_cnt >= 6)
-            .stack(stacked_x_y=["x", "y"])
-            .reindex_like(ds[main_var])
-        )
-        _std = (
-            groups.std()
-            .where(_cnt >= 6)
-            .stack(stacked_x_y=["x", "y"])
-            .reindex_like(ds[main_var])
-        )
-        _cnt = _cnt.stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                "Degrees of freedom <= 0 for slice.",
+                RuntimeWarning,
+                "numpy.lib.nanfunctions"
+            )
+            _cnt = groups.count()
+            _mean = (
+                groups.mean()
+                .where(_cnt >= 6)
+                .stack(stacked_x_y=["x", "y"])
+                .reindex_like(ds[main_var])
+            )
+            _std = (
+                groups.std(ddof=1)
+                .where(_cnt >= 6)
+                .stack(stacked_x_y=["x", "y"])
+                .reindex_like(ds[main_var])
+            )
+            _cnt = _cnt.stack(stacked_x_y=["x", "y"]).reindex_like(ds[main_var])
         return _mean, _std, _cnt
 
     neighbour_mean, neighbour_std, neighbour_count = local_stats(neighbours)
@@ -1064,7 +1071,7 @@ def interpolate_hypsometrically(
     elev_bin_errs.dropna(inplace=True)
     # print(elev_range_80pctl)
     if elev_bin_means.empty or len(elev_bin_means.index) < 5:
-        print("data doesn't cover sufficient elevation bands", elev_bin_means)
+        # print("data doesn't cover sufficient elevation bands", elev_bin_means)
         return select_returns(return_coeffs, ds, np.array([np.nan] * 4))
     # print(elev_bin_means, elev_bin_errs)
     # fit polynomial
