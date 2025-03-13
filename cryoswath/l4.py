@@ -8,6 +8,7 @@ __all__ = [
     "fill_voids",
     "fit_trend",
     "fit_trend__seasons_removed",
+    "timeseries_form_gridded",
     "trend_with_seasons",
     # "differential_change",
     # "relative_change",
@@ -20,6 +21,7 @@ import os
 import pandas as pd
 import rasterio.warp
 import rioxarray as rioxr
+from statsmodels.tsa.seasonal import seasonal_decompose
 import tqdm
 import xarray as xr
 
@@ -679,6 +681,65 @@ def relative_change(
             )
         )
     return res
+
+
+def timeseries_from_gridded(ds: xr.Dataset):
+    decmp_res = seasonal_decompose(ds._median.mean(["x", "y"]), period=12, extrapolate_trend=True)
+    results = pd.DataFrame(columns=["elevation", "uncertainty"])
+    results["elevation"] = ds._median.mean(["x", "y"]).to_series() - decmp_res.trend[0]
+    da = ds._iqr.where(ds.filled_flag.isin([0, 1]))
+    num_cells = (~da.isnull()).sum(["x", "y"])
+    da = da.chunk(time=1, x=-1, y=-1)
+    r = 5
+    unc1 = (
+        ((da * (~da.isnull()).rolling(
+            x=r, y=r, center=True, min_periods=r//2
+        ).sum()**.5).mean(["x", "y"]) / misc._norm_isf_25)**2  # / da.count(["x", "y"]) * da.count(["x", "y"])
+        / num_cells * num_cells
+    )
+    da = ds.where(ds.filled_flag == 2)
+    da = da.chunk(time=1, x=-1, y=-1)
+    num_cells = (~da._median.isnull()).sum(["x", "y"])
+    da = da._iqr.groupby(da.basin_id)
+    unc2 = ((da.first() * da.count()) ** 2).sum("basin_id") ** 0.5 / misc._norm_isf_25 / num_cells \
+        / ((da.count() ** 2).sum("basin_id") / da.count().sum("basin_id") ** 2) ** 0.5 * num_cells
+    da = ds.where(ds.filled_flag == 3)
+    da = da.chunk(time=1, x=-1, y=-1)
+    num_cells = (~da._median.isnull()).sum(["x", "y"])
+    da = da._iqr.groupby(da.group_id)
+    unc3 = ((da.first() * da.count()) ** 2).sum("group_id") ** 0.5 / misc._norm_isf_25 / num_cells \
+        / ((da.count() ** 2).sum("group_id") / da.count().sum("group_id") ** 2) ** 0.5 * num_cells
+    da = ds._iqr.where(ds.filled_flag == 4)
+    unc4 = da.mean(["x", "y"]) / misc._norm_isf_25 * (~da.isnull()).sum(["x", "y"])
+    
+    # tmp = []
+    # for da, r in [(ds._iqr.where(ds._count>3), 5),
+    #               (ds._iqr.where(ds._count.isnull()), 5),
+    #               (50 * xr.ones_like(ds._iqr).where(ds._iqr.isnull()).where(~ds._median.isnull()), 11)]:
+    #     # print("Radius", r)
+    #     # print(da.count(["x", "y"]).mean())
+    #     da = da.chunk(time=1, x=-1, y=-1)
+    #     tmp.append(
+    #         # ((da * payload**.5).mean(["x", "y"])
+    #         ((da * (~da.isnull()).rolling(x=r, y=r, center=True, min_periods=r//2).sum()**.5).mean(["x", "y"])
+    #          / misc._norm_isf_25)**2  # / da.count(["x", "y"]) * da.count(["x", "y"])
+    #          / num_cells
+    #     )
+    # results["uncertainty"] = (xr.concat(tmp, dim="tmp").sum("tmp")**.5
+    #                           * 2  # 2sigma-uncertainties
+    #                           ).to_series()
+    # print([unc1, unc2, unc3, unc4])
+    num_cells = (~ds._median.isnull()).sum(["x", "y"])
+    results["uncertainty"] = (xr.concat([unc1, unc2, unc3, unc4], dim="tmp").sum("tmp")**.5 / num_cells
+                              * 2  # 2sigma-uncertainties
+                              ).to_series()
+    results.sort_index(axis=1, inplace=True)
+    # debugging
+    import matplotlib.pyplot as plt
+    plt.fill_between(results.index, results.elevation-results.uncertainty, results.elevation+results.uncertainty)
+    plt.plot(results.index, results.elevation, c="k")
+    plt.savefig("tmp.png")
+    return results
 
 
 def trend_with_seasons(
