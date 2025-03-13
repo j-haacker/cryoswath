@@ -273,11 +273,33 @@ def fill_voids(
         for each in res:
             each.close()
         del res
-        ds = ds.unstack("stacked_x_y")
+        ds = ds.unstack(
+            "stacked_x_y",
+            fill_value={
+                _var: (
+                    ds[_var].attrs["_FillValue"]
+                    if "_FillValue" in ds[_var].attrs
+                    else np.nan
+                )
+                for _var in ds.data_vars
+            }
+        )
         ds = ds.sortby("x").sortby("y")
         # reindexing fills gaps that were created by the grouping. if there were
         # gaps, the reference elevations need to be filled/resetted.
-        ds = ds.reindex_like(ref_elev_da, method=None, copy=False)
+        ds = ds.reindex_like(
+            ref_elev_da,
+            method=None,
+            copy=False,
+            fill_value={
+                _var: (
+                    ds[_var].attrs["_FillValue"]
+                    if "_FillValue" in ds[_var].attrs
+                    else np.nan
+                )
+                for _var in ds.data_vars
+            }
+        )
         ds[elev] = ref_elev_da
     # if there are still missing data, temporally interpolate (gaps shorter than 1 year)
     if "time" in ds.dims:
@@ -287,7 +309,14 @@ def fill_voids(
     # if there are still missing data, interpolate region wide ("global
     # hypsometric interpolation")
     ds = interpolate_hypsometrically(
-        (ds.where(~ds.basin_id.isnull()) if "basin_id" in ds else ds)
+        (ds.where(~ds.basin_id.isnull(), xr.Dataset({
+                _var: (
+                    ds[_var].attrs["_FillValue"]
+                    if "_FillValue" in ds[_var].attrs
+                    else np.nan
+                )
+                for _var in ds.data_vars
+            })) if "basin_id" in ds else ds)
         .rio.clip(basin_shapes.make_valid())
         .stack({"stacked_x_y": ["x", "y"]})
         .dropna("stacked_x_y", how="any", subset=[elev]),
@@ -310,7 +339,19 @@ def fill_voids(
             .bfill("time")
             .ffill("time")
         )
-    ds = fill_missing_coords(ds.unstack("stacked_x_y").sortby("x").sortby("y"))
+    ds = fill_missing_coords(
+        ds.unstack(
+            "stacked_x_y",
+            fill_value={
+                _var: (
+                    ds[_var].attrs["_FillValue"]
+                    if "_FillValue" in ds[_var].attrs
+                    else np.nan
+                )
+                for _var in ds.data_vars
+            }
+        )
+    )
     return ds
 
 
@@ -396,7 +437,7 @@ def difference_to_reference_dem(
             print(traceback.format_exc())
             print(str(err))
             region_id = str(datetime.now())
-        res.drop_encoding().to_netcdf(
+        res.to_netcdf(  # .drop_encoding()
             os.path.join(
                 misc.l4_path,
                 (
@@ -404,7 +445,15 @@ def difference_to_reference_dem(
                     if isinstance(save_to_disk, str)
                     else region_id + "__elev_diff_to_ref_at_monthly_intervals.nc"
                 ),
-            )
+            ),
+            # encoding={  doesn't do anything
+            #     _var: {
+            #         "dtype": res[_var].dtype,
+            #         # "_FillValue": res[_var].attrs["_FillValue"],
+            #     }
+            #     for _var in res.data_vars
+            #     if "_FillValue" in res[_var].attrs
+            # }
         )
     return res
 

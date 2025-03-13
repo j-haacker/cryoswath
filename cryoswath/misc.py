@@ -355,7 +355,15 @@ def discard_frontal_retreat_zone(
     if isinstance(replace_vars, str):
         replace_vars = [replace_vars]
     for var_ in replace_vars:
-        ds[var_] = xr.where(ds[elev] < front_bin.left, np.nan, ds[var_])
+        ds[var_] = xr.where(
+            ~(ds[elev] < front_bin.left),
+            ds[var_],
+            (
+                np.nan if "_FillValue" not in ds[var_].attrs
+                else ds[var_].attrs["_FillValue"]
+            ),
+            keep_attrs=True
+        )
 
     return ds
 
@@ -447,7 +455,19 @@ def fill_missing_coords(
     else:
         maxy = int(maxy - (maxy - l3_data["y"].max().values) % resy + resy)
     coords = {"x": range(minx, maxx + 1, resx), "y": range(miny, maxy + 1, resy)}
-    return l3_data.reindex(coords, fill_value=np.nan)
+    return l3_data.reindex(
+        coords,
+        method=None,
+        copy=False,
+        fill_value={
+            _var: (
+                l3_data[_var].attrs["_FillValue"]
+                if "_FillValue" in l3_data[_var].attrs
+                else np.nan
+            )
+            for _var in [*l3_data.data_vars, "x", "y"]
+        }
+    )
 
 
 # ! make recursive
@@ -984,7 +1004,7 @@ def interpolate_hypsometrically(
         # neighbour_count.unstack().sortby("x").sortby("y").T.plot(cmap="cool")
         # plt.show()
         ds[main_var] = xr.where(
-            np.logical_and(neighbour_count >= 6, noise), np.nan, ds[main_var]
+            ~np.logical_and(neighbour_count >= 6, noise), ds[main_var], np.nan, keep_attrs=True
         )
         neighbours = (
             ds[main_var]
@@ -1227,8 +1247,8 @@ def interpolate_hypsometrically(
     elif "95" in error.lower():
         RMSE *= _norm_isf_025
     # print(fill_mask)
-    ds[error] = xr.where(fill_mask, RMSE, ds[error])
-    ds[weights] = xr.where(fill_mask, 0, ds[weights])
+    ds[error] = xr.where(~fill_mask, ds[error], RMSE, keep_attrs=True)
+    ds[weights] = xr.where(~fill_mask, ds[weights], 0, keep_attrs=True)
     # # restore data gaps
     # ds = ds.reindex_like(index_with_nan_in_elev)
     # tbi: if initially stacked, unstack here
