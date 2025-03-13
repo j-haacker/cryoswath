@@ -690,7 +690,7 @@ def timeseries_from_gridded(ds: xr.Dataset):
     results["elevation"] = ds._median.mean(["x", "y"]).to_series() - decmp_res.trend[0]
     da = ds._iqr.where(ds.filled_flag.isin([0, 1]))
     num_cells = (~da.isnull()).sum(["x", "y"])
-    print("#cells *0,1*", num_cells.values)
+    # print("#cells *0,1*", num_cells.values)
     da = da.chunk(time=1, x=-1, y=-1)
     r = 5
     unc1 = (
@@ -699,14 +699,14 @@ def timeseries_from_gridded(ds: xr.Dataset):
         ).sum()**.5).mean(["x", "y"]) / misc._norm_isf_25)**2  # / da.count(["x", "y"]) * da.count(["x", "y"])
         / num_cells * num_cells
     )
-    print("unc1", unc1.compute().values)
+    # print("unc1", unc1.compute().values)
     def eff_samp_size(weights):
         return weights.sum() ** 2 / (weights ** 2).sum()
     # from xarray.groupers import UniqueGrouper
     da = ds.where(ds.filled_flag == 2)
     # da = da.chunk(time=1, x=-1, y=-1)
     num_cells = (~da._median.isnull()).sum(["x", "y"])#.compute()
-    print("#cells *basin*", num_cells.values)
+    # print("#cells *basin*", num_cells.values)
     if (num_cells == 0).all():
         unc2 = xr.zeros_like(unc1)
     else:
@@ -732,12 +732,12 @@ def timeseries_from_gridded(ds: xr.Dataset):
         # print("ess", eff_samp_size(da.count("basin_id")._iqr.values))
         # unc2 = ((da.first("basin_id")._iqr * da.count("basin_id")._iqr) ** 2).sum("basin_id") ** 0.5 / misc._norm_isf_25 / num_cells \
         #     / ((da.count("basin_id")._iqr ** 2).sum("basin_id") / da.count("basin_id")._iqr.sum("basin_id") ** 2) ** 0.5 * num_cells
-    print("unc2", unc2.values)#.compute()
+    # print("unc2", unc2.values)#.compute()
     # raise
     da = ds.where(ds.filled_flag == 3)
     # da = da.chunk(time=1, x=-1, y=-1)
     num_cells = (~da._median.isnull()).sum(["x", "y"])
-    print("#cells *group*", num_cells.values)
+    # print("#cells *group*", num_cells.values)
     if (num_cells == 0).all():
         unc3 = xr.zeros_like(unc1)
     else:
@@ -761,12 +761,12 @@ def timeseries_from_gridded(ds: xr.Dataset):
         unc3 = xr.concat(res, "time")
         # unc3 = ((da.first() * da.count()) ** 2).sum("group_id") ** 0.5 / misc._norm_isf_25 / num_cells \
         #     / ((da.count() ** 2).sum("group_id") / da.count().sum("group_id") ** 2) ** 0.5 * num_cells
-    print("unc3", unc3.values)
+    # print("unc3", unc3.values)
     da = ds._iqr.where(ds.filled_flag == 4)
     num_cells = (~da.isnull()).sum(["x", "y"])
-    print("#cells *remaining*", num_cells.values)
+    # print("#cells *remaining*", num_cells.values)
     unc4 = da.mean(["x", "y"]) / misc._norm_isf_25 * (~da.isnull()).sum(["x", "y"])
-    print("unc4", unc4.values)
+    # print("unc4", unc4.values)
     
     # tmp = []
     # for da, r in [(ds._iqr.where(ds._count>3), 5),
