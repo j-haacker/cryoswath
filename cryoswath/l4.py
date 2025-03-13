@@ -27,6 +27,7 @@ import xarray as xr
 
 from .misc import (
     discard_frontal_retreat_zone,
+    effective_sample_size,
     fill_missing_coords,
     find_region_id,
     get_dem_reader,
@@ -684,29 +685,23 @@ def relative_change(
 
 
 def timeseries_from_gridded(ds: xr.Dataset):
-    # print(ds)
     decmp_res = seasonal_decompose(ds._median.mean(["x", "y"]), period=12, extrapolate_trend=True)
     results = pd.DataFrame(columns=["elevation", "uncertainty"])
     results["elevation"] = ds._median.mean(["x", "y"]).to_series() - decmp_res.trend[0]
+
     da = ds._iqr.where(ds.filled_flag.isin([0, 1]))
     num_cells = (~da.isnull()).sum(["x", "y"])
-    # print("#cells *0,1*", num_cells.values)
     da = da.chunk(time=1, x=-1, y=-1)
     r = 5
     unc1 = (
         ((da * (~da.isnull()).rolling(
             x=r, y=r, center=True, min_periods=r//2
-        ).sum()**.5).mean(["x", "y"]) / misc._norm_isf_25)**2  # / da.count(["x", "y"]) * da.count(["x", "y"])
-        / num_cells * num_cells
+        ).sum()**.5).mean(["x", "y"]) / misc._norm_isf_25)**2
+        # / num_cells <- for the current weighting * num_cells <- for the global weighting
     )
-    # print("unc1", unc1.compute().values)
-    def eff_samp_size(weights):
-        return weights.sum() ** 2 / (weights ** 2).sum()
-    # from xarray.groupers import UniqueGrouper
+
     da = ds.where(ds.filled_flag == 2)
-    # da = da.chunk(time=1, x=-1, y=-1)
-    num_cells = (~da._median.isnull()).sum(["x", "y"])#.compute()
-    # print("#cells *basin*", num_cells.values)
+    num_cells = (~da._median.isnull()).sum(["x", "y"])
     if (num_cells == 0).all():
         unc2 = xr.zeros_like(unc1)
     else:
@@ -715,29 +710,17 @@ def timeseries_from_gridded(ds: xr.Dataset):
         res = []
         print("basin")
         for label, group in tqdm.tqdm(da, desc="timesteps"):
-            # print(label)# , group
             grouped_group = group.groupby(tmp_grouper)
             _weights = grouped_group.count()
-            _ess = eff_samp_size(_weights.values)
-            # print("ess", _ess)
-            # print("sizes", grouped_group.count())
-            # print("first vs mean")
-            # print(grouped_group.first().values, grouped_group.mean().values)
+            _ess = effective_sample_size(_weights.values)
             res.append(
                 ((grouped_group.first() * _weights) ** 2).sum("basin_id") ** 0.5 / misc._norm_isf_25 \
                 / _ess ** 0.5  # / num_cells <- for the current weighting * num_cells <- for the global weighting
             )
         unc2 = xr.concat(res, "time")
-        # print(da.first("basin_id").values, da.mean("basin_id")._iqr.values)
-        # print("ess", eff_samp_size(da.count("basin_id")._iqr.values))
-        # unc2 = ((da.first("basin_id")._iqr * da.count("basin_id")._iqr) ** 2).sum("basin_id") ** 0.5 / misc._norm_isf_25 / num_cells \
-        #     / ((da.count("basin_id")._iqr ** 2).sum("basin_id") / da.count("basin_id")._iqr.sum("basin_id") ** 2) ** 0.5 * num_cells
-    # print("unc2", unc2.values)#.compute()
-    # raise
+
     da = ds.where(ds.filled_flag == 3)
-    # da = da.chunk(time=1, x=-1, y=-1)
     num_cells = (~da._median.isnull()).sum(["x", "y"])
-    # print("#cells *group*", num_cells.values)
     if (num_cells == 0).all():
         unc3 = xr.zeros_like(unc1)
     else:
@@ -746,54 +729,28 @@ def timeseries_from_gridded(ds: xr.Dataset):
         res = []
         print("group")
         for label, group in tqdm.tqdm(da, desc="timesteps"):
-            # print(label)# , group
             grouped_group = group.groupby(tmp_grouper)
             _weights = grouped_group.count()
-            _ess = eff_samp_size(_weights.values)
-            # print("ess", _ess)
-            # print("sizes", grouped_group.count())
-            # print("first vs mean")
-            # print(grouped_group.first().values, grouped_group.mean().values)
+            _ess = effective_sample_size(_weights.values)
             res.append(
                 ((grouped_group.first() * _weights) ** 2).sum("group_id") ** 0.5 / misc._norm_isf_25 \
                 / _ess ** 0.5  # / num_cells <- for the current weighting * num_cells <- for the global weighting
             )
         unc3 = xr.concat(res, "time")
-        # unc3 = ((da.first() * da.count()) ** 2).sum("group_id") ** 0.5 / misc._norm_isf_25 / num_cells \
-        #     / ((da.count() ** 2).sum("group_id") / da.count().sum("group_id") ** 2) ** 0.5 * num_cells
-    # print("unc3", unc3.values)
+
     da = ds._iqr.where(ds.filled_flag == 4)
     num_cells = (~da.isnull()).sum(["x", "y"])
-    # print("#cells *remaining*", num_cells.values)
     unc4 = da.mean(["x", "y"]) / misc._norm_isf_25 * (~da.isnull()).sum(["x", "y"])
-    # print("unc4", unc4.values)
     
-    # tmp = []
-    # for da, r in [(ds._iqr.where(ds._count>3), 5),
-    #               (ds._iqr.where(ds._count.isnull()), 5),
-    #               (50 * xr.ones_like(ds._iqr).where(ds._iqr.isnull()).where(~ds._median.isnull()), 11)]:
-    #     # print("Radius", r)
-    #     # print(da.count(["x", "y"]).mean())
-    #     da = da.chunk(time=1, x=-1, y=-1)
-    #     tmp.append(
-    #         # ((da * payload**.5).mean(["x", "y"])
-    #         ((da * (~da.isnull()).rolling(x=r, y=r, center=True, min_periods=r//2).sum()**.5).mean(["x", "y"])
-    #          / misc._norm_isf_25)**2  # / da.count(["x", "y"]) * da.count(["x", "y"])
-    #          / num_cells
-    #     )
-    # results["uncertainty"] = (xr.concat(tmp, dim="tmp").sum("tmp")**.5
-    #                           * 2  # 2sigma-uncertainties
-    #                           ).to_series()
-    # print([unc1, unc2, unc3, unc4])
     num_cells = (~ds._median.isnull()).sum(["x", "y"])
-    # print("#cells *total*", num_cells)
     _unc = xr.concat([unc1, unc2, unc3, unc4], dim="tmp") / num_cells
-    print(_unc.rename("uncertainties").to_dataframe()["uncertainties"].unstack(0).to_string())
     results["uncertainty"] = ((_unc ** 2).sum("tmp") ** 0.5
                               * 2  # 2sigma-uncertainties
                               ).to_series()
     results.sort_index(axis=1, inplace=True)
+
     # debugging
+    print(_unc.rename("uncertainties").to_dataframe()["uncertainties"].unstack(0).to_string())
     import matplotlib.pyplot as plt
     plt.fill_between(results.index, results.elevation-results.uncertainty, results.elevation+results.uncertainty)
     plt.plot(results.index, results.elevation, c="k")
@@ -804,6 +761,7 @@ def timeseries_from_gridded(ds: xr.Dataset):
         ds.attrs['o2region'] = md5(dumps(ds), usedforsecurity=False).hexdigest()[:7]
     plt.title(ds.attrs['o2region'])
     plt.savefig(f"tmp__quick_view_elev_ts_with_unc__{ds.attrs['o2region']}.png")
+
     return results
 
 
