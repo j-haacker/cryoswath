@@ -303,9 +303,20 @@ def fill_voids(
         ds[elev] = ref_elev_da
     # if there are still missing data, temporally interpolate (gaps shorter than 1 year)
     if "time" in ds.dims:
-        ds[main_var] = ds[main_var].interpolate_na(
+        _new_main = ds[main_var].interpolate_na(
             dim="time", method="linear", max_gap=pd.Timedelta(days=367)
         )
+        _interpolated = np.logical_and(ds[main_var].isnull(), ~_new_main.isnull())
+        ds[filled_flag] = xr.where(
+            ~_interpolated,
+            ds[filled_flag],
+            4,
+            keep_attrs=True
+        )
+        ds[error] = ds[error].interpolate_na(
+            dim="time", method="nearest", max_gap=pd.Timedelta(days=367)
+        )
+        ds[main_var] = _new_main
     # if there are still missing data, interpolate region wide ("global
     # hypsometric interpolation")
     ds = interpolate_hypsometrically(
@@ -327,17 +338,31 @@ def fill_voids(
         outlier_limit=outlier_limit,
         fit_sanity_check=fit_sanity_check,
         fill_flag=(
-            None if filled_flag is None else (filled_flag, 4)
+            None if filled_flag is None else (filled_flag, 5)
         ),
     )
     # if there are STILL missing data, temporally interpolate remaining
-    # gaps and fill the margins
+    # gaps and fill the margins. this should only occur at first and
+    # last time steps
     if "time" in ds.dims:
+        _void = ds[main_var].isnull()
         ds[main_var] = (
             ds[main_var]
             .interpolate_na(dim="time", method="linear")
             .bfill("time")
             .ffill("time")
+        )
+        _interpolated = np.logical_and(~ds[main_var].isnull(), _void)
+        ds[error] = xr.where(
+            ~_interpolated,
+            ds[error],
+            50
+        )
+        ds[filled_flag] = xr.where(
+            ~_interpolated,
+            ds[filled_flag],
+            6,
+            keep_attrs=True
         )
     ds = fill_missing_coords(
         ds.unstack(
@@ -428,6 +453,7 @@ def difference_to_reference_dem(
         fit_sanity_check=True,
         filled_flag="filled_flag",
     )
+    # print(res.filled_flag.dtype, np.unique(res.filled_flag))
     if save_to_disk:
         try:
             region_id = find_region_id(l3_data)
