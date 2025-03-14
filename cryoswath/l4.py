@@ -684,7 +684,31 @@ def relative_change(
     return res
 
 
-def timeseries_from_gridded(ds: xr.Dataset):
+def timeseries_from_gridded(ds: xr.Dataset) -> pd.DataFrame:
+    """Calculates uncertainties of average elevation
+
+    This function returns a two-column DataFrame of elevation averages
+    and the associated uncertaities. Computing the uncertainties is not
+    trivial and will be reasoned in an upcoming paper.
+
+    The void filling flags are essential. Currently they are hard-coded
+    and have the following meaning: -2: filling failed -1/nan: no data
+    0: no filling 1: filled based on :func:`trend_with_season` fit per
+    cell 2: :func:`misc.interpolate_hypsometrically` per basin 3:
+    :func:`misc.interpolate_hypsometrically` per group of basins 4:
+    linear temporal interpolation for gaps shorter than one year 5:
+    second order region wide :func:`misc.interpolate_hypsometrically` 6:
+    filling with temporally closest value per cell
+
+    Args:
+        ds (xr.Dataset): Void-filled L3 dataset. Needs variables
+            "_median", "_iqr", "basin_id", "group_id, "filled_flag",
+            "x", "y", and "time".
+
+    Returns:
+        pd.DataFrame: DataFrame with columns "elevation" and
+            "uncertainty", and time stamps on the index.
+    """
     decmp_res = seasonal_decompose(ds._median.mean(["x", "y"]), period=12, extrapolate_trend=True)
     results = pd.DataFrame(columns=["elevation", "uncertainty"])
     results["elevation"] = ds._median.mean(["x", "y"]).to_series() - decmp_res.trend[0]
