@@ -721,7 +721,7 @@ def timeseries_from_gridded(ds: xr.Dataset):
             )
         unc2 = xr.concat(res, "time")
 
-    da = ds.where(ds.filled_flag == 3)
+    da = ds.where(ds.filled_flag.isin([3, 4, 6]))
     num_cells = (~da._median.isnull()).sum(["x", "y"])
     if (num_cells == 0).all():
         unc3 = xr.zeros_like(unc1)
@@ -741,12 +741,19 @@ def timeseries_from_gridded(ds: xr.Dataset):
                 / _ess ** 0.5  # / num_cells <- for the current weighting * num_cells <- for the global weighting
             )
         unc3 = xr.concat(res, "time")
-
-    da = ds._iqr.where(ds.filled_flag == 4)
-    num_cells = (~da.isnull()).sum(["x", "y"])
-    unc4 = da.mean(["x", "y"]) / misc._norm_isf_25 * (~da.isnull()).sum(["x", "y"])
     
-    num_cells = (~ds._median.isnull()).sum(["x", "y"])
+    # add large error value where no observations are available at all
+    ds["_iqr"] = xr.where(
+        ds.filled_flag != -2,
+        ds._iqr,
+        50
+    )
+
+    da = ds._iqr.where(ds.filled_flag.isin([-2, 5]))
+    num_cells = (~da.isnull()).sum(["x", "y"])
+    unc4 = da.mean(["x", "y"]) / misc._norm_isf_25 * num_cells
+    
+    num_cells = (~ds.filled_flag.isnull()).sum(["x", "y"])
     _unc = xr.concat([unc1, unc2, unc3, unc4], dim="tmp") / num_cells
     results["uncertainty"] = ((_unc ** 2).sum("tmp") ** 0.5
                               * 2  # 2sigma-uncertainties
