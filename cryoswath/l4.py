@@ -756,6 +756,7 @@ def timeseries_from_gridded(ds: xr.Dataset):
     # debugging
     print(_unc.rename("uncertainties").to_dataframe()["uncertainties"].unstack(0).to_string())
     import matplotlib.pyplot as plt
+    plt.clf()
     plt.fill_between(results.index, results.elevation-results.uncertainty, results.elevation+results.uncertainty)
     plt.plot(results.index, results.elevation, c="k")
     plt.ylabel("Surface elevation difference, m")
