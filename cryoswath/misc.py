@@ -8,6 +8,7 @@ __all__ = [
     "cs_time_to_id",
     "define_elev_band_edges",
     "discard_frontal_retreat_zone",
+    "effective_sample_size",
     "extend_filename",
     "fill_missing_coords",
     "filter_kwargs",
@@ -408,6 +409,18 @@ def drop_small_glaciers(
             "from RGI o1 region."
         )
     return df[~small_glacier_mask]
+
+
+def effective_sample_size(weights: np.ndarray | xr.DataArray):
+    """Calculates the effective sample size based on sample weights
+
+    Args:
+        weights (np.ndarray | xr.DataArray): Weights
+
+    Returns:
+        _type_: Effective sample size as scalar of type equal to input.
+    """
+    return weights.sum() ** 2 / (weights ** 2).sum()
 
 
 def extend_filename(file_name: str, extension: str) -> str:
@@ -1041,12 +1054,12 @@ def interpolate_hypsometrically(
             group[main_var].fillna(-9999).squeeze()
         )  # make it obvious if anything goes wrong
         w = group[weights].fillna(0).squeeze()
-        avg, _var, effective_samp_size, to_be_filled_mask = weighted_mean_excl_outliers(
+        avg, _var, _ess, to_be_filled_mask = weighted_mean_excl_outliers(
             values=vals, weights=w, deviation_factor=outlier_limit, return_mask=True
         )
         err = (
-            student_t.isf(_norm_sf_1, effective_samp_size)
-            * (_var / effective_samp_size) ** 0.5
+            student_t.isf(_norm_sf_1, _ess)
+            * (_var / _ess) ** 0.5
         )
         if outlier_replace:
             to_be_filled_mask = np.logical_or(
@@ -1063,7 +1076,7 @@ def interpolate_hypsometrically(
             continue
         # # debugging notice
         # print("calc weighted avg succeeded", label)
-        # print("avg", avg, "_var", _var, "effective_samp_size", effective_samp_size,
+        # print("avg", avg, "_var", _var, "effective_samp_size", _ess,
         #       "err", err)
         elev_bin_means.loc[label] = avg
         elev_bin_errs.loc[label] = err
@@ -2228,11 +2241,9 @@ def weighted_mean_excl_outliers(
         deviation_factor=deviation_factor,
         scaling_factor=1,
     )
-    effective_sample_size = float(
-        weights[~outlier_mask].sum() ** 2 / (weights[~outlier_mask] ** 2).sum()
-    )
+    _ess = float(effective_sample_size(weights[~outlier_mask]))
     # print(outlier_mask)
-    if effective_sample_size > 6:
+    if _ess > 6:
         avg = float(np.average(values[~outlier_mask], weights=weights[~outlier_mask]))
         _var = float(
             np.average(
@@ -2240,13 +2251,13 @@ def weighted_mean_excl_outliers(
             )
         )
         if return_mask:
-            return avg, _var, effective_sample_size, outlier_mask
+            return avg, _var, _ess, outlier_mask
     else:
         avg = np.nan
         _var = np.nan
         if return_mask:
-            return avg, _var, effective_sample_size, outlier_mask == -1  # all False
-    return avg, _var, effective_sample_size
+            return avg, _var, _ess, outlier_mask == -1  # all False
+    return avg, _var, _ess
 
 
 def xycut(

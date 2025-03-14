@@ -8,6 +8,7 @@ __all__ = [
     "fill_voids",
     "fit_trend",
     "fit_trend__seasons_removed",
+    "timeseries_form_gridded",
     "trend_with_seasons",
     # "differential_change",
     # "relative_change",
@@ -20,11 +21,14 @@ import os
 import pandas as pd
 import rasterio.warp
 import rioxarray as rioxr
+from statsmodels.tsa.seasonal import seasonal_decompose
 import tqdm
+from typing import Literal
 import xarray as xr
 
 from .misc import (
     discard_frontal_retreat_zone,
+    effective_sample_size,
     fill_missing_coords,
     find_region_id,
     get_dem_reader,
@@ -679,6 +683,156 @@ def relative_change(
             )
         )
     return res
+
+
+def timeseries_from_gridded(
+        ds: xr.Dataset,
+        void_err_type: Literal["confidence", "prediction"] = "prediction",
+) -> pd.DataFrame:
+    """Calculates uncertainties of average elevation
+
+    This function returns a two-column DataFrame of elevation averages
+    and the associated uncertaities. Computing the uncertainties is not
+    trivial and will be reasoned in an upcoming paper.
+
+    The void filling flags are essential. Currently they are hard-coded
+    and have the following meaning:
+    -2: filling failed
+    -1/nan: no data
+    0: no filling
+    1: filled based on :func:`trend_with_season` fit per cell
+    2: :func:`misc.interpolate_hypsometrically` per basin
+    3: :func:`misc.interpolate_hypsometrically` per group of basins
+    4: linear temporal interpolation for gaps shorter than one year
+    5: second order region wide :func:`misc.interpolate_hypsometrically`
+    6: filling with temporally closest value per cell
+
+    Select `void_err_type` depending on whether prediction or confidence
+    intervals were assigned. Note that in any case the errors are
+    expected to be on the scale of interquartile ranges, i.e., the
+    errors will be multiplied by a scaling factor.
+
+    Args:
+        ds (xr.Dataset): Void-filled L3 dataset. Needs variables
+            "_median", "_iqr", "basin_id", "group_id, "filled_flag",
+            "x", "y", and "time".
+        void_err_type (Literal["prediction", "confidence"]): Type of
+            errors for filled voids. Defaults to "prediction".
+
+    Returns:
+        pd.DataFrame: DataFrame with columns "elevation" and
+            "uncertainty", and time stamps on the index.
+    """
+    decmp_res = seasonal_decompose(ds._median.mean(["x", "y"]), period=12, extrapolate_trend=True)
+    results = pd.DataFrame(columns=["elevation", "uncertainty"])
+    results["elevation"] = ds._median.mean(["x", "y"]).to_series() - decmp_res.trend[0]
+    
+    # add large error value where no observations are available at all
+    ds["_iqr"] = xr.where(
+        ds.filled_flag != -2,
+        ds._iqr,
+        50
+    )
+
+    if void_err_type == "confidence":
+        da = ds._iqr.where(ds.filled_flag.isin([0, 1]))
+        _coarsened = da.coarsen(
+            {"x": 4, "y": 4},
+            boundary="pad",
+        )
+        _weights = _coarsened.count()
+        num_cells = _weights.sum(["x", "y"])
+        unc1 = (
+            ((_coarsened.mean() * _weights) ** 2).sum(["x", "y"]) ** 0.5
+            # / _weights.sum(["x", "y"]) <- for the current weighting
+            # * _weights.sum(["x", "y"]) <- for the global weighting
+        ) ** 0.5  / misc._norm_isf_25
+
+        da = ds.where(ds.filled_flag == 2)
+        num_cells = (~da._median.isnull()).sum(["x", "y"])
+        if (num_cells == 0).all():
+            unc2 = xr.zeros_like(unc1)
+        else:
+            tmp_grouper = da.basin_id
+            da = da._iqr.groupby("time")
+            res = []
+            print("basin")
+            for label, group in tqdm.tqdm(da, desc="timesteps"):
+                if tmp_grouper.sel(time=label).isnull().all():
+                    continue
+                grouped_group = group.groupby(tmp_grouper.sel(time=label))
+                _weights = grouped_group.count()
+                _ess = effective_sample_size(_weights.values)
+                res.append(
+                    ((grouped_group.first() * _weights) ** 2).sum("basin_id") ** 0.5 / misc._norm_isf_25 \
+                    / _ess ** 0.5  # / num_cells <- for the current weighting * num_cells <- for the global weighting
+                )
+            unc2 = xr.concat(res, "time")
+
+        da = ds.where(ds.filled_flag.isin([3, 4, 6]))
+        num_cells = (~da._median.isnull()).sum(["x", "y"])
+        if (num_cells == 0).all():
+            unc3 = xr.zeros_like(unc1)
+        else:
+            tmp_grouper = da.group_id
+            da = da._iqr.groupby("time")
+            res = []
+            print("group")
+            for label, group in tqdm.tqdm(da, desc="timesteps"):
+                if tmp_grouper.sel(time=label).isnull().all():
+                    continue
+                grouped_group = group.groupby(tmp_grouper.sel(time=label))
+                _weights = grouped_group.count()
+                _ess = effective_sample_size(_weights.values)
+                res.append(
+                    ((grouped_group.first() * _weights) ** 2).sum("group_id") ** 0.5 / misc._norm_isf_25 \
+                    / _ess ** 0.5  # / num_cells <- for the current weighting * num_cells <- for the global weighting
+                )
+            unc3 = xr.concat(res, "time")
+
+        da = ds._iqr.where(ds.filled_flag.isin([-2, 5]))
+        num_cells = (~da.isnull()).sum(["x", "y"])
+        unc4 = da.mean(["x", "y"]) / misc._norm_isf_25 * num_cells
+        
+        num_cells = (~ds.filled_flag.isnull()).sum(["x", "y"])
+        _unc = xr.concat([unc1, unc2, unc3, unc4], dim="tmp") / num_cells
+        results["uncertainty"] = ((_unc ** 2).sum("tmp") ** 0.5
+                                * 2  # 2sigma-uncertainties
+                                ).to_series()
+    else:
+        _coarsened = ds._iqr.coarsen(
+            {"x": 4, "y": 4},
+            boundary="pad",
+        )
+        _weights = _coarsened.count()
+        results["uncertainty"] = ((
+            (
+                (_coarsened.mean()
+                * _weights) ** 2
+            ).sum(["x", "y"]) ** 0.5
+            / _weights.sum(["x", "y"])
+        ) ** 0.5  / misc._norm_isf_25
+        * 2  # 2sigma-uncertainties
+                                ).to_series()
+    
+    results.sort_index(axis=1, inplace=True)
+
+    # debugging
+    # print(_unc.rename("uncertainties").to_dataframe()["uncertainties"].unstack(0).to_string())
+    print(results.to_string())
+    import matplotlib.pyplot as plt
+    plt.clf()
+    plt.fill_between(results.index, results.elevation-results.uncertainty, results.elevation+results.uncertainty)
+    plt.plot(results.index, results.elevation, c="k")
+    plt.ylabel("Surface elevation difference, m")
+    if 'o2region' not in ds.attrs:
+        from pickle import dumps
+        from hashlib import md5
+        ds.attrs['o2region'] = md5(dumps(ds), usedforsecurity=False).hexdigest()[:7]
+    plt.title(ds.attrs['o2region'])
+    plt.savefig(f"tmp__quick_view_elev_ts_with_unc__{ds.attrs['o2region']}.png")
+
+    return results
 
 
 def trend_with_seasons(
