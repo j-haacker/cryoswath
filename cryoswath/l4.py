@@ -705,12 +705,14 @@ def timeseries_from_gridded(ds: xr.Dataset):
     if (num_cells == 0).all():
         unc2 = xr.zeros_like(unc1)
     else:
-        tmp_grouper = da.basin_id.isel(time=0).drop_vars("time")
+        tmp_grouper = da.basin_id
         da = da._iqr.groupby("time")
         res = []
         print("basin")
         for label, group in tqdm.tqdm(da, desc="timesteps"):
-            grouped_group = group.groupby(tmp_grouper)
+            if tmp_grouper.sel(time=label).isnull().all():
+                continue
+            grouped_group = group.groupby(tmp_grouper.sel(time=label))
             _weights = grouped_group.count()
             _ess = effective_sample_size(_weights.values)
             res.append(
@@ -724,12 +726,14 @@ def timeseries_from_gridded(ds: xr.Dataset):
     if (num_cells == 0).all():
         unc3 = xr.zeros_like(unc1)
     else:
-        tmp_grouper = da.group_id.isel(time=0).drop_vars("time")
+        tmp_grouper = da.group_id
         da = da._iqr.groupby("time")
         res = []
         print("group")
         for label, group in tqdm.tqdm(da, desc="timesteps"):
-            grouped_group = group.groupby(tmp_grouper)
+            if tmp_grouper.sel(time=label).isnull().all():
+                continue
+            grouped_group = group.groupby(tmp_grouper.sel(time=label))
             _weights = grouped_group.count()
             _ess = effective_sample_size(_weights.values)
             res.append(
