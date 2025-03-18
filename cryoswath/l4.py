@@ -7,6 +7,7 @@ __all__ = [
     "append_elevation_reference",
     "elevation_trend_raster_from_l3",
     "fill_voids",
+    "fill_l3_voids",
     "fit_trend",
     "fit_trend__seasons_removed",
     "timeseries_form_gridded",
@@ -385,6 +386,74 @@ def fill_voids(
         )
     )
     return ds
+
+
+def fill_l3_voids(o2region: str) -> xr.Dataset:
+    """Fills data gaps in L3 datasets
+
+    This is a convenience function that currently takes opinionated
+    choices that cannot be modified. More capabilities are planned to be
+    implemented in future.
+
+    This function, also, writes the results to disk. If a file is
+    present at the corresponding location, it is read instead of being
+    recalculated.
+
+    Args:
+        o2region (str): The RGI second order region identifier.
+
+    Returns:
+        xr.Dataset: Filled dataset.
+    """
+
+    results_path = os.path.join(
+        l4_path,
+        o2region + "__elev_diff_to_ref_at_monthly_intervals.nc"
+    )
+
+    if os.path.isfile(results_path):
+        return xr.open_dataset(results_path, decode_coords="all")
+
+    basins_gdf = misc.load_glacier_outlines(o2region, product="glaciers", union=False)
+    if o2region in ["08-01", "08-02", "08-03"]:
+        o2region = "08_scandinavia"
+    ds = xr.open_zarr(os.path.join(misc.l3_path, o2region+"_monthly_500m.zarr"), decode_coords="all").load()
+    crs = ds.rio.crs
+    expected_fit_results_path = os.path.join(
+        misc.l4_path,
+        f"surface_elevation_trend__rgi-o2region_{o2region}.zarr"
+    )
+    if os.path.isdir(expected_fit_results_path):
+        fit_rm_outl_res = xr.open_zarr(expected_fit_results_path, decode_coords="all").load()
+    else:
+        fit_rm_outl_res = elevation_trend_raster_from_l3(o2region, only_intermediate=True)
+    if o2region == "08_scandinavia":
+        ds = ds.rio.clip_box(*basins_gdf.to_crs(crs).total_bounds)
+        fit_rm_outl_res = fit_rm_outl_res.rio.clip_box(*basins_gdf.to_crs(crs).total_bounds)
+    ds = ds.where(ds._count > 3).where(ds._iqr < 30).dropna("time", how="all")
+    ds["_iqr"] = xr.where(ds._median.isnull(),
+                        fit_rm_outl_res.RMSE * 2 * misc._norm_isf_25,
+                        ds._iqr)
+    ds["filled_flag"] = xr.where(ds._median.isnull(), 1, 0).astype("i1")
+    ds.filled_flag.attrs["_FillValue"] = -1
+    ds["_median"] = ds._median.fillna(trend_with_seasons(
+        ds.time.astype("int"),
+        **{
+            param: fit_rm_outl_res.curvefit_coefficients.sel(param=param)
+            for param in fit_rm_outl_res.param.values
+        }
+    ))
+    mask = np.logical_and(
+        fit_rm_outl_res.curvefit_covariance.sel(cov_i="trend", cov_j="trend") < 2,
+        np.logical_and(fit_rm_outl_res.curvefit_covariance.sel(cov_i="amp_yearly", cov_j="amp_yearly") < 100,
+                    fit_rm_outl_res.curvefit_covariance.sel(cov_i="amp_semiyr", cov_j="amp_semiyr") < 100)
+    )
+    ds["_median"] = xr.where(mask, ds._median, np.nan)
+    ds["filled_flag"] = xr.where(mask, ds.filled_flag, -2, keep_attrs=True)  # should not survive void filling!
+    ds["_iqr"] = ds._iqr.where(~ds._median.isnull())
+    ds = misc.fill_missing_coords(ds.rio.write_crs(crs), *basins_gdf.to_crs(crs).total_bounds)
+    ds = ds.rio.clip(basins_gdf.to_crs(crs).make_valid())
+    return difference_to_reference_dem(ds, save_to_disk=results_path, basin_shapes=basins_gdf)
 
 
 def fit_trend(
