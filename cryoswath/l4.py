@@ -2,6 +2,7 @@
 
 __all__ = [
     "difference_to_reference_dem",
+    "add_meta_to_default_finalized_l3",
     "append_basin_id",
     "append_basin_group",
     "append_elevation_reference",
@@ -21,6 +22,7 @@ import geopandas as gpd
 import numpy as np
 import os
 import pandas as pd
+from pathlib import Path
 import rasterio.warp
 import rioxarray as rioxr
 from statsmodels.tsa.seasonal import seasonal_decompose
@@ -56,6 +58,205 @@ from . import misc, l3
 # would be to calculate all relative changes, then find all meaningful
 # combinations, and derive a final product by averaging those
 # combinations.
+
+
+def add_meta_to_default_finalized_l3(
+        outdir: str | Path,
+        your_name: str = "n/a",
+        your_institution: str = "n/a",
+):
+    """Adds meta data to and changes variable names of L3 dataset
+
+    This function expects that :func:py:`pathlib.Path().stat().st_mtime`
+    returns seconds since Unix epoch and only makes sense if you ran:
+
+    .. code-block:: python
+
+        cryoswath.l3.build_dataset(region_id)
+        cryoswath.l4.fill_voids_in_l3(region_id)
+    
+    If you deviated from default values in the processing, verify
+    the output of this function.
+
+    Args:
+        outdir (str | Path): Path to output directory.
+        your_name (str, optional): Your name. Defaults to "n/a".
+        your_institution (str, optional): Your institution. Defaults to "n/a".
+    """
+
+    def metadata():
+        return {
+            "elev_diff": {
+                "orig_name": "_median",
+                "standard_name": "land_ice_surface_height_above_reference",
+                "long_name": "Surface elevation difference wrt. DEM",
+                "units": "m",
+                "_FillValue": np.nan,
+                "dtype": "float32",
+                "ancillary_variables":
+                    "elev_diff_ref elev_diff_error elev_diff_obs_count elev_diff_interp_flag",
+                "description":
+                    "Glacier surface height in meter above a reference elevation. The "
+                    "reference elevation is stored in variable \"elev_diff_ref\". The "
+                    "sum of both gives the height above the WGS84 ellipsoid."
+            },
+            "elev_diff_ref": {
+                "orig_name": "ref_elev",
+                "standard_name": "land_height_reference_above_WGS84",
+                "long_name": "Surface elevation reference",
+                "units": "m",
+                "_FillValue": np.nan,
+                "dtype": "float32",
+                "description":
+                    "Reference surface height above the WGS84 ellipsoid. This variable is "
+                    "derived from ArcticDEM v4.1 100 m mosaik by linear interpolation to "
+                    "the current raster."
+            },
+            "elev_diff_error": {
+                "orig_name": "_iqr",
+                "standard_name": "land_ice_surface_height_above_reference standard_error",
+                "long_name": "Standard deviation of height observations",
+                "units": "m",
+                "_FillValue": np.nan,
+                "dtype": "float32",
+                "description":
+                    "Standard deviation of height observations. It is derived from "
+                    "the interquartile range of those point height estimates that are "
+                    "aggregated into the current raster cell."
+            },
+            "elev_diff_obs_count": {
+                "orig_name": "_count",
+                "standard_name": "land_ice_surface_height_above_reference number_of_observations",
+                "long_name": "Number of observations",
+                "units": "",
+                "_FillValue": 0,
+                "dtype": "uint16",
+                "description":
+                    "Number of point height estimates that are aggregated into the current "
+                    "raster cell. Note: this is not the number of independent measurements."
+            },
+            "elev_diff_interp_flag": {
+                "orig_name": "filled_flag",
+                "standard_name": "quality_flag",
+                "long_name": "Interpolation type",
+                "units": "",
+                "_FillValue": -1,
+                "dtype": "int8",
+                "flag_values": np.arange(-2, 7).astype("int8"),
+                "flag_meanings": [
+                    "failed",
+                    "no data",
+                    "observed",
+                    "cell-based",
+                    "basin-based",
+                    "group-based",
+                    "linear 1 year",
+                    "subregion-wide",
+                    "linear/const cell-based"
+                ],
+                "description":
+                    "This flag indicates how voids were filled. -2: \"failed\" indicates "
+                    "failure of the interpolation (should not occur), -1: \"no data\" outside "
+                    "of glaciers (overridden by _FillValue), 0: \"observed\" were not filled, "
+                    "1: \"cell-based\" use a season-aware linear trend model, 2: "
+                    "\"basin-based\" use a hypsometric model per time step, 3: "
+                    "\"group-based\" are like (2) but fit the model to all cells in a group "
+                    "of basins, 4: \"linear 1 year\" linearly interpolates values within the "
+                    "period of 1 year per cell, 5: \"subregion-wide\" does the same as (2) "
+                    "and (3) using all cells per time step, 6: \"linear/const cell-based\" "
+                    "fills all remaining gaps per cell with the temporally interpolated value "
+                    "and with the nearest value at the start and end of the dataset."
+            },
+            "basin_id": {
+                "orig_name": "basin_id",
+                "standard_name": "drainage_basin_identifier",
+                "long_name": "Drainage basin ID",
+                "units": "",
+                "_FillValue": 0,
+                "dtype": "uint32",
+                "description":
+                    "Integer value used to identify Randolph Glacier Inventory (RGI) version "
+                    "7.0 glaciers. The values are unique within first order RGI regions. "
+                    "They are the same as used by RGI as last part of the RGI glacier "
+                    "identifier."
+            },
+            "group_id": {
+                "orig_name": "group_id",
+                "standard_name": "drainage_basin_group_identifier",
+                "long_name": "Group ID",
+                "units": "",
+                "_FillValue": 0,
+                "dtype": "int32",
+                "description":
+                    "Integer value used to identify groups of Randolph Glacier Inventory "
+                    "(RGI) version 7.0 glaciers. The values are composed of a sign from the "
+                    "groups latitude, followed by the glacier terminus type according to RGI "
+                    "v7.0 being either 0 for land terminating, 1 for tidewater glacier, or 9 "
+                    "for not assigned. Further, the rounded absolute latitude and the rounded "
+                    "longitude (0-360 E) are attached."
+            },
+            # "": {
+            #     "orig_name": "",
+            #     "standard_name": "",
+            #     "long_name": "",
+            #     "units": "",
+            #     "description": ""
+            # },
+        }
+    for file in Path(misc.l4_path).rglob("*__elev_diff_to_ref_at_monthly_intervals.nc"):
+        date_time = str(pd.to_datetime(file.stat().st_mtime, unit="s"))
+        o1name = misc.rgi_code_translator(file.name.split("-")[0])
+        o2name = misc.rgi_code_translator(file.name.split("_")[0])
+        outpath = (
+            Path(outdir) / "__".join([
+                "Glacier_surface_elevation",
+                o1name.replace(" ", "_"),
+                o2name.replace(" (", "-").replace(")", "").replace("/", "-").replace(" ", "_"),
+                "monthly_500x500m.nc"
+            ])
+        )
+        if outpath.exists():
+            continue
+        global_meta = {
+            "Conventions": "CF-1.12",
+            "title": f"Monthly, 500 x 500 m glacier surface elevations of {o2name}, {o1name}",
+            "institution": your_institution,
+            "source": "CryoSat-2 SARIn",
+            "history": "\n".join([
+                "CryoSat-2 SARIn ESA Baseline E L1b",
+                f"{date_time}: {your_name} using cryoswath v2.1"
+            ]),
+            # "references": "",
+            # "comment": "",
+        }
+        _metadata = metadata()
+        with xr.open_dataset(file) as ds:
+            out = (
+                ds
+                .drop_encoding()
+                .drop_vars(["band", "cov_i", "cov_j"])
+                .rename_vars({
+                    v.pop("orig_name"): k
+                    for k, v in _metadata.items()
+                })
+            )
+        out.attrs = global_meta
+        out = out.drop_vars([
+            _var for _var in out.data_vars if _var not in _metadata
+        ])
+        for _var, attrs in _metadata.items():
+            out[_var].attrs.update({**attrs})
+        out.to_netcdf(
+            outpath,
+            encoding={
+                _var: {
+                    "dtype": out[_var].attrs.pop("dtype"),
+                    "_FillValue": out[_var].attrs.pop("_FillValue"),
+                    "zlib": True,
+                    "complevel": 5
+                } for _var in out.data_vars
+            }
+        )
 
 
 def append_basin_id(
