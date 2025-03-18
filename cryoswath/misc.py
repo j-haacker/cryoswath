@@ -2105,7 +2105,7 @@ def rgi_code_translator(input: str | list[str], out_type: str = "full_name") -> 
     if isinstance(input, list):
         return [rgi_code_translator(element, out_type) for element in input]
     if isinstance(input, int) or len(input) <= 2 and int(input) < 20:
-        return rgi_o1region_translator(input, out_type)
+        return rgi_o1region_translator(int(input), out_type)
     if re.match(r"\d\d-\d\d", input):
         return rgi_o2region_translator(
             *[int(x) for x in input.split("-")], out_type=out_type
