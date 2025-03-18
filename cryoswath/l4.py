@@ -5,6 +5,7 @@ __all__ = [
     "append_basin_id",
     "append_basin_group",
     "append_elevation_reference",
+    "elevation_trend_raster_from_l3",
     "fill_voids",
     "fit_trend",
     "fit_trend__seasons_removed",
@@ -33,6 +34,8 @@ from .misc import (
     find_region_id,
     get_dem_reader,
     interpolate_hypsometrically,
+    l3_path,
+    l4_path,
     load_glacier_outlines,
     nanoseconds_per_year,
 )
@@ -486,6 +489,115 @@ def difference_to_reference_dem(
             # }
         )
     return res
+
+
+def elevation_trend_raster_from_l3(region_id: str, *, only_intermediate: bool = False) -> xr.Dataset:
+    """Calculate elevation trend for each cell of L3 dataset
+
+    This is a convenience function that currently takes opinionated
+    choices that cannot be modified. More capabilities are planned to be
+    implemented in future.
+
+    Next to returning the elevation trends, these are, also, written to
+    disk. If the result files are present, these will be read instead of
+    repeating the calculation.
+
+    Args:
+        region_id (str): Region identifier that was used in the L3 Zarr
+            store names.
+        only_intermediate (bool, optional): If true, returns after
+            calculating the trends where sufficient data is available
+            and skips filling voids. Defaults to False.
+
+    Returns:
+        xr.Dataset: Dataset of elevation trends and other parameters,
+            depending on the usage.
+    """
+
+    # paths of (intermediate) results
+    filename = f"surface_elevation_trend__rgi-o2region_{region_id}"
+    interm_res_path = os.path.join(
+        l4_path,
+        filename + ".zarr"
+    )
+    result_path = os.path.join(
+        l4_path,
+        filename + "__m_yr-1.tif"
+    )
+
+    # first part: fitting trends
+    if not os.path.isdir(interm_res_path):
+        ds = xr.open_zarr(os.path.join(l3_path, region_id+"_monthly_500m.zarr"), decode_coords="all")#.load()
+        ds = ds.where(ds._count>3).where(ds._iqr<30)
+        ds = ds.where(np.logical_and((~ds._median.isel(time=slice(None, 30)).isnull()).sum("time")>5, (~ds._median.isel(time=slice(-30, None)).isnull()).sum("time")>5))
+        ds = ds.chunk(dict(time=-1))
+        fit_res = ds._median.transpose('time', 'y', 'x').curvefit(
+            coords="time",
+            func=trend_with_seasons,
+            param_names=["trend", "offset", "amp_yearly", "phase_yearly", "amp_semiyr", "phase_semiyr"],
+            bounds={"amp_yearly": (0, np.inf),
+                    "phase_yearly": [-np.pi, np.pi],
+                    "amp_semiyr": (0, np.inf),
+                    "phase_semiyr": [-np.pi, np.pi]},
+            errors="ignore"
+        )
+        # # debugging output:
+        # fit_res.curvefit_coefficients.sel(param="trend").rio.write_crs(ds.rio.crs).rio.to_raster("../figures/source_data/new_outl_still_present_surface_elevation_trend__rgi-o2region_"
+        #                 + f"{o1:02d}-{o2:02d}__m_yr-1.tif")
+        model_vals = xr.apply_ufunc(trend_with_seasons,
+                                    ds.time.astype("int"),
+                                    *[fit_res.sel(param=p) for p in fit_res.param],
+                                    dask="allowed")
+        residuals = ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
+        res_std = residuals.std("time")
+        outlier = np.abs(residuals)-2*res_std>0
+        fit_rm_outl_res = ds._median.where(~outlier).transpose('time', 'y', 'x').curvefit(
+            coords="time",
+            func=trend_with_seasons,
+            param_names=["trend", "offset", "amp_yearly", "phase_yearly", "amp_semiyr", "phase_semiyr"],
+            bounds={"amp_yearly": (0, np.inf),
+                    "phase_yearly": [-np.pi, np.pi],
+                    "amp_semiyr": (0, np.inf),
+                    "phase_semiyr": [-np.pi, np.pi]},
+            errors="ignore"
+        ).rio.write_crs(ds.rio.crs)
+        model_vals = xr.apply_ufunc(trend_with_seasons,
+                                    ds.time.astype("int"),
+                                    *[fit_rm_outl_res.sel(param=p) for p in fit_rm_outl_res.param],
+                                    dask="allowed")
+        residuals = ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
+        fit_rm_outl_res["RMSE"] = (residuals**2).mean("time")**.5
+        fit_rm_outl_res.to_zarr(interm_res_path, mode="w")
+    else:
+        fit_rm_outl_res = xr.open_zarr(
+            interm_res_path,
+            decode_coords="all"
+        ).load()
+    if only_intermediate:
+        return fit_rm_outl_res
+
+    # second part: filling voids
+    if not os.path.isfile(result_path):
+        basin_gdf = load_glacier_outlines(region_id, "basins", False)
+        mask = np.logical_and(
+            fit_rm_outl_res.curvefit_covariance.sel(cov_i="trend", cov_j="trend") < 2,
+            np.logical_and(fit_rm_outl_res.curvefit_covariance.sel(cov_i="amp_yearly", cov_j="amp_yearly") < 100,
+                            fit_rm_outl_res.curvefit_covariance.sel(cov_i="amp_semiyr", cov_j="amp_semiyr") < 100)
+        )
+        fit_rm_outl_res = fit_rm_outl_res.where(mask).sel(param="trend", cov_i="trend", cov_j="trend")
+        fit_rm_outl_res["trend"] = fit_rm_outl_res.curvefit_coefficients
+        fit_rm_outl_res["trend_std"] = fit_rm_outl_res.curvefit_covariance**.5
+        filled = fill_voids(fit_rm_outl_res[["trend", "trend_std"]], "trend", "trend_std", basin_shapes=basin_gdf, outlier_replace=True, outlier_limit=2)
+        # give rasterio a hint about the nodata values
+        filled.trend.attrs["_FillValue"] = np.nan
+        filled.trend_std.attrs["_FillValue"] = np.nan
+        # print(filled.trend.attrs, filled.trend_std.attrs)
+        filled[["trend", "trend_std"]].transpose("y", "x").rio.to_raster(
+            result_path
+        )
+    else:
+        filled = rioxr.open_rasterio(result_path)
+    return filled
 
 
 def fit_trend__seasons_removed(l3_ds: xr.Dataset) -> xr.Dataset:
