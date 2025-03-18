@@ -50,6 +50,7 @@ def cache_l2_data(
     start_datetime: str | pd.Timestamp,
     end_datetime: str | pd.Timestamp,
     *,
+    buffer_region_by: float = None,
     max_elev_diff: float = 150,
     timestep_months: int = 1,
     window_ntimesteps: int = 3,
@@ -73,7 +74,7 @@ def cache_l2_data(
     end_datetime = (
         end_datetime.normalize() + pd.offsets.MonthBegin() - pd.Timedelta(1, "s")
     )
-    if "buffer_region_by" not in locals():
+    if buffer_region_by is None:
         # buffer_by defaults to 30 km to not miss any tracks. Usually,
         # 10 km should do.
         buffer_region_by = 30_000
@@ -197,6 +198,7 @@ def build_dataset(
     end_datetime: str | pd.Timestamp,
     *,
     l2_type: str = "swath",
+    buffer_region_by: float = None,
     max_elev_diff: float = 150,
     timestep_months: int = 1,
     window_ntimesteps: int = 3,
@@ -236,7 +238,7 @@ def build_dataset(
         f"from {start_datetime} to {end_datetime} every {timestep_months} months for",
         f"a rolling window of {window_ntimesteps} time steps.",
     )
-    if "buffer_region_by" not in locals():
+    if buffer_region_by is None:
         # buffer_by defaults to 30 km to not miss any tracks. Usually,
         # 10 km should do.
         buffer_region_by = 30_000
