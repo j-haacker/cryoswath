@@ -781,7 +781,7 @@ def elevation_trend_raster_from_l3(region_id: str, *, only_intermediate: bool = 
 
     Returns:
         xr.Dataset: Dataset of elevation trends and other parameters,
-            depending on the usage.
+        depending on the usage.
     """
 
     # paths of (intermediate) results
