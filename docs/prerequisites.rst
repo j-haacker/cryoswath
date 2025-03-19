@@ -41,22 +41,11 @@ If you already know what data you need, find them at the `nsidc repository
 Software dependencies
 ---------------------
 
-There is a bunge of packages, listed in the `requirements.txt <https://github.com/j-haacker/cryoswath/blob/main/requirements.txt>`_, that are needed or beneficial to run cryoswath.
-Note, that the package names are "conda" names; "pip" names my be slightly different.
-Unfortunately there is an issue with ESA's L1b data: when those are read, some values are scaled.
-However, the operation used by "xarray" requires the scaling factor to be of a different type.
-The two easiest work-arounds are to either patch xarray, or to restrict xarrays version to "<2024.3".
-
-I provide a docker container, including the patched xarray version.
-To fire-up docker, run:
-
-``docker run --detach --interactive --volume <base dir>:/altimetry_project cryoswath/cryoswath:nightly``
-
-Then, connect with your favorite IDE or ``docker exec --interactive <container hash> sh``.
-
-For the longer term, you may want to have your own environment. If you using conda, follow the steps below:
-
-1. ``conda create --name env_name --file <base dir>/docker/conda_requirements.txt``
-2. ``conda activate env_name``
-3. ``conda install patch``
-4. ``find -name variables.py -path */env_name/*/xarray/coding/* -exec patch {} <base dir>/docker/custom_xarray.patch \;`` (the patch works for ``xarray=2024.9.0`` which listed in the requirements.txt used above)
+The software dependencies should have been installed when you ran ``pip
+install --editable ./cryoswath`` (see above). The dependencies can be
+found in the ``pyproject.toml``. There is a historic `requirements.txt
+<https://github.com/j-haacker/cryoswath/blob/main/requirements.txt>`_
+that used to list dependencies that are needed or beneficial to run
+cryoswath. However, it is not well maintained.
+Note, that the package names are "conda" names; "pip" names my be
+slightly different.
