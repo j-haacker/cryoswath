@@ -23,6 +23,10 @@ Continue by running ``cryoswath-init``.
 This will setup a directory structure, download the package, and download some small auxiliary files.
 Large resource dependency need to be downloaded manually.
 
+The above installation is the recommended. Refer to the readme for a
+variety of alternatives that may help incase of issues. Among the
+alternatives, there is a fallback strategy using a docker container.
+
 Data dependencies
 -----------------
 
