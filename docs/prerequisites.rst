@@ -6,9 +6,19 @@ Prerequisites
 Installation
 ------------
 
-To install cryoswath, simply clone the GitHub repository.
+To install cryoswath, clone the GitHub repository.
 
 ``git clone git@github.com/j-haacker/cryoswath.git``
+
+Then install it into your projects virtual environment. If you don't use
+virtual environments, please do so for this project to ensure all
+dependencies can be satisfied. You can install cryoswath by running:
+
+``pip install --editable ./cryoswath``
+
+Supplying the ``--editable`` flag allows you to update and modify cryoswath.
+
+Continue by running ``cryoswath-init``.
 
 This will setup a directory structure, download the package, and download some small auxiliary files.
 Large resource dependency need to be downloaded manually.
