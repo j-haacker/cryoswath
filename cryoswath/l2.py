@@ -158,14 +158,14 @@ def from_id(
             from itertools import batched
         except ImportError:
             # task specific, less than perfect implementation
-            def batched(dtx: pd.DatetimeIndex, number):
-                batchsize = int(np.ceil(len(dtx) / number))
-                out = [None] * number
-                for i in range(number):
+            def batched(dtx: pd.DatetimeIndex, batchsize):
+                n_batches = int(np.ceil(len(dtx) / batchsize))
+                out = [None] * n_batches
+                for i in range(n_batches):
                     out[i] = dtx[i * batchsize : (i + 1) * batchsize]
                 return out
 
-        for batch in batched(current_track_indices, cores * 3):
+        for batch in batched(current_track_indices, cores):
             if cores > 1 and len(batch) > 1:
                 with Pool(processes=cores) as p:
                     # function is defined at the bottom of this module
