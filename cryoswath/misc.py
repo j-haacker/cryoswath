@@ -119,7 +119,7 @@ def init_project():
         )
         while True:
             _input = input("Enter your email")
-            if re.match("^\w+@\w+\.[a-z]{2,9}", input.strip().lower()):
+            if re.match("^\w+@\w+\.[a-z]{2,9}", _input.strip().lower()):
                 update_email(_input)
             else:
                 print(
