@@ -335,7 +335,7 @@ def read_esa_l1b(
                 o2region_complexes = []
                 for o2 in np.unique(o2codes):
                     if o2 != "05-01":  # Greenland periphery is too large
-                        o2region_complexes.append(load_glacier_outlines(o2))
+                        o2region_complexes.append(load_glacier_outlines(o2, union=False))
                     else:  # cut into 10 subregions, append if crossed
                         # !tbi: instead of using the arbitrary chunks, use the custom
                         # subregions 05-11--05-15 (added in commit 2265523)
@@ -796,7 +796,7 @@ def to_l2(
         )
     # implicitly test whether data was processed. if not, do so
     if "ph_idx" not in ds.data_vars:
-        ds = ds.append_best_fit_phase_index(group_best_column_func)
+        ds = append_best_fit_phase_index(ds, group_best_column_func)
     if isinstance(out_vars, dict):
         ds = ds.drop_vars(list(out_vars.values()), errors="ignore")
         ds = ds.rename_vars(out_vars)
