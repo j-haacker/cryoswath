@@ -20,11 +20,11 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 
 project = 'cryoswath'
-copyright = '2024, Jan Haacker'
+copyright = '2024-%Y, Jan Haacker'
 author = 'Jan Haacker'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1.3-740684d'
+release = '0.2.1-a630abb'
 
 
 # -- General configuration ---------------------------------------------------
@@ -40,15 +40,78 @@ extensions = [
     # 'myst_parser'
 ]
 
+
 # for extension linkcode to work
+# copied from numpy
 def linkcode_resolve(domain, info):
+    """
+    Determine the URL corresponding to Python object
+    """
     if domain != 'py':
         return None
-    if not info['module']:
+
+    import inspect
+    import cryoswath
+
+    modname = info['module']
+    fullname = info['fullname']
+
+    submod = sys.modules.get(modname)
+    if submod is None:
         return None
-    filename = info['module'].replace('.', '/')
-    print(info, filename)
-    return "https://github.com/j-haacker/cryoswath/blob/develop/%s.py" % filename
+
+    obj = submod
+    for part in fullname.split('.'):
+        try:
+            obj = getattr(obj, part)
+        except Exception:
+            return None
+
+    # strip decorators, which would resolve to the source of the decorator
+    # possibly an upstream bug in getsourcefile, bpo-1764286
+    try:
+        unwrap = inspect.unwrap
+    except AttributeError:
+        pass
+    else:
+        obj = unwrap(obj)
+
+    fn = None
+    lineno = None
+
+    if fn is None:
+        try:
+            fn = inspect.getsourcefile(obj)
+        except Exception:
+            fn = None
+        if not fn:
+            return None
+
+        # Ignore re-exports as their source files are not within the cryoswath repo
+        module = inspect.getmodule(obj)
+        if module is not None and not module.__name__.startswith("cryoswath"):
+            return None
+
+        try:
+            source, lineno = inspect.getsourcelines(obj)
+        except Exception:
+            lineno = None
+
+        fn = os.path.relpath(fn, start=os.path.dirname(cryoswath.__file__))
+
+    if lineno:
+        linespec = "#L%d-L%d" % (lineno, lineno + len(source) - 1)
+    else:
+        linespec = ""
+
+    # maybe restructure in future: have doc "stable" point to main, "latest" to develop
+    if 'dev' in cryoswath.__version__:
+        return "https://github.com/j-haacker/cryoswath/blob/develop/cryoswath/%s%s" % (
+           fn, linespec)  # should actually refer to "main"
+    else:
+        return "https://github.com/j-haacker/cryoswath/blob/v%s/cryoswath/%s%s" % (
+           cryoswath.__version__, fn, linespec)
+
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
