@@ -121,6 +121,7 @@ def init_project():
             _input = input("Enter your email")
             if re.fullmatch("[^@]+@[^@]+\.[a-z]{2,9}", _input.strip().lower()):
                 update_email(_input)
+                break
             else:
                 print(
                     'Didn\'t match required pattern "[^@]+@[^@]+\\.[a-z]{2,9}". If',
