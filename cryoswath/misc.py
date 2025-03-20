@@ -113,7 +113,7 @@ def init_project():
     config["path"] = {"base": os.getcwd()}
     with open(config_file, "w") as f:
         config.write(f)
-    if hasattr(sys, "ps1") and ("user" not in config or "email" not in config["user"]):
+    if "user" not in config or "email" not in config["user"]:
         print(
             "Please provide your email to be able to download CryoSat-2 data from ESA."
         )
