@@ -61,20 +61,20 @@ from . import misc, l3
 
 
 def add_meta_to_default_finalized_l3(
-        outdir: str | Path,
-        your_name: str = "n/a",
-        your_institution: str = "n/a",
+    outdir: str | Path,
+    your_name: str = "n/a",
+    your_institution: str = "n/a",
 ):
     """Adds meta data to and changes variable names of L3 dataset
 
-    This function expects that :func:py:`pathlib.Path().stat().st_mtime`
+    This function expects that :func:`pathlib.Path().stat().st_mtime`
     returns seconds since Unix epoch and only makes sense if you ran:
 
     .. code-block:: python
 
         cryoswath.l3.build_dataset(region_id)
         cryoswath.l4.fill_voids_in_l3(region_id)
-    
+
     If you deviated from default values in the processing, verify
     the output of this function.
 
@@ -93,12 +93,15 @@ def add_meta_to_default_finalized_l3(
                 "units": "m",
                 "_FillValue": np.nan,
                 "dtype": "float32",
-                "ancillary_variables":
-                    "elev_diff_ref elev_diff_error elev_diff_obs_count elev_diff_interp_flag",
-                "description":
+                "ancillary_variables": (
+                    "elev_diff_ref elev_diff_error elev_diff_obs_count "
+                    "elev_diff_interp_flag"
+                ),
+                "description": (
                     "Glacier surface height in meter above a reference elevation. The "
-                    "reference elevation is stored in variable \"elev_diff_ref\". The "
+                    'reference elevation is stored in variable "elev_diff_ref". The '
                     "sum of both gives the height above the WGS84 ellipsoid."
+                ),
             },
             "elev_diff_ref": {
                 "orig_name": "ref_elev",
@@ -107,33 +110,41 @@ def add_meta_to_default_finalized_l3(
                 "units": "m",
                 "_FillValue": np.nan,
                 "dtype": "float32",
-                "description":
-                    "Reference surface height above the WGS84 ellipsoid. This variable is "
-                    "derived from ArcticDEM v4.1 100 m mosaik by linear interpolation to "
-                    "the current raster."
+                "description": (
+                    "Reference surface height above the WGS84 ellipsoid. This "
+                    "variable is derived from ArcticDEM v4.1 100 m mosaik by linear "
+                    "interpolation to the current raster."
+                ),
             },
             "elev_diff_error": {
                 "orig_name": "_iqr",
-                "standard_name": "land_ice_surface_height_above_reference standard_error",
+                "standard_name": (
+                    "land_ice_surface_height_above_reference standard_error"
+                ),
                 "long_name": "Standard deviation of height observations",
                 "units": "m",
                 "_FillValue": np.nan,
                 "dtype": "float32",
-                "description":
+                "description": (
                     "Standard deviation of height observations. It is derived from "
                     "the interquartile range of those point height estimates that are "
                     "aggregated into the current raster cell."
+                ),
             },
             "elev_diff_obs_count": {
                 "orig_name": "_count",
-                "standard_name": "land_ice_surface_height_above_reference number_of_observations",
+                "standard_name": (
+                    "land_ice_surface_height_above_reference number_of_observations"
+                ),
                 "long_name": "Number of observations",
                 "units": "",
                 "_FillValue": 0,
                 "dtype": "uint16",
-                "description":
-                    "Number of point height estimates that are aggregated into the current "
-                    "raster cell. Note: this is not the number of independent measurements."
+                "description": (
+                    "Number of point height estimates that are aggregated into the "
+                    "current raster cell. Note: this is not the number of independent "
+                    "measurements."
+                ),
             },
             "elev_diff_interp_flag": {
                 "orig_name": "filled_flag",
@@ -152,20 +163,22 @@ def add_meta_to_default_finalized_l3(
                     "group-based",
                     "linear 1 year",
                     "subregion-wide",
-                    "linear/const cell-based"
+                    "linear/const cell-based",
                 ],
-                "description":
-                    "This flag indicates how voids were filled. -2: \"failed\" indicates "
-                    "failure of the interpolation (should not occur), -1: \"no data\" outside "
-                    "of glaciers (overridden by _FillValue), 0: \"observed\" were not filled, "
-                    "1: \"cell-based\" use a season-aware linear trend model, 2: "
-                    "\"basin-based\" use a hypsometric model per time step, 3: "
-                    "\"group-based\" are like (2) but fit the model to all cells in a group "
-                    "of basins, 4: \"linear 1 year\" linearly interpolates values within the "
-                    "period of 1 year per cell, 5: \"subregion-wide\" does the same as (2) "
-                    "and (3) using all cells per time step, 6: \"linear/const cell-based\" "
-                    "fills all remaining gaps per cell with the temporally interpolated value "
-                    "and with the nearest value at the start and end of the dataset."
+                "description": (
+                    'This flag indicates how voids were filled. -2: "failed" indicates '
+                    'failure of the interpolation (should not occur), -1: "no data" '
+                    'outside of glaciers (overridden by _FillValue), 0: "observed"'
+                    ' were not filled, 1: "cell-based" use a season-aware linear trend '
+                    'model, 2: "basin-based" use a hypsometric model per time step, 3: '
+                    '"group-based" are like (2) but fit the model to all cells in a '
+                    'group of basins, 4: "linear 1 year" linearly interpolates values '
+                    'within the period of 1 year per cell, 5: "subregion-wide" does '
+                    "the same as (2) and (3) using all cells per time step, 6: "
+                    '"linear/const cell-based" fills all remaining gaps per cell with '
+                    "the temporally interpolated value and with the nearest value at "
+                    "the start and end of the dataset."
+                ),
             },
             "basin_id": {
                 "orig_name": "basin_id",
@@ -174,11 +187,12 @@ def add_meta_to_default_finalized_l3(
                 "units": "",
                 "_FillValue": 0,
                 "dtype": "uint32",
-                "description":
-                    "Integer value used to identify Randolph Glacier Inventory (RGI) version "
-                    "7.0 glaciers. The values are unique within first order RGI regions. "
-                    "They are the same as used by RGI as last part of the RGI glacier "
-                    "identifier."
+                "description": (
+                    "Integer value used to identify Randolph Glacier Inventory (RGI) "
+                    "version 7.0 glaciers. The values are unique within first order "
+                    "RGI regions. They are the same as used by RGI as last part of the "
+                    "RGI glacier identifier."
+                ),
             },
             "group_id": {
                 "orig_name": "group_id",
@@ -187,13 +201,15 @@ def add_meta_to_default_finalized_l3(
                 "units": "",
                 "_FillValue": 0,
                 "dtype": "int32",
-                "description":
-                    "Integer value used to identify groups of Randolph Glacier Inventory "
-                    "(RGI) version 7.0 glaciers. The values are composed of a sign from the "
-                    "groups latitude, followed by the glacier terminus type according to RGI "
-                    "v7.0 being either 0 for land terminating, 1 for tidewater glacier, or 9 "
-                    "for not assigned. Further, the rounded absolute latitude and the rounded "
-                    "longitude (0-360 E) are attached."
+                "description": (
+                    "Integer value used to identify groups of Randolph Glacier "
+                    "Inventory (RGI) version 7.0 glaciers. The values are composed of "
+                    "a sign from the groups latitude, followed by the glacier terminus "
+                    "type according to RGI v7.0 being either 0 for land terminating, 1 "
+                    "for tidewater glacier, or 9 for not assigned. Further, the "
+                    "rounded absolute latitude and the rounded longitude (0-360 E) are "
+                    "attached."
+                ),
             },
             # "": {
             #     "orig_name": "",
@@ -203,47 +219,49 @@ def add_meta_to_default_finalized_l3(
             #     "description": ""
             # },
         }
+
     for file in Path(misc.l4_path).rglob("*__elev_diff_to_ref_at_monthly_intervals.nc"):
         date_time = str(pd.to_datetime(file.stat().st_mtime, unit="s"))
         o1name = misc.rgi_code_translator(file.name.split("-")[0])
         o2name = misc.rgi_code_translator(file.name.split("_")[0])
-        outpath = (
-            Path(outdir) / "__".join([
+        outpath = Path(outdir) / "__".join(
+            [
                 "Glacier_surface_elevation",
                 o1name.replace(" ", "_"),
-                o2name.replace(" (", "-").replace(")", "").replace("/", "-").replace(" ", "_"),
-                "monthly_500x500m.nc"
-            ])
+                o2name.replace(" (", "-")
+                .replace(")", "")
+                .replace("/", "-")
+                .replace(" ", "_"),
+                "monthly_500x500m.nc",
+            ]
         )
         if outpath.exists():
             continue
         global_meta = {
             "Conventions": "CF-1.12",
-            "title": f"Monthly, 500 x 500 m glacier surface elevations of {o2name}, {o1name}",
+            "title": (
+                f"Monthly, 500 x 500 m glacier surface elevations of {o2name}, {o1name}"
+            ),
             "institution": your_institution,
             "source": "CryoSat-2 SARIn",
-            "history": "\n".join([
-                "CryoSat-2 SARIn ESA Baseline E L1b",
-                f"{date_time}: {your_name} using cryoswath v2.1"
-            ]),
+            "history": "\n".join(
+                [
+                    "CryoSat-2 SARIn ESA Baseline E L1b",
+                    f"{date_time}: {your_name} using cryoswath v2.1",
+                ]
+            ),
             # "references": "",
             # "comment": "",
         }
         _metadata = metadata()
         with xr.open_dataset(file) as ds:
             out = (
-                ds
-                .drop_encoding()
+                ds.drop_encoding()
                 .drop_vars(["band", "cov_i", "cov_j"])
-                .rename_vars({
-                    v.pop("orig_name"): k
-                    for k, v in _metadata.items()
-                })
+                .rename_vars({v.pop("orig_name"): k for k, v in _metadata.items()})
             )
         out.attrs = global_meta
-        out = out.drop_vars([
-            _var for _var in out.data_vars if _var not in _metadata
-        ])
+        out = out.drop_vars([_var for _var in out.data_vars if _var not in _metadata])
         for _var, attrs in _metadata.items():
             out[_var].attrs.update({**attrs})
         out.to_netcdf(
@@ -253,9 +271,10 @@ def add_meta_to_default_finalized_l3(
                     "dtype": out[_var].attrs.pop("dtype"),
                     "_FillValue": out[_var].attrs.pop("_FillValue"),
                     "zlib": True,
-                    "complevel": 5
-                } for _var in out.data_vars
-            }
+                    "complevel": 5,
+                }
+                for _var in out.data_vars
+            },
         )
 
 
@@ -401,7 +420,9 @@ def fill_voids(
         # figure out region. limited to o2 meanwhile
         print("... loading basin outlines")
         o2code = find_region_id(ds, scope="o2")
-        basin_shapes = load_glacier_outlines(o2code, product="glaciers").to_crs(ds.rio.crs)
+        basin_shapes = load_glacier_outlines(o2code, product="glaciers").to_crs(
+            ds.rio.crs
+        )
     else:
         basin_shapes = basin_shapes.to_crs(ds.rio.crs)
     # remove time steps without any data
@@ -446,9 +467,7 @@ def fill_voids(
                         outlier_replace=outlier_replace,
                         outlier_limit=outlier_limit,
                         fit_sanity_check=fit_sanity_check,
-                        fill_flag=(
-                            None if filled_flag is None else (filled_flag, 2)
-                        ),
+                        fill_flag=(None if filled_flag is None else (filled_flag, 2)),
                     )
                 )
         elif grouper == "basin_group":
@@ -473,9 +492,7 @@ def fill_voids(
                         outlier_replace=False,
                         outlier_limit=outlier_limit,
                         fit_sanity_check=fit_sanity_check,
-                        fill_flag=(
-                            None if filled_flag is None else (filled_flag, 3)
-                        ),
+                        fill_flag=(None if filled_flag is None else (filled_flag, 3)),
                     )
                 )
         ds = xr.concat(res, "stacked_x_y")
@@ -491,7 +508,7 @@ def fill_voids(
                     else np.nan
                 )
                 for _var in ds.data_vars
-            }
+            },
         )
         ds = ds.sortby("x").sortby("y")
         # reindexing fills gaps that were created by the grouping. if there were
@@ -507,7 +524,7 @@ def fill_voids(
                     else np.nan
                 )
                 for _var in ds.data_vars
-            }
+            },
         )
         ds[elev] = ref_elev_da
     # if there are still missing data, temporally interpolate (gaps shorter than 1 year)
@@ -516,12 +533,7 @@ def fill_voids(
             dim="time", method="linear", max_gap=pd.Timedelta(days=367)
         )
         _interpolated = np.logical_and(ds[main_var].isnull(), ~_new_main.isnull())
-        ds[filled_flag] = xr.where(
-            ~_interpolated,
-            ds[filled_flag],
-            4,
-            keep_attrs=True
-        )
+        ds[filled_flag] = xr.where(~_interpolated, ds[filled_flag], 4, keep_attrs=True)
         ds[error] = ds[error].interpolate_na(
             dim="time", method="nearest", max_gap=pd.Timedelta(days=367)
         )
@@ -529,14 +541,23 @@ def fill_voids(
     # if there are still missing data, interpolate region wide ("global
     # hypsometric interpolation")
     ds = interpolate_hypsometrically(
-        (ds.where(~ds.basin_id.isnull(), xr.Dataset({
-                _var: (
-                    ds[_var].attrs["_FillValue"]
-                    if "_FillValue" in ds[_var].attrs
-                    else np.nan
-                )
-                for _var in ds.data_vars
-            })) if "basin_id" in ds else ds)
+        (
+            ds.where(
+                ~ds.basin_id.isnull(),
+                xr.Dataset(
+                    {
+                        _var: (
+                            ds[_var].attrs["_FillValue"]
+                            if "_FillValue" in ds[_var].attrs
+                            else np.nan
+                        )
+                        for _var in ds.data_vars
+                    }
+                ),
+            )
+            if "basin_id" in ds
+            else ds
+        )
         .rio.clip(basin_shapes.make_valid())
         .stack({"stacked_x_y": ["x", "y"]})
         .dropna("stacked_x_y", how="any", subset=[elev]),
@@ -546,9 +567,7 @@ def fill_voids(
         outlier_replace=False,
         outlier_limit=outlier_limit,
         fit_sanity_check=fit_sanity_check,
-        fill_flag=(
-            None if filled_flag is None else (filled_flag, 5)
-        ),
+        fill_flag=(None if filled_flag is None else (filled_flag, 5)),
     )
     # if there are STILL missing data, temporally interpolate remaining
     # gaps and fill the margins. this should only occur at first and
@@ -562,17 +581,8 @@ def fill_voids(
             .ffill("time")
         )
         _interpolated = np.logical_and(~ds[main_var].isnull(), _void)
-        ds[error] = xr.where(
-            ~_interpolated,
-            ds[error],
-            50
-        )
-        ds[filled_flag] = xr.where(
-            ~_interpolated,
-            ds[filled_flag],
-            6,
-            keep_attrs=True
-        )
+        ds[error] = xr.where(~_interpolated, ds[error], 50)
+        ds[filled_flag] = xr.where(~_interpolated, ds[filled_flag], 6, keep_attrs=True)
     ds = fill_missing_coords(
         ds.unstack(
             "stacked_x_y",
@@ -583,7 +593,7 @@ def fill_voids(
                     else np.nan
                 )
                 for _var in ds.data_vars
-            }
+            },
         )
     )
     return ds
@@ -608,8 +618,7 @@ def fill_l3_voids(o2region: str) -> xr.Dataset:
     """
 
     results_path = os.path.join(
-        l4_path,
-        o2region + "__elev_diff_to_ref_at_monthly_intervals.nc"
+        l4_path, o2region + "__elev_diff_to_ref_at_monthly_intervals.nc"
     )
 
     if os.path.isfile(results_path):
@@ -618,43 +627,66 @@ def fill_l3_voids(o2region: str) -> xr.Dataset:
     basins_gdf = misc.load_glacier_outlines(o2region, product="glaciers", union=False)
     if o2region in ["08-01", "08-02", "08-03"]:
         o2region = "08_scandinavia"
-    ds = xr.open_zarr(os.path.join(misc.l3_path, o2region+"_monthly_500m.zarr"), decode_coords="all").load()
+    ds = xr.open_zarr(
+        os.path.join(misc.l3_path, o2region + "_monthly_500m.zarr"), decode_coords="all"
+    ).load()
     crs = ds.rio.crs
     expected_fit_results_path = os.path.join(
-        misc.l4_path,
-        f"surface_elevation_trend__rgi-o2region_{o2region}.zarr"
+        misc.l4_path, f"surface_elevation_trend__rgi-o2region_{o2region}.zarr"
     )
     if os.path.isdir(expected_fit_results_path):
-        fit_rm_outl_res = xr.open_zarr(expected_fit_results_path, decode_coords="all").load()
+        fit_rm_outl_res = xr.open_zarr(
+            expected_fit_results_path, decode_coords="all"
+        ).load()
     else:
-        fit_rm_outl_res = elevation_trend_raster_from_l3(o2region, only_intermediate=True)
+        fit_rm_outl_res = elevation_trend_raster_from_l3(
+            o2region, only_intermediate=True
+        )
     if o2region == "08_scandinavia":
         ds = ds.rio.clip_box(*basins_gdf.to_crs(crs).total_bounds)
-        fit_rm_outl_res = fit_rm_outl_res.rio.clip_box(*basins_gdf.to_crs(crs).total_bounds)
+        fit_rm_outl_res = fit_rm_outl_res.rio.clip_box(
+            *basins_gdf.to_crs(crs).total_bounds
+        )
     ds = ds.where(ds._count > 3).where(ds._iqr < 30).dropna("time", how="all")
-    ds["_iqr"] = xr.where(ds._median.isnull(),
-                        fit_rm_outl_res.RMSE * 2 * misc._norm_isf_25,
-                        ds._iqr)
+    ds["_iqr"] = xr.where(
+        ds._median.isnull(), fit_rm_outl_res.RMSE * 2 * misc._norm_isf_25, ds._iqr
+    )
     ds["filled_flag"] = xr.where(ds._median.isnull(), 1, 0).astype("i1")
     ds.filled_flag.attrs["_FillValue"] = -1
-    ds["_median"] = ds._median.fillna(trend_with_seasons(
-        ds.time.astype("int"),
-        **{
-            param: fit_rm_outl_res.curvefit_coefficients.sel(param=param)
-            for param in fit_rm_outl_res.param.values
-        }
-    ))
+    ds["_median"] = ds._median.fillna(
+        trend_with_seasons(
+            ds.time.astype("int"),
+            **{
+                param: fit_rm_outl_res.curvefit_coefficients.sel(param=param)
+                for param in fit_rm_outl_res.param.values
+            },
+        )
+    )
     mask = np.logical_and(
         fit_rm_outl_res.curvefit_covariance.sel(cov_i="trend", cov_j="trend") < 2,
-        np.logical_and(fit_rm_outl_res.curvefit_covariance.sel(cov_i="amp_yearly", cov_j="amp_yearly") < 100,
-                    fit_rm_outl_res.curvefit_covariance.sel(cov_i="amp_semiyr", cov_j="amp_semiyr") < 100)
+        np.logical_and(
+            fit_rm_outl_res.curvefit_covariance.sel(
+                cov_i="amp_yearly", cov_j="amp_yearly"
+            )
+            < 100,
+            fit_rm_outl_res.curvefit_covariance.sel(
+                cov_i="amp_semiyr", cov_j="amp_semiyr"
+            )
+            < 100,
+        ),
     )
     ds["_median"] = xr.where(mask, ds._median, np.nan)
-    ds["filled_flag"] = xr.where(mask, ds.filled_flag, -2, keep_attrs=True)  # should not survive void filling!
+    ds["filled_flag"] = xr.where(
+        mask, ds.filled_flag, -2, keep_attrs=True
+    )  # should not survive void filling!
     ds["_iqr"] = ds._iqr.where(~ds._median.isnull())
-    ds = misc.fill_missing_coords(ds.rio.write_crs(crs), *basins_gdf.to_crs(crs).total_bounds)
+    ds = misc.fill_missing_coords(
+        ds.rio.write_crs(crs), *basins_gdf.to_crs(crs).total_bounds
+    )
     ds = ds.rio.clip(basins_gdf.to_crs(crs).make_valid())
-    return difference_to_reference_dem(ds, save_to_disk=results_path, basin_shapes=basins_gdf)
+    return difference_to_reference_dem(
+        ds, save_to_disk=results_path, basin_shapes=basins_gdf
+    )
 
 
 def fit_trend(
@@ -761,7 +793,9 @@ def difference_to_reference_dem(
     return res
 
 
-def elevation_trend_raster_from_l3(region_id: str, *, only_intermediate: bool = False) -> xr.Dataset:
+def elevation_trend_raster_from_l3(
+    region_id: str, *, only_intermediate: bool = False
+) -> xr.Dataset:
     """Calculate elevation trend for each cell of L3 dataset
 
     This is a convenience function that currently takes opinionated
@@ -786,63 +820,92 @@ def elevation_trend_raster_from_l3(region_id: str, *, only_intermediate: bool = 
 
     # paths of (intermediate) results
     filename = f"surface_elevation_trend__rgi-o2region_{region_id}"
-    interm_res_path = os.path.join(
-        l4_path,
-        filename + ".zarr"
-    )
-    result_path = os.path.join(
-        l4_path,
-        filename + "__m_yr-1.tif"
-    )
+    interm_res_path = os.path.join(l4_path, filename + ".zarr")
+    result_path = os.path.join(l4_path, filename + "__m_yr-1.tif")
 
     # first part: fitting trends
     if not os.path.isdir(interm_res_path):
-        ds = xr.open_zarr(os.path.join(l3_path, region_id+"_monthly_500m.zarr"), decode_coords="all")#.load()
-        ds = ds.where(ds._count>3).where(ds._iqr<30)
-        ds = ds.where(np.logical_and((~ds._median.isel(time=slice(None, 30)).isnull()).sum("time")>5, (~ds._median.isel(time=slice(-30, None)).isnull()).sum("time")>5))
+        ds = xr.open_zarr(
+            os.path.join(l3_path, region_id + "_monthly_500m.zarr"), decode_coords="all"
+        )  # .load()
+        ds = ds.where(ds._count > 3).where(ds._iqr < 30)
+        ds = ds.where(
+            np.logical_and(
+                (~ds._median.isel(time=slice(None, 30)).isnull()).sum("time") > 5,
+                (~ds._median.isel(time=slice(-30, None)).isnull()).sum("time") > 5,
+            )
+        )
         ds = ds.chunk(dict(time=-1))
-        fit_res = ds._median.transpose('time', 'y', 'x').curvefit(
+        fit_res = ds._median.transpose("time", "y", "x").curvefit(
             coords="time",
             func=trend_with_seasons,
-            param_names=["trend", "offset", "amp_yearly", "phase_yearly", "amp_semiyr", "phase_semiyr"],
-            bounds={"amp_yearly": (0, np.inf),
-                    "phase_yearly": [-np.pi, np.pi],
-                    "amp_semiyr": (0, np.inf),
-                    "phase_semiyr": [-np.pi, np.pi]},
-            errors="ignore"
+            param_names=[
+                "trend",
+                "offset",
+                "amp_yearly",
+                "phase_yearly",
+                "amp_semiyr",
+                "phase_semiyr",
+            ],
+            bounds={
+                "amp_yearly": (0, np.inf),
+                "phase_yearly": [-np.pi, np.pi],
+                "amp_semiyr": (0, np.inf),
+                "phase_semiyr": [-np.pi, np.pi],
+            },
+            errors="ignore",
         )
         # # debugging output:
         # fit_res.curvefit_coefficients.sel(param="trend").rio.write_crs(ds.rio.crs).rio.to_raster("../figures/source_data/new_outl_still_present_surface_elevation_trend__rgi-o2region_"
         #                 + f"{o1:02d}-{o2:02d}__m_yr-1.tif")
-        model_vals = xr.apply_ufunc(trend_with_seasons,
-                                    ds.time.astype("int"),
-                                    *[fit_res.sel(param=p) for p in fit_res.param],
-                                    dask="allowed")
-        residuals = ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
+        model_vals = xr.apply_ufunc(
+            trend_with_seasons,
+            ds.time.astype("int"),
+            *[fit_res.sel(param=p) for p in fit_res.param],
+            dask="allowed",
+        )
+        residuals = (
+            ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
+        )
         res_std = residuals.std("time")
-        outlier = np.abs(residuals)-2*res_std>0
-        fit_rm_outl_res = ds._median.where(~outlier).transpose('time', 'y', 'x').curvefit(
-            coords="time",
-            func=trend_with_seasons,
-            param_names=["trend", "offset", "amp_yearly", "phase_yearly", "amp_semiyr", "phase_semiyr"],
-            bounds={"amp_yearly": (0, np.inf),
+        outlier = np.abs(residuals) - 2 * res_std > 0
+        fit_rm_outl_res = (
+            ds._median.where(~outlier)
+            .transpose("time", "y", "x")
+            .curvefit(
+                coords="time",
+                func=trend_with_seasons,
+                param_names=[
+                    "trend",
+                    "offset",
+                    "amp_yearly",
+                    "phase_yearly",
+                    "amp_semiyr",
+                    "phase_semiyr",
+                ],
+                bounds={
+                    "amp_yearly": (0, np.inf),
                     "phase_yearly": [-np.pi, np.pi],
                     "amp_semiyr": (0, np.inf),
-                    "phase_semiyr": [-np.pi, np.pi]},
-            errors="ignore"
-        ).rio.write_crs(ds.rio.crs)
-        model_vals = xr.apply_ufunc(trend_with_seasons,
-                                    ds.time.astype("int"),
-                                    *[fit_rm_outl_res.sel(param=p) for p in fit_rm_outl_res.param],
-                                    dask="allowed")
-        residuals = ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
-        fit_rm_outl_res["RMSE"] = (residuals**2).mean("time")**.5
+                    "phase_semiyr": [-np.pi, np.pi],
+                },
+                errors="ignore",
+            )
+            .rio.write_crs(ds.rio.crs)
+        )
+        model_vals = xr.apply_ufunc(
+            trend_with_seasons,
+            ds.time.astype("int"),
+            *[fit_rm_outl_res.sel(param=p) for p in fit_rm_outl_res.param],
+            dask="allowed",
+        )
+        residuals = (
+            ds._median - model_vals.rename({"curvefit_coefficients": "_median"})._median
+        )
+        fit_rm_outl_res["RMSE"] = (residuals**2).mean("time") ** 0.5
         fit_rm_outl_res.to_zarr(interm_res_path, mode="w")
     else:
-        fit_rm_outl_res = xr.open_zarr(
-            interm_res_path,
-            decode_coords="all"
-        ).load()
+        fit_rm_outl_res = xr.open_zarr(interm_res_path, decode_coords="all").load()
     if only_intermediate:
         return fit_rm_outl_res
 
@@ -851,20 +914,35 @@ def elevation_trend_raster_from_l3(region_id: str, *, only_intermediate: bool = 
         basin_gdf = load_glacier_outlines(region_id, "basins", False)
         mask = np.logical_and(
             fit_rm_outl_res.curvefit_covariance.sel(cov_i="trend", cov_j="trend") < 2,
-            np.logical_and(fit_rm_outl_res.curvefit_covariance.sel(cov_i="amp_yearly", cov_j="amp_yearly") < 100,
-                            fit_rm_outl_res.curvefit_covariance.sel(cov_i="amp_semiyr", cov_j="amp_semiyr") < 100)
+            np.logical_and(
+                fit_rm_outl_res.curvefit_covariance.sel(
+                    cov_i="amp_yearly", cov_j="amp_yearly"
+                )
+                < 100,
+                fit_rm_outl_res.curvefit_covariance.sel(
+                    cov_i="amp_semiyr", cov_j="amp_semiyr"
+                )
+                < 100,
+            ),
         )
-        fit_rm_outl_res = fit_rm_outl_res.where(mask).sel(param="trend", cov_i="trend", cov_j="trend")
+        fit_rm_outl_res = fit_rm_outl_res.where(mask).sel(
+            param="trend", cov_i="trend", cov_j="trend"
+        )
         fit_rm_outl_res["trend"] = fit_rm_outl_res.curvefit_coefficients
-        fit_rm_outl_res["trend_std"] = fit_rm_outl_res.curvefit_covariance**.5
-        filled = fill_voids(fit_rm_outl_res[["trend", "trend_std"]], "trend", "trend_std", basin_shapes=basin_gdf, outlier_replace=True, outlier_limit=2)
+        fit_rm_outl_res["trend_std"] = fit_rm_outl_res.curvefit_covariance**0.5
+        filled = fill_voids(
+            fit_rm_outl_res[["trend", "trend_std"]],
+            "trend",
+            "trend_std",
+            basin_shapes=basin_gdf,
+            outlier_replace=True,
+            outlier_limit=2,
+        )
         # give rasterio a hint about the nodata values
         filled.trend.attrs["_FillValue"] = np.nan
         filled.trend_std.attrs["_FillValue"] = np.nan
         # print(filled.trend.attrs, filled.trend_std.attrs)
-        filled[["trend", "trend_std"]].transpose("y", "x").rio.to_raster(
-            result_path
-        )
+        filled[["trend", "trend_std"]].transpose("y", "x").rio.to_raster(result_path)
     else:
         filled = rioxr.open_rasterio(result_path)
     return filled
@@ -1068,8 +1146,8 @@ def relative_change(
 
 
 def timeseries_from_gridded(
-        ds: xr.Dataset,
-        void_err_type: Literal["confidence", "prediction"] = "prediction",
+    ds: xr.Dataset,
+    void_err_type: Literal["confidence", "prediction"] = "prediction",
 ) -> pd.DataFrame:
     """Calculates uncertainties of average elevation
 
@@ -1105,16 +1183,14 @@ def timeseries_from_gridded(
         pd.DataFrame: DataFrame with columns "elevation" and
             "uncertainty", and time stamps on the index.
     """
-    decmp_res = seasonal_decompose(ds._median.mean(["x", "y"]), period=12, extrapolate_trend=True)
+    decmp_res = seasonal_decompose(
+        ds._median.mean(["x", "y"]), period=12, extrapolate_trend=True
+    )
     results = pd.DataFrame(columns=["elevation", "uncertainty"])
     results["elevation"] = ds._median.mean(["x", "y"]).to_series() - decmp_res.trend[0]
-    
+
     # add large error value where no observations are available at all
-    ds["_iqr"] = xr.where(
-        ds.filled_flag != -2,
-        ds._iqr,
-        50
-    )
+    ds["_iqr"] = xr.where(ds.filled_flag != -2, ds._iqr, 50)
 
     if void_err_type == "confidence":
         da = ds._iqr.where(ds.filled_flag.isin([0, 1]))
@@ -1125,10 +1201,11 @@ def timeseries_from_gridded(
         _weights = _coarsened.count()
         num_cells = _weights.sum(["x", "y"])
         unc1 = (
-            ((_coarsened.mean() * _weights) ** 2).sum(["x", "y"]) ** 0.5
+            ((_coarsened.mean() * _weights) ** 2).sum(["x", "y"])
+            ** 0.5
             # / _weights.sum(["x", "y"]) <- for the current weighting
             # * _weights.sum(["x", "y"]) <- for the global weighting
-        ) ** 0.5  / misc._norm_isf_25
+        ) ** 0.5 / misc._norm_isf_25
 
         da = ds.where(ds.filled_flag == 2)
         num_cells = (~da._median.isnull()).sum(["x", "y"])
@@ -1146,8 +1223,10 @@ def timeseries_from_gridded(
                 _weights = grouped_group.count()
                 _ess = effective_sample_size(_weights.values)
                 res.append(
-                    ((grouped_group.first() * _weights) ** 2).sum("basin_id") ** 0.5 / misc._norm_isf_25 \
-                    / _ess ** 0.5  # / num_cells <- for the current weighting * num_cells <- for the global weighting
+                    ((grouped_group.first() * _weights) ** 2).sum("basin_id") ** 0.5
+                    / misc._norm_isf_25
+                    / _ess
+                    ** 0.5  # / num_cells <- for the current weighting * num_cells <- for the global weighting # noqa:E501
                 )
             unc2 = xr.concat(res, "time")
 
@@ -1167,51 +1246,59 @@ def timeseries_from_gridded(
                 _weights = grouped_group.count()
                 _ess = effective_sample_size(_weights.values)
                 res.append(
-                    ((grouped_group.first() * _weights) ** 2).sum("group_id") ** 0.5 / misc._norm_isf_25 \
-                    / _ess ** 0.5  # / num_cells <- for the current weighting * num_cells <- for the global weighting
+                    ((grouped_group.first() * _weights) ** 2).sum("group_id") ** 0.5
+                    / misc._norm_isf_25
+                    / _ess
+                    ** 0.5  # / num_cells <- for the current weighting * num_cells <- for the global weighting # noqa:E501
                 )
             unc3 = xr.concat(res, "time")
 
         da = ds._iqr.where(ds.filled_flag.isin([-2, 5]))
         num_cells = (~da.isnull()).sum(["x", "y"])
         unc4 = da.mean(["x", "y"]) / misc._norm_isf_25 * num_cells
-        
+
         num_cells = (~ds.filled_flag.isnull()).sum(["x", "y"])
         _unc = xr.concat([unc1, unc2, unc3, unc4], dim="tmp") / num_cells
-        results["uncertainty"] = ((_unc ** 2).sum("tmp") ** 0.5
-                                * 2  # 2sigma-uncertainties
-                                ).to_series()
+        results["uncertainty"] = (
+            (_unc**2).sum("tmp") ** 0.5 * 2  # 2sigma-uncertainties
+        ).to_series()
     else:
         _coarsened = ds._iqr.coarsen(
             {"x": 4, "y": 4},
             boundary="pad",
         )
         _weights = _coarsened.count()
-        results["uncertainty"] = ((
+        results["uncertainty"] = (
             (
-                (_coarsened.mean()
-                * _weights) ** 2
-            ).sum(["x", "y"]) ** 0.5
-            / _weights.sum(["x", "y"])
-        ) ** 0.5  / misc._norm_isf_25
-        * 2  # 2sigma-uncertainties
-                                ).to_series()
-    
+                ((_coarsened.mean() * _weights) ** 2).sum(["x", "y"]) ** 0.5
+                / _weights.sum(["x", "y"])
+            )
+            ** 0.5
+            / misc._norm_isf_25
+            * 2  # 2sigma-uncertainties
+        ).to_series()
+
     results.sort_index(axis=1, inplace=True)
 
     # debugging
     # print(_unc.rename("uncertainties").to_dataframe()["uncertainties"].unstack(0).to_string())
     print(results.to_string())
     import matplotlib.pyplot as plt
+
     plt.clf()
-    plt.fill_between(results.index, results.elevation-results.uncertainty, results.elevation+results.uncertainty)
+    plt.fill_between(
+        results.index,
+        results.elevation - results.uncertainty,
+        results.elevation + results.uncertainty,
+    )
     plt.plot(results.index, results.elevation, c="k")
     plt.ylabel("Surface elevation difference, m")
-    if 'o2region' not in ds.attrs:
+    if "o2region" not in ds.attrs:
         from pickle import dumps
         from hashlib import md5
-        ds.attrs['o2region'] = md5(dumps(ds), usedforsecurity=False).hexdigest()[:7]
-    plt.title(ds.attrs['o2region'])
+
+        ds.attrs["o2region"] = md5(dumps(ds), usedforsecurity=False).hexdigest()[:7]
+    plt.title(ds.attrs["o2region"])
     plt.savefig(f"tmp__quick_view_elev_ts_with_unc__{ds.attrs['o2region']}.png")
 
     return results
