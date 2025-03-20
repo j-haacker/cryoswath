@@ -119,8 +119,12 @@ def init_project():
         )
         while True:
             _input = input("Enter your email")
-            if re.fullmatch("[^@]+@[^@]+\.[a-z]{2,9}", _input.strip().lower()):
-                update_email(_input)
+            if re.fullmatch(r"[^@]+@[^@]+\.[a-z]{2,9}", _input.strip().lower()):
+                if "user" not in config:
+                    config["user"] = {}
+                config["user"].update({"email": _input})
+                with open(config_file, "w") as f:  # update/overwrite
+                    config.write(f)
                 break
             else:
                 print(
