@@ -15,11 +15,11 @@ changing the concerned function or adding a new one.
 
 ## 🌱 state
 
-cryoswath is being developed. Branch `main` contains the
-"pip"-installable package, `scripts` contains tutorials, and `data`
-contains auxiliary data and the required directory structure. You can
-have everything setup automatically (see "getting started"). Other
-branches are for development.
+cryoswath is being developed. Branch `main` is the release branch,
+`scripts` contains tutorials, and `data` contains auxiliary data and the
+required directory structure. You can have everything setup
+automatically (see "getting started"). Other branches are for
+development.
 
 ## ✨ features
 
