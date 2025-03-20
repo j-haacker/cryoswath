@@ -113,6 +113,20 @@ def init_project():
     config["path"] = {"base": os.getcwd()}
     with open(config_file, "w") as f:
         config.write(f)
+    if hasattr(sys, "ps1") and ("user" not in config or "email" not in config["user"]):
+        print(
+            "Please provide your email to be able to download CryoSat-2 data from ESA."
+        )
+        while True:
+            _input = input("Enter your email")
+            if re.match("^\w+@\w+\.[a-z]{2,9}", input.strip().lower()):
+                update_email(_input)
+            else:
+                print(
+                    'Didn\'t match required pattern "^\w+@\w+\.[a-z]{2,9}". If your',
+                    "email indeed doesn't match, file an issue. Your input was:",
+                    _input,
+                )
 
 
 # Paths ##############################################################
@@ -133,9 +147,7 @@ l3_path = os.path.join(data_path, "L3")
 l4_path = os.path.join(data_path, "L4")
 tmp_path = os.path.join(data_path, "tmp")
 aux_path = os.path.join(data_path, "auxiliary")
-cs_ground_tracks_path = os.path.join(
-    aux_path, "CryoSat-2_SARIn_ground_tracks.feather"
-)
+cs_ground_tracks_path = os.path.join(aux_path, "CryoSat-2_SARIn_ground_tracks.feather")
 rgi_path = os.path.join(aux_path, "RGI")
 dem_path = os.path.join(aux_path, "DEM")
 
@@ -360,10 +372,11 @@ def discard_frontal_retreat_zone(
             ~(ds[elev] < front_bin.left),
             ds[var_],
             (
-                np.nan if "_FillValue" not in ds[var_].attrs
+                np.nan
+                if "_FillValue" not in ds[var_].attrs
                 else ds[var_].attrs["_FillValue"]
             ),
-            keep_attrs=True
+            keep_attrs=True,
         )
 
     return ds
@@ -420,7 +433,7 @@ def effective_sample_size(weights: np.ndarray | xr.DataArray):
     Returns:
         _type_: Effective sample size as scalar of type equal to input.
     """
-    return weights.sum() ** 2 / (weights ** 2).sum()
+    return weights.sum() ** 2 / (weights**2).sum()
 
 
 def extend_filename(file_name: str, extension: str) -> str:
@@ -479,7 +492,7 @@ def fill_missing_coords(
                 else np.nan
             )
             for _var in [*l3_data.data_vars, "x", "y"]
-        }
+        },
     )
 
 
@@ -973,7 +986,7 @@ def interpolate_hypsometrically(
                 "ignore",
                 "Degrees of freedom <= 0 for slice.",
                 RuntimeWarning,
-                "numpy.lib.nanfunctions"
+                "numpy.lib.nanfunctions",
             )
             _cnt = groups.count()
             _mean = (
@@ -1024,7 +1037,10 @@ def interpolate_hypsometrically(
         # neighbour_count.unstack().sortby("x").sortby("y").T.plot(cmap="cool")
         # plt.show()
         ds[main_var] = xr.where(
-            ~np.logical_and(neighbour_count >= 6, noise), ds[main_var], np.nan, keep_attrs=True
+            ~np.logical_and(neighbour_count >= 6, noise),
+            ds[main_var],
+            np.nan,
+            keep_attrs=True,
         )
         neighbours = (
             ds[main_var]
@@ -1057,10 +1073,7 @@ def interpolate_hypsometrically(
         avg, _var, _ess, to_be_filled_mask = weighted_mean_excl_outliers(
             values=vals, weights=w, deviation_factor=outlier_limit, return_mask=True
         )
-        err = (
-            student_t.isf(_norm_sf_1, _ess)
-            * (_var / _ess) ** 0.5
-        )
+        err = student_t.isf(_norm_sf_1, _ess) * (_var / _ess) ** 0.5
         if outlier_replace:
             to_be_filled_mask = np.logical_or(
                 group[main_var].isnull().squeeze(), to_be_filled_mask
@@ -1256,7 +1269,9 @@ def interpolate_hypsometrically(
     # plt.show()
     ds[main_var] = xr.where(~fill_mask, ds[main_var], modelled, keep_attrs=True)
     if fill_flag is not None:
-        ds[fill_flag[0]] = xr.where(~fill_mask, ds[fill_flag[0]], fill_flag[1], keep_attrs=True)
+        ds[fill_flag[0]] = xr.where(
+            ~fill_mask, ds[fill_flag[0]], fill_flag[1], keep_attrs=True
+        )
     RMSE = (residuals.where(~fill_mask) ** 2).mean() ** 0.5
     if "std" in error.lower():
         pass
