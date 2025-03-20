@@ -119,12 +119,12 @@ def init_project():
         )
         while True:
             _input = input("Enter your email")
-            if re.match("^\w+@\w+\.[a-z]{2,9}", _input.strip().lower()):
+            if re.fullmatch("[^@]+@[^@]+\.[a-z]{2,9}", _input.strip().lower()):
                 update_email(_input)
             else:
                 print(
-                    'Didn\'t match required pattern "^\w+@\w+\.[a-z]{2,9}". If your',
-                    "email indeed doesn't match, file an issue. Your input was:",
+                    'Didn\'t match required pattern "[^@]+@[^@]+\\.[a-z]{2,9}". If',
+                    "your email indeed doesn't match, file an issue. Your input was:",
                     _input,
                 )
 
