@@ -991,7 +991,7 @@ def interpolate_hypsometrically(
                 "ignore",
                 "Degrees of freedom <= 0 for slice.",
                 RuntimeWarning,
-                "numpy.lib.nanfunctions",
+                r"numpy\.lib\..*nanfunctions.*",
             )
             _cnt = groups.count()
             _mean = (
@@ -1031,7 +1031,7 @@ def interpolate_hypsometrically(
                 "ignore",
                 "Degrees of freedom <= 0 for slice.",
                 RuntimeWarning,
-                "numpy.lib.nanfunctions",
+                r"numpy\.lib\..*nanfunctions.*",
             )
             neighbour_elev_std = (
                 neighbour_elev.std(ddof=1)
