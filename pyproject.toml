@@ -26,7 +26,6 @@ dependencies = [
     "h5netcdf",
     "h5py",
     "matplotlib",
-    # "netCDF4",  # not sure
     "numpy",
     "packaging",
     "pandas",
