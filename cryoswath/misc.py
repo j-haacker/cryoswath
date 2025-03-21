@@ -113,25 +113,7 @@ def init_project():
     config["path"] = {"base": os.getcwd()}
     with open(config_file, "w") as f:
         config.write(f)
-    if "user" not in config or "email" not in config["user"]:
-        print(
-            "Please provide your email to be able to download CryoSat-2 data from ESA."
-        )
-        while True:
-            _input = input("Enter your email")
-            if re.fullmatch(r"[^@]+@[^@]+\.[a-z]{2,9}", _input.strip().lower()):
-                if "user" not in config:
-                    config["user"] = {}
-                config["user"].update({"email": _input})
-                with open(config_file, "w") as f:  # update/overwrite
-                    config.write(f)
-                break
-            else:
-                print(
-                    'Didn\'t match required pattern "[^@]+@[^@]+\\.[a-z]{2,9}". If',
-                    "your email indeed doesn't match, file an issue. Your input was:",
-                    _input,
-                )
+    print("Run cryoswath.misc.update_email() from a python prompt to complete setup.")
 
 
 # Paths ##############################################################
@@ -2214,14 +2196,23 @@ def sandbox_write_to(target: str):
             os.remove(target + "__backup")
 
 
-def update_email(email):
-    config = ConfigParser()
-    config.read("config.ini")
-    if "user" not in config:
-        config["user"] = dict()
-    config["user"].update({"email": email})
-    with open("config.ini", "w") as f:
-        config.write(f)
+def update_email(email: str = None):
+    if email is None:
+        email = input("Enter your email")
+    if re.fullmatch(r"[^@]+@[^@]+\.[a-z]{2,9}", email.strip().lower()):
+        config = ConfigParser()
+        config.read("config.ini")
+        if "user" not in config:
+            config["user"] = dict()
+        config["user"].update({"email": email})
+        with open("config.ini", "w") as f:  # update/overwrite
+            config.write(f)
+    else:
+        print(
+            'Didn\'t match required pattern "[^@]+@[^@]+\\.[a-z]{2,9}". If',
+            "your email indeed doesn't match, file an issue. Your input was:",
+            email,
+        )
 
 
 # CREDIT: mgab https://stackoverflow.com/a/22376126
