@@ -1013,21 +1013,32 @@ def interpolate_hypsometrically(
     if outlier_replace:
         neighbour_elev = (
             ds[elev]
+            .where(ds._cnt >= 6)
             .unstack()
             .sortby("x")
             .sortby("y")
             .rolling(x=5, y=5, min_periods=3, center=True)
         )
+        _cnt = neighbour_elev.count()
         neighbour_elev_mean = (
             neighbour_elev.mean()
+            .where(_cnt >= 6)
             .stack(stacked_x_y=["x", "y"])
             .reindex_like(ds[main_var])
         )
-        neighbour_elev_std = (
-            neighbour_elev.std()
-            .stack(stacked_x_y=["x", "y"])
-            .reindex_like(ds[main_var])
-        )
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                "Degrees of freedom <= 0 for slice.",
+                RuntimeWarning,
+                "numpy.lib.nanfunctions",
+            )
+            neighbour_elev_std = (
+                neighbour_elev.std(ddof=1)
+                .where(_cnt >= 6)
+                .stack(stacked_x_y=["x", "y"])
+                .reindex_like(ds[main_var])
+            )
         noise = (
             np.abs(ds[main_var] - neighbour_mean) / neighbour_std
             - np.abs(ds[elev] - neighbour_elev_mean) / neighbour_elev_std
@@ -1244,7 +1255,7 @@ def interpolate_hypsometrically(
         fill_mask = np.logical_or(
             ds[main_var].isnull(),
             np.logical_and(
-                fill_mask != 0, np.abs(residuals) > outlier_limit * residuals.std()
+                fill_mask != 0, np.abs(residuals) > outlier_limit * residuals.std(ddof=4)
             ),
         )
     else:
