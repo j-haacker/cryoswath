@@ -111,7 +111,7 @@ For each project, run `cryoswath-init` from the project directory.
 
 ## 📖 documentation
 
-[j-haacker.github.io/cryoswath](https://j-haacker.github.io/cryoswath/)
+[j-haacker.github.io/cryoswath](https://cryoswath.readthedocs.io/)
 
 ## dependencies
 
