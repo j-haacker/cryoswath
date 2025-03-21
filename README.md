@@ -100,7 +100,7 @@ advantage: will almost always work
 
 *note*: the first time running the docker image require to download ~ 1 Gb
 
-1. `docker run -it -p 8888:8888 -v $proj_dir$:/home/jovyan cryoswath/jupyterlab:v0.2.1`
+1. `docker run -it -p 8888:8888 -v $proj_dir$:/home/jovyan cryoswath/jupyterlab:v0.2.2`
 2. You will receive an address including a token with which you can connect to the jupyterlab using your browser
 3. In jupyterlab, open a regular shell and execute `cryoswath-init`
 4. Open the scripts folder in the explorer and select one of the notebooks or create your own (inside the scripts folder)
@@ -137,11 +137,11 @@ You can cite this package using bibtex:
 ```bibtex
 @software{cryoswath,
   author       = {Haacker, Jan},
-  title        = {cryoswath: v0.2.1},
+  title        = {cryoswath: v0.2.2},
   month        = feb,
   year         = 2025,
   publisher    = {Zenodo},
-  version      = {v0.2.1},
+  version      = {v0.2.2},
   doi          = {10.5281/zenodo.14837018}
 }
 ```

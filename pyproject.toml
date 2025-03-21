@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "cryoswath"
-version = "0.2.1.post4"
+version = "0.2.2.dev0"
 authors = [
   { name="Jan Haacker", email="j.m.haacker@tudelft.nl" },
 ]
@@ -26,6 +26,7 @@ dependencies = [
     "h5netcdf",
     "h5py",
     "matplotlib",
+    # "netCDF4",  # not sure
     "numpy",
     "packaging",
     "pandas",
@@ -50,7 +51,7 @@ file = "LICENSE.txt"
 # ... = "MIT"
 
 [project.optional-dependencies]
-doc = ["sphinx"]
+dev = ["black", "sphinx", "sphinx-rtd-theme"]
 notebooks = ["ipykernel"]
 
 [project.urls]
