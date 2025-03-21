@@ -62,7 +62,7 @@ from . import misc, l3
 
 def add_meta_to_default_finalized_l3(
     outdir: str | Path,
-    your_name: str = "n/a",
+    your_name: str = "unkown",
     your_institution: str = "n/a",
 ):
     """Adds meta data to and changes variable names of L3 dataset
@@ -257,7 +257,7 @@ def add_meta_to_default_finalized_l3(
         with xr.open_dataset(file) as ds:
             out = (
                 ds.drop_encoding()
-                .drop_vars(["band", "cov_i", "cov_j"])
+                .drop_vars([_var for _var in ["band", "cov_i", "cov_j"] if _var in ds])
                 .rename_vars({v.pop("orig_name"): k for k, v in _metadata.items()})
             )
         out.attrs = global_meta
@@ -266,6 +266,7 @@ def add_meta_to_default_finalized_l3(
             out[_var].attrs.update({**attrs})
         out.to_netcdf(
             outpath,
+            engine="h5netcdf",
             encoding={
                 _var: {
                     "dtype": out[_var].attrs.pop("dtype"),
