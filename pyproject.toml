@@ -18,9 +18,10 @@ classifiers = [
 ]
 keywords = ["glacier", "altimetry", "swath", "cryosat"]
 dependencies = [
+    "Bottleneck",
     "dask",
     "defusedxml",
-    "geopandas",
+    "geopandas>=1.0.1",
     "gitpython",
     "h5netcdf",
     "h5py",
