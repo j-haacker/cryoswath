@@ -73,7 +73,7 @@ def add_meta_to_default_finalized_l3(
     .. code-block:: python
 
         cryoswath.l3.build_dataset(region_id)
-        cryoswath.l4.fill_voids_in_l3(region_id)
+        cryoswath.l4.fill_l3_voids(region_id)
 
     If you deviated from default values in the processing, verify
     the output of this function.
