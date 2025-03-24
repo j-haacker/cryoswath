@@ -2,10 +2,7 @@
 
 __all__ = [
     "cache_l2_data",
-    "med_iqr_cnt",
-    "build_path",
     "build_dataset",
-    "preallocate_zarr",
 ]
 
 import dask.array
@@ -37,7 +34,7 @@ from .gis import buffer_4326_shp, ensure_pyproj_crs, find_planar_crs
 
 
 # numba does not do help here easily. using the numpy functions is as fast as it gets.
-def med_iqr_cnt(data):
+def _med_iqr_cnt(data):
     quartiles = np.quantile(data, [0.25, 0.5, 0.75])
     return pd.DataFrame(
         [[quartiles[1], quartiles[2] - quartiles[0], len(data)]],
@@ -210,7 +207,7 @@ def cache_l2_data(
     )
 
 
-def preallocate_zarr(path, bbox, crs, time_index, data_vars) -> None:
+def _preallocate_zarr(path, bbox, crs, time_index, data_vars) -> None:
     x_dummy = np.arange(
         (bbox.bounds[0] // 500 + 0.5) * 500, bbox.bounds[2], 500, dtype="i4"
     )
@@ -244,7 +241,7 @@ def build_dataset(
     window_ntimesteps: int = 3,
     spatial_res_meter: float = 500,
     agg_func_and_meta: tuple[callable, dict] = (
-        med_iqr_cnt,
+        _med_iqr_cnt,
         {"_median": "f8", "_iqr": "f8", "_count": "i8"},
     ),
     cache_filename: str = None,
@@ -412,13 +409,13 @@ def build_dataset(
     )
     # strip GeoSeries-container -> shapely.Geometry
     region_of_interest = region_of_interest.iloc[0]
-    outfilepath = build_path(region_id, timestep_months, spatial_res_meter)
+    outfilepath = _build_path(region_id, timestep_months, spatial_res_meter)
     if reprocess and os.path.isdir(outfilepath):
         shutil.rmtree(outfilepath)
     if os.path.isdir(outfilepath):
         previously_processed_l3 = xr.open_zarr(outfilepath, decode_coords="all")
     else:
-        preallocate_zarr(
+        _preallocate_zarr(
             outfilepath,
             region_of_interest,
             crs,
@@ -613,7 +610,7 @@ def build_dataset(
     return xr.open_zarr(outfilepath, decode_coords="all")
 
 
-def build_path(
+def _build_path(
     region_of_interest, timestep_months, spatial_res_meter, aggregation_period=None
 ):
     # ! implement parsing aggregation period
