@@ -414,6 +414,25 @@ def from_id(
 def from_processed_l1b(
     l1b_data: xr.Dataset = None, max_elev_diff: float = None, **gdf_kwargs
 ) -> gpd.GeoDataFrame:
+    """
+    Converts processed CryoSat-2 L1b data into a GeoDataFrame.
+
+    Parameters:
+        l1b_data (xr.Dataset, optional): The input L1b dataset to process. Defaults to
+            None.
+        max_elev_diff (float, optional): Maximum allowable elevation difference from
+            reference. Rows exceeding this limit are excluded. Defaults to None.
+        **gdf_kwargs: Additional keyword arguments for GeoDataFrame creation, such as
+            CRS.
+
+    Returns:
+        gpd.GeoDataFrame: A GeoDataFrame containing the processed L2 data with geometry
+            points derived from either lat/lon or x/y coordinates.
+
+    Notes:
+        - The CRS of the resulting GeoDataFrame is determined by the input dataset or
+          overridden via `gdf_kwargs`.
+    """
     # kwargs: crs, max_elev_diff, input to GeoDataFrame
     if l1b_data is None:
         print("No data passed.")
