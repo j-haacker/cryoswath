@@ -87,7 +87,7 @@ def cache_l2_data(
         reprocess (bool, optional): Whether to reprocess existing data.
             Defaults to False.
         **l2_from_id_kwargs: Additional keyword arguments passed to the
-            :func:`l2.from_id` function.
+            :func:`cryoswath.l2.from_id` function.
 
     Returns:
         None: The function saves the processed data to an HDF5 file and does
@@ -285,7 +285,7 @@ def build_dataset(
         reprocess (bool, optional): Whether to reprocess existing data.
             Defaults to False.
         **l2_from_id_kwargs: Additional keyword arguments passed to the
-            :func:`l2.from_id` function.
+            :func:`cryoswath.l2.from_id` function.
 
     Returns:
         xarray.Dataset: The gridded dataset of elevation estimates.
