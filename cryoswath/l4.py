@@ -64,6 +64,7 @@ def add_meta_to_default_finalized_l3(
     outdir: str | Path,
     your_name: str = "unkown",
     your_institution: str = "n/a",
+    all_double: bool = False,
 ):
     """Adds meta data to and changes variable names of L3 dataset
 
@@ -264,6 +265,17 @@ def add_meta_to_default_finalized_l3(
         out = out.drop_vars([_var for _var in out.data_vars if _var not in _metadata])
         for _var, attrs in _metadata.items():
             out[_var].attrs.update({**attrs})
+        encoding={
+            _var: {
+                "dtype": out[_var].attrs.pop("dtype"),
+                "_FillValue": out[_var].attrs.pop("_FillValue"),
+                "zlib": True,
+                "complevel": 5
+            } for _var in out.data_vars
+        }
+        if all_double:
+            for _dict in encoding.values():
+                _dict.update({"dtype": "float64", "_FillValue": np.nan})
         out.to_netcdf(
             outpath,
             engine="h5netcdf",
