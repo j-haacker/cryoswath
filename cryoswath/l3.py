@@ -87,7 +87,7 @@ def cache_l2_data(
         reprocess (bool, optional): Whether to reprocess existing data.
             Defaults to False.
         **l2_from_id_kwargs: Additional keyword arguments passed to the
-            `l2.from_id` function.
+            :func:`l2.from_id` function.
 
     Returns:
         None: The function saves the processed data to an HDF5 file and does
@@ -274,8 +274,8 @@ def build_dataset(
         spatial_res_meter (float, optional): Spatial resolution of the output grid
             in meters. Defaults to 500 meters.
         agg_func_and_meta (tuple[callable, dict], optional): Aggregation function
-            and metadata for the output variables. Defaults to :func:`med_iqr_cnt` and
-            appropriate metadata.
+            and metadata for the output variables. Defaults to calculating the
+            median, interquartile range, and data count.
         cache_filename (str, optional): Custom filename for the cached L2 data.
             Defaults to a name derived from the region ID.
         cache_filename_extra (str, optional): Additional string to append to
@@ -285,7 +285,7 @@ def build_dataset(
         reprocess (bool, optional): Whether to reprocess existing data.
             Defaults to False.
         **l2_from_id_kwargs: Additional keyword arguments passed to the
-            `l2.from_id` function.
+            :func:`l2.from_id` function.
 
     Returns:
         xarray.Dataset: The gridded dataset of elevation estimates.
