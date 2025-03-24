@@ -549,6 +549,24 @@ def process_and_save(
     buffer_region_by: float = 10_000,
     **kwargs,
 ):
+    """
+    Processes CryoSat-2 L1b data to L2 data for a specified region and time range.
+
+    This function identifies CryoSat-2 tracks within the region and time range,
+    processes the corresponding L1b data into L2 data, and saves the results.
+
+    Parameters:
+        region_of_interest (str | shapely.Polygon): The region to process, specified as
+            a RGI region id or a Shapely Polygon.
+        start_datetime (str | pd.Timestamp): The start of the time range for processing.
+        end_datetime (str | pd.Timestamp): The end of the time range for processing.
+        buffer_region_by (float, optional): Buffer distance (in meters) to expand the
+            region of interest. Default is 10,000 meters.
+        **kwargs: Additional keyword arguments passed to the `from_id` function.
+
+    Returns:
+        int: Returns 0 upon successful processing and saving of L2 data.
+    """
     start_datetime, end_datetime = pd.to_datetime([start_datetime, end_datetime])
     cs_tracks = load_cs_ground_tracks(
         region_of_interest,
