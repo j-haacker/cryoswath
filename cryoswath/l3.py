@@ -95,7 +95,7 @@ def cache_l2_data(
 
     Raises:
         Warning: If the `window_ntimesteps` is not an odd number, it is adjusted
-        and a warning is issued.
+            and a warning is issued.
     """
     if window_ntimesteps % 2 - 1:
         old_window = window_ntimesteps
@@ -292,12 +292,11 @@ def build_dataset(
 
     Raises:
         Warning: If the `window_ntimesteps` is not an odd number, it is adjusted
-        and a warning is issued.
+            and a warning is issued.
         Exception: If joined swath and poca aggregation is requested (not implemented).
 
     Notes:
-        - The function requires significant memory and disk space, with a footprint
-          of at least 5 GB.
+        - The function requires significant amounts of working memory.
         - Intermediate results are saved to ensure progress is not lost in case
           of interruptions.
     """
