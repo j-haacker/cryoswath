@@ -253,7 +253,57 @@ def build_dataset(
     reprocess: bool = False,
     **l2_from_id_kwargs,
 ):
-    # include in docstring: function footprint = 2x resulting ds + 2Gb (min. 5Gb)
+    """
+    Build a gridded dataset of elevation estimates.
+
+    This function aggregates Level-2 (L2) elevation data into a regular
+    grid using a rolling window approach. The resulting dataset is
+    stored in a Zarr format for efficient access and analysis.
+
+    Parameters:
+        region_of_interest (str | shapely.Polygon): The region to process,
+            specified as a RGI region ID (string) or a custom shapely Polygon.
+        start_datetime (str | pd.Timestamp): The start date for the dataset.
+        end_datetime (str | pd.Timestamp): The end date for the dataset.
+        l2_type (str, optional): Type of L2 data to process ("swath", "poca", or
+            "both"). Defaults to "swath".
+        buffer_region_by (float, optional): Buffer distance (in meters) to expand
+            the region of interest. Defaults to 30,000 meters if not provided.
+        max_elev_diff (float, optional): Maximum elevation difference to filter
+            the data. Defaults to 150 meters.
+        timestep_months (int, optional): Time step in months. Defaults to 1 month.
+        window_ntimesteps (int, optional): Number of time steps for the rolling
+            window data aggregation. Must be an odd number. Defaults to 3.
+        spatial_res_meter (float, optional): Spatial resolution of the output grid
+            in meters. Defaults to 500 meters.
+        agg_func_and_meta (tuple[callable, dict], optional): Aggregation function
+            and metadata for the output variables. Defaults to :func:`med_iqr_cnt` and
+            appropriate metadata.
+        cache_filename (str, optional): Custom filename for the cached L2 data.
+            Defaults to a name derived from the region ID.
+        cache_filename_extra (str, optional): Additional string to append to
+            the cache filename. Defaults to None.
+        crs (CRS | int, optional): Coordinate reference system for the data.
+            If None, a planar CRS is determined automatically. Defaults to None.
+        reprocess (bool, optional): Whether to reprocess existing data.
+            Defaults to False.
+        **l2_from_id_kwargs: Additional keyword arguments passed to the
+            `l2.from_id` function.
+
+    Returns:
+        xarray.Dataset: The gridded dataset of elevation estimates.
+
+    Raises:
+        Warning: If the `window_ntimesteps` is not an odd number, it is adjusted
+        and a warning is issued.
+        Exception: If joined swath and poca aggregation is requested (not implemented).
+
+    Notes:
+        - The function requires significant memory and disk space, with a footprint
+          of at least 5 GB.
+        - Intermediate results are saved to ensure progress is not lost in case
+          of interruptions.
+    """
     if window_ntimesteps % 2 - 1:
         old_window = window_ntimesteps
         window_ntimesteps = window_ntimesteps // 2 + 1
