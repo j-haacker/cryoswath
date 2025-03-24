@@ -56,30 +56,27 @@ def from_id(
         track_idx (pd.DatetimeIndex | str): A datetime index or identifier representing
             the tracks to process.
         reprocess (bool | pd.Timestamp, optional): Determines whether to reprocess
-            existing data.
-            - If True, all data will be reprocessed.
-            - If False, existing cached data will be reused.
-            - If a timestamp is provided, only data older than the timestamp will be
-              reprocessed.
-            Default is True.
+            existing data. If True, all data will be reprocessed. If
+            False, existing cached data will be reused. If a timestamp
+            is provided, only data older than the timestamp will be
+            reprocessed. Default is True.
         save_or_return (str, optional): Specifies the output behavior.
-            - "save": Saves the processed data to disk.
-            - "return": Returns the processed data as GeoDataFrames.
-            - "both": Saves the data and returns them.
+            "save": Saves the processed data to disk.
+            "return": Returns the processed data as GeoDataFrames.
+            "both": Saves the data and returns them.
             Default is "both".
         cache_fullname (str, optional): Path to the cache file for storing processed
             data. If provided, data will be cached for rasterization with
-            :func:l3.`build_dataset`.
+            :func:`cryoswath.l3.build_dataset`.
         cores (int, optional): Number of CPU cores to use for parallel processing.
             If not specified, the number of available cores will be detected
             automatically (UNIX systems only).
         **kwargs: Additional keyword arguments passed to processing functions.
 
     Returns:
-        tuple[gpd.GeoDataFrame]: A tuple containing two GeoDataFrames:
-        - The first GeoDataFrame contains swath data.
-        - The second GeoDataFrame contains POCA (Point of Closest Approach) data.
-        If `save_or_return` is set to "save", this function returns None.
+        tuple[gpd.GeoDataFrame]: A tuple containing two GeoDataFrames
+        with swath data and POCA data. If `save_or_return` is set to
+        "save", this function returns None.
 
     Notes:
         - If CRS is not provided, it will be determined per track.
@@ -89,8 +86,8 @@ def from_id(
           cached data will be skipped.
 
     Warnings:
-        - Combining new and old data with different settings leads to inconsistent
-          datasets.
+        Combining new and old data with different settings leads to inconsistent
+        datasets.
     """
     # this function collects processed data and processes the remaining.
     # combining new and old data can show unexpected behavior if
@@ -431,8 +428,8 @@ def from_processed_l1b(
         points derived from either lat/lon or x/y coordinates.
 
     Notes:
-        - The CRS of the resulting GeoDataFrame is determined by the input dataset or
-          overridden via `gdf_kwargs`.
+        The CRS of the resulting GeoDataFrame is determined by the input dataset or
+        overridden via `gdf_kwargs`.
     """
     # kwargs: crs, max_elev_diff, input to GeoDataFrame
     if l1b_data is None:
