@@ -60,6 +60,46 @@ def cache_l2_data(
     reprocess: bool = False,
     **l2_from_id_kwargs,
 ) -> None:
+    """
+    Cache Level-2 (L2) data for a specified region and time period.
+
+    This function processes and stores essential L2 data in an HDF5
+    file, downloading and processing Level-1b (L1b) files if they are
+    not available. It supports buffering the region and time period to
+    ensure no data is missed.
+
+    Parameters:
+        region_of_interest (str | shapely.Polygon): The region to process,
+            specified as a RGI region ID (string) or a custom shapely Polygon.
+        start_datetime (str | pd.Timestamp): The start date for the data
+            to be cached.
+        end_datetime (str | pd.Timestamp): The end date for the data to be cached.
+        buffer_region_by (float, optional): Buffer distance (in meters) to
+            expand the region of interest. Defaults to 30,000 meters if not provided.
+        max_elev_diff (float, optional): Maximum elevation difference to filter
+            the data. Defaults to 150 meters.
+        timestep_months (int, optional): Time step in months. Defaults to 1 month.
+        window_ntimesteps (int, optional): Number of time steps for the rolling
+            window data aggregation. Must be an odd number. Defaults to 3.
+        cache_filename (str, optional): Custom filename for the cached data.
+            Defaults to a name derived from the region ID.
+        cache_filename_extra (str, optional): Additional string to append to
+            the cache filename. Defaults to None.
+        crs (CRS | int, optional): Coordinate reference system for the data.
+            If None, a planar CRS is determined automatically. Defaults to None.
+        reprocess (bool, optional): Whether to reprocess existing data.
+            Defaults to False.
+        **l2_from_id_kwargs: Additional keyword arguments passed to the
+            `l2.from_id` function.
+
+    Returns:
+        None: The function saves the processed data to an HDF5 file and does
+        not return any value.
+
+    Raises:
+        Warning: If the `window_ntimesteps` is not an odd number, it is adjusted
+        and a warning is issued.
+    """
     if window_ntimesteps % 2 - 1:
         old_window = window_ntimesteps
         window_ntimesteps = window_ntimesteps // 2 + 1
