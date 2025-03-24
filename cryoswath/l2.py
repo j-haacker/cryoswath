@@ -481,6 +481,20 @@ def from_processed_l1b(
 def grid(
     l2_data: gpd.GeoDataFrame, spatial_res_meter: float, aggregation_function: callable
 ) -> pd.DataFrame:
+    """
+    Aggregates L2 data into a spatial grid based on a specified resolution.
+
+    Parameters:
+        l2_data (gpd.GeoDataFrame): The input GeoDataFrame containing L2 data with
+            geometry points.
+        spatial_res_meter (float): The spatial resolution of the grid in meters.
+        aggregation_function (callable): A function to aggregate data within each grid
+            cell (e.g., `np.mean`).
+
+    Returns:
+        pd.DataFrame: A DataFrame containing aggregated data for each grid cell. The
+            index includes the x and y coordinates of the grid cell and time.
+    """
     # define how to grid
     def cell_bounds(number: float):
         floor = np.floor(number / spatial_res_meter) * spatial_res_meter
