@@ -3,6 +3,7 @@
 __all__ = [
     "from_id",
     "from_processed_l1b",
+    "grid",
     "limit_filter",
     "process_and_save",
 ]
@@ -76,9 +77,9 @@ def from_id(
 
     Returns:
         tuple[gpd.GeoDataFrame]: A tuple containing two GeoDataFrames:
-            - The first GeoDataFrame contains swath data.
-            - The second GeoDataFrame contains POCA (Point of Closest Approach) data.
-            If `save_or_return` is set to "save", this function returns None.
+        - The first GeoDataFrame contains swath data.
+        - The second GeoDataFrame contains POCA (Point of Closest Approach) data.
+        If `save_or_return` is set to "save", this function returns None.
 
     Notes:
         - If CRS is not provided, it will be determined per track.
@@ -427,7 +428,7 @@ def from_processed_l1b(
 
     Returns:
         gpd.GeoDataFrame: A GeoDataFrame containing the processed L2 data with geometry
-            points derived from either lat/lon or x/y coordinates.
+        points derived from either lat/lon or x/y coordinates.
 
     Notes:
         - The CRS of the resulting GeoDataFrame is determined by the input dataset or
@@ -493,7 +494,7 @@ def grid(
 
     Returns:
         pd.DataFrame: A DataFrame containing aggregated data for each grid cell. The
-            index includes the x and y coordinates of the grid cell and time.
+        index includes the x and y coordinates of the grid cell and time.
     """
     # define how to grid
     def cell_bounds(number: float):
