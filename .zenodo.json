@@ -1,0 +1,24 @@
+{
+    "title": "cryoswath: CryoSat-2 swath processing package",
+    "creators": [
+        {
+            "name": "Haacker, Jan",
+            "affiliation": "TU Delft, Civil Engineering and Geosciences, Geoscience and Remote Sensing",
+            "orcid": "0000-0002-5464-2442"
+        }
+    ],
+    "keywords": [
+        "altimetry",
+        "remote sensing",
+        "glacier",
+        "cryosphere",
+        "climate change",
+        "CryoSat",
+        "geoscience",
+        "earth data"
+    ],
+    "license": "mit",
+    "language": "eng",
+    "upload_type": "software",
+    "access_right": "open"
+}
