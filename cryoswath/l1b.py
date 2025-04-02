@@ -206,21 +206,24 @@ def read_esa_l1b(
             ],
         },
     ]
-    try:
-        with monkeypatch(patchdicts):
-            ds = xr.open_dataset(l1b_filename)  # , chunks={"time_20_ku": 256}
-    except (OSError, ValueError) as err:
-        if isinstance(err, OSError):
-            if not err.errno == -101:
+    for i in range(2):
+        try:
+            with monkeypatch(patchdicts):
+                ds = xr.open_dataset(l1b_filename, decode_timedelta=True)
+            break
+        except (OSError, ValueError) as err:
+            if i == 1:
+                print("Renewing the file didn't help or failed again.")
                 raise err
+            if isinstance(err, OSError):
+                if not err.errno == -101:
+                    raise err
+                else:
+                    warnings.warn(err.strerror + " was raised. Downloading file again.")
             else:
-                warnings.warn(err.strerror + " was raised. Downloading file again.")
-        else:
-            warnings.warn(str(err) + " was raised. Downloading file again.")
-        os.remove(l1b_filename)
-        download_single_file(os.path.split(l1b_filename)[-1][19:34])
-        with monkeypatch(patchdicts):
-            ds = xr.open_dataset(l1b_filename)
+                warnings.warn(str(err) + " was raised. Downloading file again.")
+            os.remove(l1b_filename)
+            download_single_file(os.path.split(l1b_filename)[-1][19:34])
     # at least until baseline E ns_20_ku needs to be made a coordinate
     ds = ds.assign_coords(ns_20_ku=("ns_20_ku", np.arange(len(ds.ns_20_ku))))
     # remove data that will not be used to reduce memory footprint
