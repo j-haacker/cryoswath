@@ -179,7 +179,11 @@ def read_esa_l1b(
     """
     # ! tbi customize or drop misleading attributes of xr.Dataset
     # currently only originally named CryoSat-2 SARIn files implemented
-    assert fnmatch.fnmatch(l1b_filename, "*CS_????_SIR_SIN_1B_*.nc")
+    if not fnmatch.fnmatch(l1b_filename, "*CS_????_SIR_SIN_1B_*.nc"):
+        raise ValueError(
+            "Provided filename deviates from standard form. That is currently not "
+            "permitted, but feel free to disable this requirement."
+        )
     patchdicts = [
         {
             "module": xr.coding.variables,
