@@ -1,10 +1,9 @@
 """Smell-check results by plotting spatial aggregates"""
 
-__all__ = ["coverage"]
+__all__ = ["coverage", "l2"]
 
 import geopandas as gpd
 import matplotlib as mpl
-import matplotlib.figure
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
@@ -23,7 +22,7 @@ def coverage(
     at_time: pd.Timestamp | pd.DatetimeIndex = pd.date_range(
         "2010-10-01", "2023-10-01", freq="12MS"
     ),
-) -> matplotlib.figure.Figure:
+) -> mpl.figure.Figure:
     if isinstance(l3_data_or_filepath, str):
         l3_data = xr.open_dataset(l3_data_or_filepath, decode_coords="all")
     else:
