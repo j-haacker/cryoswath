@@ -2,8 +2,11 @@
 
 __all__ = ["coverage"]
 
+import geopandas as gpd
+import matplotlib as mpl
 import matplotlib.figure
 from matplotlib import pyplot as plt
+import numpy as np
 import pandas as pd
 import xarray as xr
 
@@ -63,3 +66,55 @@ def coverage(
     plt.title("")
     plt.gca().axis("off")
     return plt.gcf()
+
+
+def l2(
+    swath: gpd.GeoDataFrame,
+    column: str = "height",
+    pocas: gpd.GeoDataFrame = None,
+    glaciers: gpd.GeoSeries | gpd.GeoDataFrame = None,
+    ax: mpl.axes.Axes = None,
+    cmap: mpl.colors.Colormap = mpl.cm.viridis,
+) -> mpl.axes.Axes:
+    if ax is None:
+        ax = plt.axes()
+    if glaciers is not None:
+        glaciers = glaciers.to_crs(swath.crs)
+        bounds = glaciers.total_bounds
+        glaciers.plot(
+            label="glacierized", color="xkcd:ice", edgecolor="k", linewidth=0.4, ax=ax
+        )
+    else:
+        bounds = swath.total_bounds
+    norm = mpl.colors.Normalize(
+        *pd.concat([swath, pocas]).clip(bounds)[column].describe()[["min", "max"]]
+    )
+    if pocas is not None:
+        pocas = pocas.clip(bounds)
+        pocas.geometry.plot(
+            label="POCA", marker="o", markersize=4, color="tab:green", ax=ax
+        )
+        pocas.plot(ax=ax, column=column, marker=".", markersize=2, cmap=cmap, norm=norm)
+    swath.clip(bounds).plot(
+        label="data",
+        ax=ax,
+        column=column,
+        marker=".",
+        markersize=1,
+        cmap=cmap,
+        norm=norm,
+    )
+    for ix_lev in swath.index.levels:
+        if ix_lev.dtype.kind == "M":
+            trks = misc.load_cs_ground_tracks()
+            trk_ix = np.unique(
+                trks.index.get_indexer(ix_lev.tz_localize(None), method="ffill")
+            )
+            trks.iloc[trk_ix].to_crs(swath.crs).clip(bounds).plot(
+                label="track", ax=ax, ls="--", color="tab:gray"
+            )
+    ax.legend()
+    plt.colorbar(
+        mpl.cm.ScalarMappable(cmap=cmap, norm=norm), ax=ax, label="Elevation, m"
+    )
+    return ax
