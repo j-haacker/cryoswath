@@ -73,7 +73,7 @@ def l2(
     pocas: gpd.GeoDataFrame = None,
     glaciers: gpd.GeoSeries | gpd.GeoDataFrame = None,
     ax: mpl.axes.Axes = None,
-    cmap: mpl.colors.Colormap = mpl.cm.viridis,
+    cmap: mpl.colors.Colormap = mpl.cm.plasma,
 ) -> mpl.axes.Axes:
     if ax is None:
         ax = plt.axes()
