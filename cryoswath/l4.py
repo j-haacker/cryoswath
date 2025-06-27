@@ -433,9 +433,7 @@ def fill_voids(
         # figure out region. limited to o2 meanwhile
         print("... loading basin outlines")
         o2code = find_region_id(ds, scope="o2")
-        basin_shapes = load_glacier_outlines(o2code, product="glaciers").to_crs(
-            ds.rio.crs
-        )
+        basin_shapes = load_glacier_outlines(o2code, product="glaciers", union=False, crs=ds.rio.crs)
     else:
         basin_shapes = basin_shapes.to_crs(ds.rio.crs)
     # remove time steps without any data
@@ -637,13 +635,19 @@ def fill_l3_voids(o2region: str) -> xr.Dataset:
     if os.path.isfile(results_path):
         return xr.open_dataset(results_path, decode_coords="all")
 
-    basins_gdf = misc.load_glacier_outlines(o2region, product="glaciers", union=False)
     if o2region in ["08-01", "08-02", "08-03"]:
         o2region = "08_scandinavia"
     ds = xr.open_zarr(
         os.path.join(misc.l3_path, o2region + "_monthly_500m.zarr"), decode_coords="all"
     ).load()
     crs = ds.rio.crs
+    try:
+        basins_gdf = misc.load_glacier_outlines(o2region, product="glaciers", union=False, crs=crs)
+    except ValueError as err:
+        if str(err).startswith("Provided o1, o2, or RGI identifiers"):
+            basins_gdf = misc.load_glacier_outlines(misc.find_region_id(ds), product="glaciers", union=False, crs=crs)
+        else:
+            raise
     expected_fit_results_path = os.path.join(
         misc.l4_path, f"surface_elevation_trend__rgi-o2region_{o2region}.zarr"
     )
@@ -656,9 +660,9 @@ def fill_l3_voids(o2region: str) -> xr.Dataset:
             o2region, only_intermediate=True
         )
     if o2region == "08_scandinavia":
-        ds = ds.rio.clip_box(*basins_gdf.to_crs(crs).total_bounds)
+        ds = ds.rio.clip_box(*basins_gdf.total_bounds)
         fit_rm_outl_res = fit_rm_outl_res.rio.clip_box(
-            *basins_gdf.to_crs(crs).total_bounds
+            *basins_gdf.total_bounds
         )
     ds = ds.where(ds._count > 3).where(ds._iqr < 30).dropna("time", how="all")
     ds["_iqr"] = xr.where(
@@ -694,9 +698,9 @@ def fill_l3_voids(o2region: str) -> xr.Dataset:
     )  # should not survive void filling!
     ds["_iqr"] = ds._iqr.where(~ds._median.isnull())
     ds = misc.fill_missing_coords(
-        ds.rio.write_crs(crs), *basins_gdf.to_crs(crs).total_bounds
+        ds.rio.write_crs(crs), *basins_gdf.total_bounds
     )
-    ds = ds.rio.clip(basins_gdf.to_crs(crs).make_valid())
+    ds = ds.rio.clip(basins_gdf.make_valid())
     return difference_to_reference_dem(
         ds, save_to_disk=results_path, basin_shapes=basins_gdf
     )
