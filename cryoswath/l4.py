@@ -279,15 +279,7 @@ def add_meta_to_default_finalized_l3(
         out.to_netcdf(
             outpath,
             engine="h5netcdf",
-            encoding={
-                _var: {
-                    "dtype": out[_var].attrs.pop("dtype"),
-                    "_FillValue": out[_var].attrs.pop("_FillValue"),
-                    "zlib": True,
-                    "complevel": 5,
-                }
-                for _var in out.data_vars
-            },
+            encoding=encoding,
         )
 
 
