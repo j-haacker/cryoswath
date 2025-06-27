@@ -98,7 +98,7 @@ cryoswath-init
 
 advantage: will almost always work
 
-*note*: the first time running the docker image require to download ~ 1 Gb
+*note*: the first time running the docker image requires to download about 1 Gb
 
 1. `docker run -it -p 8888:8888 -v $proj_dir$:/home/jovyan cryoswath/jupyterlab:v0.2.2`
 2. You will receive an address including a token with which you can connect to the jupyterlab using your browser
