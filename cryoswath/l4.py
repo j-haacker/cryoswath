@@ -701,7 +701,7 @@ def fill_l3_voids(o2region: str) -> xr.Dataset:
 def fit_trend(
     data: xr.Dataset,
     *,
-    pivot: pd.DateOffset,  # ? best class?
+    pivot: pd.DateOffset = pd.DateOffset(months=0),  # ? best class?
     timestep_months: int = 12,
     return_raw: bool = False,
 ) -> xr.Dataset:
