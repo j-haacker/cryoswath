@@ -32,82 +32,60 @@ development.
 
 ## 🚀 getting started
 
-There is a number of ways you can start off. I will give detailed
-instructions for UNIX systems. Make sure to use python 3.11 or higher.
-Further, I recommend to use a virtual environment and will involve
-python-venv in the instructions (however, conda works similar).
+There is a number of ways you can start off, including installing from
+"source", pypi, conda-forge, or docker. Please find more details in the
+[docs
+(prerequisites)](https://cryoswath.readthedocs.io/en/latest/prerequisites.html).
+I show two approaches, installing from conda-forge and a mixture of methods.
 
-All of the following instructions consist of three main steps:
+### simply with mamba/conda 🐍
 
-1. making cryoswath available
-2. setting up a project directory
-3. initializing cryoswath
-
-The instructions will use the variable `$proj_dir` for the project
-directory. Please set it to a path that suits you like
-`proj_dir=altimetry-project`.
-
-In all cases, consider to download the data dependencies ArcticDEM and
-the RGI glacier and complex shape files into the
-`$proj_dir/data/auxiliary/DEM` and `$proj_dir/data/auxiliary/RGI`
-directories (more in the [docs](https://j-haacker.github.io/cryoswath/prerequisites.html)).
-
-### with git 🐙
-
-advantage: easy pulling bugfixes
-
-```sh
-git clone https://github.com/j-haacker/cryoswath.git $proj_dir
-cd $proj_dir
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-cryoswath-init
-```
-
-### with pip 📦
-
-advantage: easy installation
-
-```sh
-mkdir $proj_dir
-cd $proj_dir
-python3.11 -m venv .venv
-source .venv/bin/activate
-pip install cryoswath
-cryoswath-init
-```
-
-### with conda 🐍
-
-advantage: most stable dependency resolution
+advantage: simple and most stable dependency resolution
 
 First, choose an environment name and either define `$env_name`, e.g.,
 `env_name=cryoswath`, or adapt the create and activate commands
 accordingly.
 
+`mamba create -n $env_name conda-forge::cryoswath`
+
+Continue below at "init project".
+
+### clone 🐙, mamba 🐍, pip 📦
+
+advantage: allows modifications and easy updates
+
+Like the above, first, choose an environment name and either define
+`$env_name`, e.g., `env_name=cryoswath`, or adapt the create and
+activate commands accordingly. You will also need the path to your
+environment. That will be something ending in `.../envs/env_name`. If
+you are not sure, find it viewing `mamba env list`. Further, I assume
+you'll clone into a directory named `cryoswath`.
+
 ```sh
-conda create -n $env_name conda-forge::cryoswath
-conda activate $env_name
-mkdir $proj_dir
-cd $proj_dir
+git clone https://github.com/j-haacker/cryoswath.git cryoswath
+mamba env create -n $env_name -f cryoswath/environment.yml
+mamba activate $env_name
+mamba install pip
+pip install --editable cryoswath
+```
+
+### init project
+
+cryoswath will deal with data that is not meant to reside in the
+installation directory. The command `cryoswath-init` will setup a
+directory structure and download some auxiliary files. Please choose a
+project name of you liking and replace `proj_dir` in the following.
+
+```sh
+mkdir proj_dir
+cd proj_dir
 cryoswath-init
 ```
 
-### with Docker 🐳
-
-advantage: will almost always work
-
-*note*: the first time running the docker image requires to download about 1 Gb
-
-1. `docker run -it -p 8888:8888 -v $proj_dir$:/home/jovyan cryoswath/jupyterlab:v0.2.2`
-2. You will receive an address including a token with which you can connect to the jupyterlab using your browser
-3. In jupyterlab, open a regular shell and execute `cryoswath-init`
-4. Open the scripts folder in the explorer and select one of the notebooks or create your own (inside the scripts folder)
-
-### multiple projects
-
-For each project, run `cryoswath-init` from the project directory.
+This, among others, creates a file `scripts/config.ini` that contains
+the base path of your project. This allow cryoswath to find the data -
+if you wish to run scripts from different directories, copy this file
+there.
 
 ## 📖 documentation
 
