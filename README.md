@@ -115,11 +115,11 @@ You can cite this package using bibtex:
 ```bibtex
 @software{cryoswath,
   author       = {Haacker, Jan},
-  title        = {cryoswath: v0.2.2},
+  title        = {cryoswath: v0.2.3},
   month        = feb,
   year         = 2025,
   publisher    = {Zenodo},
-  version      = {v0.2.2},
+  version      = {v0.2.3},
   doi          = {10.5281/zenodo.14837018}
 }
 ```
