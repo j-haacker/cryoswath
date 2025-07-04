@@ -5,4 +5,4 @@ dependencies:
   - pdemtools
   - pip
   - pip:
-    - cryoswath
+    - .[docs]
