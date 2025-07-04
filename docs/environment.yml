@@ -4,5 +4,7 @@ channels:
 dependencies:
   - pdemtools
   - pip
+  - sphinx
+  - sphinx-rtd-theme
   - pip:
-    - .[docs]
+    - .
