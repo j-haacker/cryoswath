@@ -50,9 +50,11 @@ file = "LICENSE.txt"
 # ... = "MIT"
 
 [project.optional-dependencies]
-dev = ["black", "sphinx", "sphinx-rtd-theme"]
+dev = ["flit", "pip-compile", "ruff"]
+docs = ["sphinx", "sphinx-rtd-theme"]
 notebooks = ["ipykernel"]
 dem = ["pdemtools"]
+all = ["cryoswath[dev,docs,notebooks,dem]"]
 
 [project.urls]
 Repository = "https://github.com/j-haacker/cryoswath.git"
