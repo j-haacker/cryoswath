@@ -1,3 +1,6 @@
-name: cryoswath-docs-env
+channels:
+  - conda-forge
 dependencies:
   - pdemtools
+  - pip:
+    - cryoswath
