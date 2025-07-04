@@ -4,6 +4,9 @@
 # Required
 version: 2
 
+conda:
+  environment: docs/environment.yml
+
 # Set the OS, Python version, and other tools you might need
 build:
   os: ubuntu-24.04
@@ -14,5 +17,8 @@ build:
 sphinx:
    configuration: docs/conf.py
 
-conda:
-  environment: docs/environment.yml
+python:
+   version: 3.11
+   install:
+      - method: pip
+        path: .
