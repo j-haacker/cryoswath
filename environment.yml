@@ -1,0 +1,32 @@
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - bottleneck
+  - dask
+  - defusedxml
+  - geopandas>=1.0.1
+  - gitpython
+  - h5netcdf
+  - h5py
+  - matplotlib
+  - numpy
+  - packaging
+  - pandas
+  - pdemtools
+  - pyarrow
+  - pyogrio
+  - pyproj
+  - pytables
+  - python-dateutil
+  - rasterio
+  - rioxarray
+  - scikit-learn
+  - scipy
+  - shapely
+  - sphinx
+  - sphinx-rtd-theme
+  - statsmodels
+  - tqdm
+  - xarray
+  - zarr
