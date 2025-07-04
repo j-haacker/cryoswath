@@ -9,6 +9,7 @@ dependencies:
   - gitpython
   - h5netcdf
   - h5py
+  - ipykernel
   - matplotlib
   - numpy
   - packaging
