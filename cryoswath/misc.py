@@ -369,6 +369,36 @@ def discard_frontal_retreat_zone(
     return ds
 
 
+try:
+    from pdemtools.load import mosaic as pdemtools_mosaic
+except ImportError as err:
+    warnings.warn(
+        "Could not import pdemtools. If it is installed, consider using "
+        "a conda environment which manages better to install GDAL with "
+        f"its complex dependencies. The thrown error reads:\n {str(err)}"
+    )
+else:
+    def download_pgc_dem(polygon: shapely.Polygon | gpd.GeoSeries, identifier: str | Path) -> None:
+        if not isinstance(polygon, gpd.GeoSeries):
+            polygon = gpd.GeoSeries(polygon, crs=4326)
+        if shapely.get_coordinates(polygon)[0,1] > 0:
+            dataset = "arcticdem"
+            polygon = polygon.to_crs(3413).unary_union
+        else:
+            dataset = "rema"
+            polygon = polygon.to_crs(3013).unary_union
+        if isinstance(identifier, str):
+            if os.path.sep in identifier or "." in identifier[-5:]:
+                save_to = Path(identifier)
+            else:
+                save_to = Path(dem_path / identifier).with_suffix(".tif")
+        else:
+            save_to = identifier
+        print(f"Downloading raster and storing in {str(save_to)}")
+        pdemtools_mosaic(dataset, "32m", polygon).rio.to_raster(save_to)
+    __all__.append("download_pgc_dem")
+
+
 # def download_file(url: str, out_path: str = ".") -> str:
 #     # snippet adapted from https://stackoverflow.com/a/16696317
 #     # authors: https://stackoverflow.com/users/427457/roman-podlinov
