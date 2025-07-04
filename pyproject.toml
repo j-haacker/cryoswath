@@ -52,6 +52,7 @@ file = "LICENSE.txt"
 [project.optional-dependencies]
 dev = ["black", "sphinx", "sphinx-rtd-theme"]
 notebooks = ["ipykernel"]
+dem = ["pdemtools"]
 
 [project.urls]
 Repository = "https://github.com/j-haacker/cryoswath.git"
