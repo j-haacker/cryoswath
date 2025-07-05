@@ -120,7 +120,7 @@ You can cite this package using bibtex:
   year         = 2025,
   publisher    = {Zenodo},
   version      = {v0.2.3},
-  doi          = {10.5281/zenodo.14837018}
+  doi          = {10.5281/zenodo.15809596}
 }
 ```
 
