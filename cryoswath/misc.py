@@ -33,6 +33,7 @@ __all__ = [
     "rgi_o2region_translator",
     "sandbox_write_to",
     "update_email",
+    "update_track_database",
     "warn_with_traceback",
     "weighted_mean_excl_outliers",
     "xycut",
@@ -2250,6 +2251,18 @@ def update_email(email: str = None):
             "your email indeed doesn't match, file an issue. Your input was:",
             email,
         )
+
+
+def update_track_database() -> None:
+    from argparse import ArgumentParser
+
+    ArgumentParser(
+        "cryoswath-update-tracks",
+        description="Updates the track database. Run this once in a while and always "
+        "if you wish to include the latest tracks.",
+    )
+    load_cs_ground_tracks(update="regular")
+    load_cs_full_file_names(update="regular")
 
 
 # CREDIT: mgab https://stackoverflow.com/a/22376126
