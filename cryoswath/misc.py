@@ -1,12 +1,14 @@
 """Miscellaneous helper functions"""
 
 __all__ = [
-    # functions
+    # classes
     "binary_chache",
+    # functions
     "convert_all_esri_to_feather",
     "cs_id_to_time",
     "cs_time_to_id",
     "define_elev_band_edges",
+    "download_pgc_dem",
     "discard_frontal_retreat_zone",
     "effective_sample_size",
     "extend_filename",
@@ -78,7 +80,7 @@ from tables import NaturalNameWarning
 import time
 import threading
 import traceback
-from typing import Union
+from typing import Literal, Union
 import warnings
 import xarray as xr
 
@@ -378,10 +380,13 @@ except ImportError as err:
         f"its complex dependencies. The thrown error reads:\n {str(err)}"
     )
 else:
-    def download_pgc_dem(polygon: shapely.Polygon | gpd.GeoSeries, identifier: str | Path) -> None:
+
+    def download_pgc_dem(
+        polygon: shapely.Polygon | gpd.GeoSeries, identifier: str | Path
+    ) -> None:
         if not isinstance(polygon, gpd.GeoSeries):
             polygon = gpd.GeoSeries(polygon, crs=4326)
-        if shapely.get_coordinates(polygon)[0,1] > 0:
+        if shapely.get_coordinates(polygon)[0, 1] > 0:
             dataset = "arcticdem"
             polygon = polygon.to_crs(3413).unary_union
         else:
@@ -396,7 +401,6 @@ else:
             save_to = identifier
         print(f"Downloading raster and storing in {str(save_to)}")
         pdemtools_mosaic(dataset, "32m", polygon).rio.to_raster(save_to)
-    __all__.append("download_pgc_dem")
 
 
 # def download_file(url: str, out_path: str = ".") -> str:
@@ -602,7 +606,7 @@ def find_region_id(location: any, scope: str = "o2") -> str:
         if out == "05-01":
             sub_o2 = gpd.GeoSeries(
                 [
-                    _load_o2region(f"05-1{i+1}").union_all("coverage").envelope
+                    _load_o2region(f"05-1{i + 1}").union_all("coverage").envelope
                     for i in range(5)
                 ],
                 crs=4326,
@@ -617,7 +621,7 @@ def find_region_id(location: any, scope: str = "o2") -> str:
                 raise Exception(
                     f"Location {location} is in multiple subregions (N,W,SW,SE,E)."
                 )
-            out = f"05-1{int(sub_o2[contains_location].index.values)+1}"
+            out = f"05-1{int(sub_o2[contains_location].index.values) + 1}"
         return out
     elif scope == "basin":
         rgi_glacier_gpdf = _load_o2region(rgi_region["o2region"].values[0], "glaciers")
@@ -1267,7 +1271,8 @@ def interpolate_hypsometrically(
         fill_mask = np.logical_or(
             ds[main_var].isnull(),
             np.logical_and(
-                fill_mask != 0, np.abs(residuals) > outlier_limit * residuals.std(ddof=4)
+                fill_mask != 0,
+                np.abs(residuals) > outlier_limit * residuals.std(ddof=4),
             ),
         )
     else:
@@ -1320,7 +1325,9 @@ def interpolate_hypsometrically(
     )
 
 
-def load_cs_full_file_names(update: str = "no") -> pd.Series:
+def load_cs_full_file_names(
+    update: Literal["no", "quick", "regular", "full"] = "no",
+) -> pd.Series:
     """Loads a pandas.Series of the original CryoSat-2 L1b file names.
 
     Having the file names available can be handy to organize your local
@@ -1405,7 +1412,7 @@ def load_cs_ground_tracks(
     *,
     buffer_period_by: relativedelta = None,
     buffer_region_by: float = None,
-    update: str = "no",
+    update: Literal["no", "regular", "full"] = "no",
     n_threads: int = 8,
 ) -> gpd.GeoDataFrame:
     """Read the GeoDataFrame of CryoSat-2 tracks from disk.
@@ -1470,7 +1477,6 @@ def load_cs_ground_tracks(
             + f'You set it to "{update}".'
         )
     if update != "no":
-
         # the next two function have only a local purpose.
         def save_current_track_list(new_track_series: gpd.GeoSeries):
             """saves the tracklist; backing up the old if older than 5 days."""
@@ -2216,7 +2222,7 @@ def sandbox_write_to(target: str):
     # ! other functions depend on the "__backup" extension
     if os.path.isfile(target + "__backup"):
         raise Exception(
-            f"Backup exists unexpectedly at {target+'__backup'}. This may point to a "
+            f"Backup exists unexpectedly at {target + '__backup'}. This may point to a "
             "running process. If this is a relict, remove it manually."
         )
     try:
