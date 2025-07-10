@@ -32,6 +32,7 @@ __all__ = [
     "rgi_o1region_translator",
     "rgi_o2region_translator",
     "sandbox_write_to",
+    "update_email",
     "warn_with_traceback",
     "weighted_mean_excl_outliers",
     "xycut",
