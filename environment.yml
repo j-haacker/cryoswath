@@ -5,6 +5,7 @@ dependencies:
   - bottleneck
   - dask
   - defusedxml
+  - distributed
   - geopandas>=1.0.1
   - gitpython
   - h5netcdf
@@ -29,5 +30,5 @@ dependencies:
   - sphinx-rtd-theme
   - statsmodels
   - tqdm
-  - xarray
+  - xarray <2025
   - zarr
