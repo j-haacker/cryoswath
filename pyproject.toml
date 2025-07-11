@@ -41,7 +41,7 @@ dependencies = [
     "shapely",
     "statsmodels",
     "tqdm",
-    "xarray",
+    "xarray<2025",
     "zarr"
 ]
 
