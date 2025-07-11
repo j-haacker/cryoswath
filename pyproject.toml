@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "cryoswath"
-version = "0.2.3"
+version = "0.2.3.post1"
 authors = [
   { name="Jan Haacker", email="j.m.haacker@tudelft.nl" },
 ]
@@ -41,7 +41,7 @@ dependencies = [
     "shapely",
     "statsmodels",
     "tqdm",
-    "xarray",
+    "xarray<2025",
     "zarr"
 ]
 

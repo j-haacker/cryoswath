@@ -1031,7 +1031,6 @@ def interpolate_hypsometrically(
     if outlier_replace:
         neighbour_elev = (
             ds[elev]
-            .where(ds._cnt >= 6)
             .unstack()
             .sortby("x")
             .sortby("y")
