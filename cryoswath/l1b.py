@@ -401,7 +401,12 @@ def read_esa_l1b(
         if smooth_phase_difference:
             ds["ph_diff"] = ds.ph_diff.where(
                 ds.ph_diff_complex_smoothed.isnull(),
-                xr.apply_ufunc(np.angle, ds.ph_diff_complex_smoothed),
+                xr.apply_ufunc(np.angle, ds.ph_diff_complex_smoothed)
+                if not isinstance(smooth_phase_difference, dict)
+                else xr.apply_ufunc(
+                    np.angle,
+                    ds.pipe(append_smoothed_complex_phase, **smooth_phase_difference).ph_diff_complex_smoothed,
+                )
             )
         else:
             # always use lowpass-filtered phase difference at POCA
@@ -997,12 +1002,12 @@ def append_poca_and_swath_idxs(cs_l1b_ds: xr.Dataset, poca_upper: float = 10, sw
     return cs_l1b_ds
 
 
-def append_smoothed_complex_phase(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
+def append_smoothed_complex_phase(cs_l1b_ds: xr.Dataset, window_extent: int = 21, std: float = 5) -> xr.Dataset:
     cs_l1b_ds["ph_diff_complex_smoothed"] = gauss_filter_DataArray(
         np.exp(1j * cs_l1b_ds.ph_diff_waveform_20_ku),
         dim="ns_20_ku",
-        window_extent=21,
-        std=5,
+        window_extent=window_extent,
+        std=std,
     )
     return cs_l1b_ds
 
