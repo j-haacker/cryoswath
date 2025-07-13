@@ -9,15 +9,27 @@ from cryoswath.l1b import (
 from cryoswath.test_plots.waveform import dem_transect
 import matplotlib.pyplot as plt
 import mpld3
+from pathlib import Path
+from pdemtools.load import mosaic as load_dem
+import requests
+from shapely import box
 import streamlit as st
 import streamlit.components.v1 as components
 
 
 @st.cache_resource()
 def _process(coh, pwr, poca_upper, swath_start_window, smooth):
+    if not Path("CS_LTA__SIR_SIN_1B_20191206T003639_20191206T003855_E001.nc").exists():
+        response = requests.get("https://science-pds.cryosat.esa.int/?do=download&file=Cry0Sat2_data%2FSIR_SIN_L1%2F2019%2F12%2FCS_LTA__SIR_SIN_1B_20191206T003639_20191206T003855_E001.nc")
+        if response.status_code != 200:
+            raise Exception(f"Failed to get track. Code {response.status_code}.")
+        with open("CS_LTA__SIR_SIN_1B_20191206T003639_20191206T003855_E001.nc", "wb") as f:
+            f.write(response.content)
+    if not Path("mini_dem.tif").exists():
+        load_dem("arcticdem", "32m", box(586700.0, -2197200.0, 694900.0, -2138600.0)).rio.reproject(dst_crs=3413, resolution=(320, 320)).rio.to_raster("mini_dem.tif")
     ds = (
         read_esa_l1b(
-            "CS_OFFL_SIR_SIN_1B_20191206T003639_20191206T003855_D001.nc",
+            "CS_LTA__SIR_SIN_1B_20191206T003639_20191206T003855_E001.nc",
             drop_outside=False,
             waveform_selection=585,
             coherence_threshold=coh,
@@ -34,9 +46,9 @@ def _process(coh, pwr, poca_upper, swath_start_window, smooth):
 
 st.markdown("""
 <style>
-   iframe {
-      background-color: white;
-   }
+iframe {
+    background-color: white;
+}
 </style>
 """, unsafe_allow_html=True)
 

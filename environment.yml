@@ -5,12 +5,10 @@ dependencies:
   - bottleneck
   - dask
   - defusedxml
-  - distributed
   - geopandas>=1.0.1
   - gitpython
   - h5netcdf
   - h5py
-  - ipykernel
   - matplotlib
   - numpy
   - packaging
@@ -26,9 +24,6 @@ dependencies:
   - scikit-learn
   - scipy
   - shapely
-  - sphinx
-  - sphinx-rtd-theme
   - statsmodels
   - tqdm
-  - xarray <2025
-  - zarr
+  - xarray
