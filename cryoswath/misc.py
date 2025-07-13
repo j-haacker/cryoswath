@@ -402,6 +402,7 @@ else:
             save_to = identifier
         print(f"Downloading raster and storing in {str(save_to)}")
         pdemtools_mosaic(dataset, "32m", polygon).rio.to_raster(save_to)
+    __all__.append("download_pgc_dem")
 
 
 # def download_file(url: str, out_path: str = ".") -> str:
