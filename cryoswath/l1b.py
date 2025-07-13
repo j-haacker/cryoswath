@@ -143,6 +143,7 @@ def read_esa_l1b(
     smooth_phase_difference: bool = True,
     use_original_noise_estimates: bool = False,
     dem_file_name_or_path: str = None,
+    swath_start_kwargs: dict = {},
 ) -> None:
     """Loads ESA SARIn L1b and does initial processing
 
@@ -395,7 +396,7 @@ def read_esa_l1b(
     ds["ph_diff"] = ds.ph_diff_waveform_20_ku
     if len(ds.time_20_ku) > 0:
         # find and store POCAs and swath-starts
-        ds = append_poca_and_swath_idxs(ds)
+        ds = append_poca_and_swath_idxs(ds, **swath_start_kwargs)
         ds = append_smoothed_complex_phase(ds)
         if smooth_phase_difference:
             ds["ph_diff"] = ds.ph_diff.where(
@@ -928,7 +929,7 @@ def append_exclude_mask(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
     return cs_l1b_ds
 
 
-def append_poca_and_swath_idxs(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
+def append_poca_and_swath_idxs(cs_l1b_ds: xr.Dataset, poca_upper: float = 10, swath_start_window: tuple[float, float] = (5, 50)) -> xr.Dataset:
     """Adds indices for estimated POCA and begin of swath.
 
     Args:
@@ -959,27 +960,30 @@ def append_poca_and_swath_idxs(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
             # I opted for nan if no poca for transparency. this requires
             # dtype float and is slower
             return np.nan, 0
-        # poca expected 10 m after coherence exceeds threshold (no solid basis)
+        # poca expected `poca_upper` m after coherence exceeds threshold (no solid basis)
         poca_idx = (
-            np.argmax(smooth_coh[poca_idx : poca_idx + int(10 / sample_width)])
+            np.argmax(smooth_coh[poca_idx : poca_idx + max(1, int(poca_upper / sample_width))])
             + poca_idx
         )
-        try:
-            swath_start = poca_idx + int(5 / sample_width)
-            diff_smooth_coh = np.diff(
-                smooth_coh[swath_start : swath_start + int(50 / sample_width)]
-            )
-            # swath can safest be used after the coherence dip
-            swath_start = (
-                np.argmax(
-                    diff_smooth_coh[np.argmax(np.abs(diff_smooth_coh) > 0.001) :] > 0
+        if swath_start_window[1] < 0:
+            swath_start = 0
+        else:
+            try:
+                swath_start = poca_idx + int(swath_start_window[0] / sample_width)
+                diff_smooth_coh = np.diff(
+                    smooth_coh[swath_start : swath_start + int(swath_start_window[1] / sample_width)]
                 )
-                + swath_start
-            )
-        # if swath doesn't start in range window, just indeed set the
-        # index behind last element
-        except ValueError:
-            swath_start = len(smooth_coh)
+                # swath can safest be used after the coherence dip
+                swath_start = (
+                    np.argmax(
+                        diff_smooth_coh[np.argmax(np.abs(diff_smooth_coh) > 0.001) :] > 0
+                    )
+                    + swath_start
+                )
+            # if swath doesn't start in range window, just indeed set the
+            # index behind last element
+            except ValueError:
+                swath_start = len(smooth_coh)
         return float(poca_idx), swath_start
 
     cs_l1b_ds[["poca_idx", "swath_start"]] = xr.apply_ufunc(
@@ -992,8 +996,8 @@ def append_poca_and_swath_idxs(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
     )
     if "exclude_mask" not in cs_l1b_ds.data_vars:
         cs_l1b_ds = append_exclude_mask(cs_l1b_ds)
-    cs_l1b_ds["exclude_mask"] = xr.where(
-        cs_l1b_ds.ns_20_ku < cs_l1b_ds.swath_start, True, cs_l1b_ds.exclude_mask
+    cs_l1b_ds["exclude_mask"] = cs_l1b_ds.exclude_mask.where(
+        cs_l1b_ds.ns_20_ku >= cs_l1b_ds.swath_start, True
     )
     return cs_l1b_ds
 
