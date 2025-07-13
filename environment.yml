@@ -5,11 +5,12 @@ dependencies:
   - bottleneck
   - dask
   - defusedxml
-  - geopandas>=1.0.1
+  - geopandas >=1.0.1
   - gitpython
   - h5netcdf
   - h5py
   - matplotlib
+  - mpld3
   - numpy
   - packaging
   - pandas
@@ -25,5 +26,6 @@ dependencies:
   - scipy
   - shapely
   - statsmodels
+  - streamlit
   - tqdm
   - xarray
