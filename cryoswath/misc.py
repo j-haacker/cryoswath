@@ -8,7 +8,6 @@ __all__ = [
     "cs_id_to_time",
     "cs_time_to_id",
     "define_elev_band_edges",
-    "download_pgc_dem",
     "discard_frontal_retreat_zone",
     "effective_sample_size",
     "extend_filename",
