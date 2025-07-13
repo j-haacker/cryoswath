@@ -391,16 +391,23 @@ def read_esa_l1b(
     )
     # add potential phase wrap factor for later use
     ds = ds.assign_coords({"phase_wrap_factor": np.arange(-3, 4)})
+    # create a working version phase difference
+    ds["ph_diff"] = ds.ph_diff_waveform_20_ku
     if len(ds.time_20_ku) > 0:
         # find and store POCAs and swath-starts
         ds = append_poca_and_swath_idxs(ds)
-        # use lowpass-filtered phase difference at POCA
         ds = append_smoothed_complex_phase(ds)
-        ds["ph_diff_waveform_20_ku"] = xr.where(
-            ds.ns_20_ku == ds.poca_idx,
-            xr.apply_ufunc(np.angle, ds.ph_diff_complex_smoothed),
-            ds.ph_diff_waveform_20_ku,
-        )
+        if smooth_phase_difference:
+            ds["ph_diff"] = ds.ph_diff.where(
+                ds.ph_diff_complex_smoothed.isnull(),
+                xr.apply_ufunc(np.angle, ds.ph_diff_complex_smoothed),
+            )
+        else:
+            # always use lowpass-filtered phase difference at POCA
+            ds["ph_diff"] = ds.ph_diff.where(
+                ds.ns_20_ku != ds.poca_idx,
+                xr.apply_ufunc(np.angle, ds.ph_diff_complex_smoothed)
+            )
     return ds
 
 
@@ -631,7 +638,7 @@ def locate_ambiguous_origin(ds):
     # Calculate distance: satellite <--> echo origin
     range_to_scat = ref_range(ds) + (ds.ns_20_ku - 512) * sample_width
     theta = np.arcsin(
-        -(ds.ph_diff_waveform_20_ku + ds.phase_wrap_factor * 2 * np.pi)
+        -(ds.ph_diff + ds.phase_wrap_factor * 2 * np.pi)
         * (speed_of_light / Ku_band_freq)
         / (2 * np.pi * antenna_baseline)
     ) - np.deg2rad(ds.off_nadir_roll_angle_str_20_ku)
@@ -878,16 +885,9 @@ def unwrap_phase_diff(ds) -> xr.Dataset:
             out[mask] = np.unwrap(ph_diff[mask])
         return out
 
-    if ds.attrs["smooth_phase_difference"]:  #
-        ds["ph_diff_waveform_20_ku"] = xr.where(
-            ds.ph_diff_complex_smoothed.isnull(),
-            ds.ph_diff_waveform_20_ku,
-            xr.apply_ufunc(np.angle, ds.ph_diff_complex_smoothed),
-        )
-
-    ds["ph_diff_waveform_20_ku"] = xr.apply_ufunc(
+    ds["ph_diff"] = xr.apply_ufunc(
         unwrap,
-        ds.ph_diff_waveform_20_ku,
+        ds.ph_diff,
         ds.group_id,
         input_core_dims=[["ns_20_ku"], ["ns_20_ku"]],
         output_core_dims=[["ns_20_ku"]],
