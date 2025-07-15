@@ -70,8 +70,10 @@ from packaging.version import Version
 import pandas as pd
 from pathlib import Path
 from pyproj import CRS, Geod
+from pystac_client import Client
 import queue
 import rasterio
+from rasterio.warp import Resampling
 import re
 from scipy.constants import speed_of_light
 import scipy.stats
@@ -386,37 +388,41 @@ def discard_frontal_retreat_zone(
     return ds
 
 
-try:
-    from pdemtools.load import mosaic as pdemtools_mosaic
-except ImportError as err:
-    warnings.warn(
-        "Could not import pdemtools. If it is installed, consider using "
-        "a conda environment which manages better to install GDAL with "
-        f"its complex dependencies. The thrown error reads:\n {str(err)}"
-    )
-else:
+def download_dem(gpd_series, provider: Literal["PGC"] = "PGC"):
+    if provider == "PGC":
+        catalog = Client.open("https://stac.pgc.umn.edu/api/v1/")
+        collections = catalog.collection_search(q="((arcticdem AND v4+1) OR (rema AND v2)) AND 32m").collections()
+        # transforming collection extent is difficult, maybe the code behind rioxr transform_bounds helps
+        limits = {"x": (-3_500_000, 3_500_000), "y": (-3_500_000, 3_500_000)}
 
-    def download_pgc_dem(
-        polygon: shapely.Polygon | gpd.GeoSeries, identifier: str | Path
-    ) -> None:
-        if not isinstance(polygon, gpd.GeoSeries):
-            polygon = gpd.GeoSeries(polygon, crs=4326)
-        if shapely.get_coordinates(polygon)[0, 1] > 0:
-            dataset = "arcticdem"
-            polygon = polygon.to_crs(3413).unary_union
-        else:
-            dataset = "rema"
-            polygon = polygon.to_crs(3013).unary_union
-        if isinstance(identifier, str):
-            if os.path.sep in identifier or "." in identifier[-5:]:
-                save_to = Path(identifier)
-            else:
-                save_to = Path(dem_path / identifier).with_suffix(".tif")
-        else:
-            save_to = identifier
-        print(f"Downloading raster and storing in {str(save_to)}")
-        pdemtools_mosaic(dataset, "32m", polygon).rio.to_raster(save_to)
-    __all__.append("download_pgc_dem")
+    items = list(catalog.search(
+        collections=[coll.id for coll in collections],
+        # not sure how this behaves if it covers the poles
+        bbox=gpd_series.to_crs(4326).total_bounds,
+    ).items())
+
+    this_dem_path = dem_path / items[0].get_collection().id
+
+    if not this_dem_path.exists():
+        (  # init dem store
+            xr.full_like(xr.open_dataset(items[0], engine="stac", epsg=3413).load().squeeze(), np.nan)
+            .reindex({xy: np.arange(limits[xy][0], limits[xy][1] + 1, 100) for xy in ["x", "y"]})
+            .map(lambda da: da.drop_attrs().astype(da.attrs["data_type"]).assign_attrs(encoding={"_FillValue": da.attrs["nodata"]}))
+            .drop_attrs(deep=False)
+            .drop_vars(["time", "id"])
+            .rio.write_crs(3413)
+            .to_zarr(this_dem_path, mode="w-", compute=False)
+        )
+
+    for item in items:
+        parent = xr.open_zarr(this_dem_path, decode_coords="all", mask_and_scale=True)
+        ds = xr.open_dataset(item, engine="stac", epsg=3413).squeeze()
+        x0, y0, x1, y1 = ds.rio.bounds()
+        excerpt = parent.pipe(sel_chunk_range, x=[x0, x1], y=[y0, y1]).load()
+        add = ds.map(lambda da: da.rio.reproject_match(excerpt, resampling=Resampling.average).astype(da.attrs["data_type"]))
+        add = add.map(lambda da: da.where(da != da.attrs["_FillValue"]))
+        add = add.map(lambda da: da.fillna(excerpt[da.name]))
+        add.drop_attrs().drop_vars(['time', 'id', 'spatial_ref']).to_zarr(this_dem_path, region="auto")
 
 
 # def download_file(url: str, out_path: str = ".") -> str:

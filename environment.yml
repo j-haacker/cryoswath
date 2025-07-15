@@ -5,7 +5,7 @@ dependencies:
   - bottleneck
   - dask
   - defusedxml
-  - geopandas>=1.0.1
+  - geopandas >=1.0.1
   - gitpython
   - h5netcdf
   - h5py
@@ -14,10 +14,10 @@ dependencies:
   - numpy
   - packaging
   - pandas
-  - pdemtools
   - pyarrow
   - pyogrio
   - pyproj
+  - pystac_client
   - pytables
   - python-dateutil
   - rasterio
@@ -27,7 +27,8 @@ dependencies:
   - shapely
   - sphinx
   - sphinx-rtd-theme
+  - stackstac
   - statsmodels
   - tqdm
-  - xarray
+  - xarray <2025
   - zarr
