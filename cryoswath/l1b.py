@@ -47,7 +47,7 @@ import time
 import warnings
 import xarray as xr
 
-from .misc import (
+from cryoswath.misc import (
     antenna_baseline,
     cs_time_to_id,
     data_path,
@@ -69,12 +69,13 @@ from .misc import (
     speed_of_light,
     WGS84_ellpsoid,
 )
-from .gis import (
+from cryoswath.gis import (
     buffer_4326_shp,
     ensure_pyproj_crs,
     find_planar_crs,
     subdivide_region,
 )
+from cryoswath.l2 import from_processed_l1b as l2_from_processed_l1b
 
 # requires implicitly rasterio(?), flox(?), dask(?)
 
@@ -865,12 +866,11 @@ def to_l2(
             'or "both".',
         )
     drop_coords = [coord for coord in tmp.coords if coord not in ["time", "sample"]]
-    from . import l2  # can't be in preamble as this would lead to circularity
 
     # ! dropped .squeeze() below to handle issue #19. not sure about 2nd
     # degree consequences.
     # l2_data = l2.from_processed_l1b(tmp.squeeze().drop_vars(drop_coords), **kwargs)
-    l2_data = l2.from_processed_l1b(tmp.drop_vars(drop_coords), **kwargs)
+    l2_data = l2_from_processed_l1b(tmp.drop_vars(drop_coords), **kwargs)
     return l2_data
 
 

@@ -91,7 +91,7 @@ from typing import Literal, Union
 import warnings
 import xarray as xr
 
-from . import gis
+from cryoswath import gis
 
 
 def init_project():

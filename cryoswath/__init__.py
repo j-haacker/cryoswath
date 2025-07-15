@@ -10,7 +10,7 @@ __all__ = [
 ]
 
 from importlib.metadata import version as _version
-from . import gis, misc, l1b, l2, l3, l4, test_plots
+from cryoswath import gis, misc, l1b, l2, l3, l4, test_plots
 
 
 # copied from xarray

@@ -25,7 +25,7 @@ from tables import NaturalNameWarning
 import warnings
 import xarray as xr
 
-from .misc import (
+from cryoswath.misc import (
     cryosat_id_pattern,
     cs_id_to_time,
     cs_time_to_id,
@@ -37,7 +37,7 @@ from .misc import (
     l2_swath_path,
     xycut,
 )
-from . import l1b
+from cryoswath import l1b
 
 
 def from_id(
