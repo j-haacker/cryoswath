@@ -6,11 +6,12 @@ from cryoswath.l1b import (
     read_esa_l1b,
     to_l2,
 )
+from cryoswath.misc import download_dem
 from cryoswath.test_plots.waveform import dem_transect
+import geopandas as gpd
 import matplotlib.pyplot as plt
 import mpld3
 from pathlib import Path
-from pdemtools.load import mosaic as load_dem
 import requests
 from shapely import box
 import streamlit as st
@@ -25,8 +26,8 @@ def _process(coh, pwr, poca_upper, swath_start_window, smooth):
             raise Exception(f"Failed to get track. Code {response.status_code}.")
         with open("CS_LTA__SIR_SIN_1B_20191206T003639_20191206T003855_E001.nc", "wb") as f:
             f.write(response.content)
-    if not Path("mini_dem.tif").exists():
-        load_dem("arcticdem", "32m", box(586700.0, -2197200.0, 694900.0, -2138600.0)).rio.reproject(dst_crs=3413, resolution=(320, 320)).rio.to_raster("mini_dem.tif")
+    if not Path("arcticdem-mosaics-v4.1-32m.zarr").exists():
+        download_dem(gpd.GeoSeries(box(586700.0, -2197200.0, 694900.0, -2138600.0), crs=3413))
     ds = (
         read_esa_l1b(
             "CS_LTA__SIR_SIN_1B_20191206T003639_20191206T003855_E001.nc",
@@ -37,7 +38,7 @@ def _process(coh, pwr, poca_upper, swath_start_window, smooth):
             smooth_phase_difference=smooth,
             swath_start_kwargs={"poca_upper": poca_upper, "swath_start_window": swath_start_window}
         )
-        .pipe(append_ambiguous_reference_elevation, "./mini_dem.tif")
+        .pipe(append_ambiguous_reference_elevation, "arcticdem-mosaics-v4.1-32m.zarr")
         .pipe(append_best_fit_phase_index)
     )
     result = to_l2(ds, retain_vars={"xph_dists": "off_nadir", "ph_diff_waveform_20_ku": "ph_diff"})
