@@ -422,7 +422,7 @@ def download_dem(gpd_series, provider: Literal["PGC"] = "PGC"):
         bbox=gpd_series.to_crs(4326).total_bounds,
     ).items())
 
-    this_dem_path = dem_path / items[0].get_collection().id
+    this_dem_path = (dem_path / items[0].get_collection().id).with_suffix(".zarr")
 
     if not this_dem_path.exists():
         (  # init dem store

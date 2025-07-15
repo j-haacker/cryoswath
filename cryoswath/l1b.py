@@ -429,19 +429,24 @@ def append_ambiguous_reference_elevation(ds, dem_file_name_or_path: str = None):
     with get_dem_reader(
         (ds if dem_file_name_or_path is None else dem_file_name_or_path)
     ) as dem_reader:
-        trans_4326_to_dem_crs = Transformer.from_crs("EPSG:4326", dem_reader.crs)
+        if isinstance(dem_reader, xr.DataArray):
+            crs = dem_reader.rio.crs
+        else:
+            crs = dem_reader.crs
+            dem_reader = rioxr.open_rasterio(dem_reader)
+        trans_4326_to_dem_crs = Transformer.from_crs("EPSG:4326", crs)
         x, y = trans_4326_to_dem_crs.transform(ds.xph_lats, ds.xph_lons)
         ds = ds.assign(
             xph_x=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), x),
             xph_y=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), y),
         )
-        ds.attrs.update({"CRS": ensure_pyproj_crs(dem_reader.crs)})
+        ds.attrs.update({"CRS": ensure_pyproj_crs(crs)})
         # ! huge improvement potential: instead of the below,
         # rasterio.sample could be used
         # [edit] use postgis
         try:
             ref_dem = (
-                rioxr.open_rasterio(dem_reader)
+                dem_reader
                 .rio.clip_box(np.nanmin(x), np.nanmin(y), np.nanmax(x), np.nanmax(y))
                 .squeeze()
             )
