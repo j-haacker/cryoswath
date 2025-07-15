@@ -210,7 +210,7 @@ def dem_transect(waveform, *,
     if ax is None:
         ax = plt.subplots()[1]
     dem_reader = get_dem_reader((waveform if dem_file_name_or_path is None else dem_file_name_or_path))
-    trans_4326_to_dem_crs = get_4326_to_dem_Transformer(dem_reader)
+    trans_4326_to_dem_crs = get_4326_to_dem_Transformer(dem_reader.rio.crs)
     sampling_dist = np.arange(-30000, 30000+1, 100)
     num_samples = len(sampling_dist)
     lats, lons = WGS84_ellpsoid.fwd(lons=[waveform.lon_20_ku]*num_samples,
@@ -218,8 +218,9 @@ def dem_transect(waveform, *,
                                     az=[waveform.azimuth+90]*num_samples,
                                     dist=sampling_dist)[1::-1]
     xs, ys = trans_4326_to_dem_crs.transform(lats, lons)
-    ref_elevs = np.fromiter(dem_reader.sample([(x, y) for x, y in zip(xs, ys)]), "float32")
-    ref_elevs = np.where(ref_elevs!=dem_reader.nodata, ref_elevs, np.nan)
+    ref_elevs = np.fromiter([dem_reader.sel(x=x, y=y, method="nearest") for x, y in zip(xs, ys)], "float32")
+    if "_FillValue" in dem_reader.attrs:
+        ref_elevs = np.where(ref_elevs!=dem_reader.attrs["_FillValue"], ref_elevs, np.nan)
     ax.fill_between(sampling_dist, ref_elevs, **line_properties["dem"], label="DEM")
     h_dem = ax.get_legend_handles_labels()[0][0]
     if not selected_phase_only:
