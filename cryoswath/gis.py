@@ -22,7 +22,7 @@ import rasterio
 import shapely
 import warnings
 
-from .misc import (
+from cryoswath.misc import (
     load_glacier_outlines,
     rgi_path,
 )

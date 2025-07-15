@@ -30,7 +30,7 @@ import tqdm
 from typing import Literal
 import xarray as xr
 
-from .misc import (
+from cryoswath.misc import (
     discard_frontal_retreat_zone,
     effective_sample_size,
     fill_missing_coords,
@@ -42,7 +42,7 @@ from .misc import (
     load_glacier_outlines,
     nanoseconds_per_year,
 )
-from . import misc, l3
+from cryoswath import misc, l3
 
 # notes for future development of `differential_change` and
 # `relative_change`:

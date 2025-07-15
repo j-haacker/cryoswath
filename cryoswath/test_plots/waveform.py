@@ -2,9 +2,9 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
-from ..l1b import *
-from ..gis import *
-from ..misc import *
+from cryoswath.l1b import *
+from cryoswath.gis import *
+from cryoswath.misc import *
 
 __all__ = ["dem_transect"]
 
