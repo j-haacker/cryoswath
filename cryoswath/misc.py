@@ -4,6 +4,7 @@ __all__ = [
     # classes
     "binary_chache",
     # functions
+    "chunk_idx",
     "convert_all_esri_to_feather",
     "cs_id_to_time",
     "cs_time_to_id",
@@ -31,6 +32,8 @@ __all__ = [
     "rgi_o1region_translator",
     "rgi_o2region_translator",
     "sandbox_write_to",
+    "sel_chunk_idx_range",
+    "sel_chunk_range",
     "update_email",
     "update_track_database",
     "warn_with_traceback",
@@ -50,6 +53,7 @@ __all__ = [
     "patched_xr_decode_scaling",
 ]  # path variables are currently defined below
 
+from collections.abc import Iterable
 from configparser import ConfigParser
 from contextlib import contextmanager
 from dateutil.relativedelta import relativedelta
@@ -199,6 +203,16 @@ class binary_chache:
             new_part (binary): New part.
         """
         self._cache.extend(new_part)
+
+
+def chunk_idx(ds, dim, values):
+    def _inner(val):
+        if val < ds[dim][0] or val > ds[dim][-1]:
+            return None
+        return (ds[dim].isel({dim: np.cumsum(ds.chunks[dim]) - 1}) <= val).argmin().item(0)
+    if isinstance(values, Iterable):
+        return [_inner(val) for val in values]
+    return _inner(values)
 
 
 def cs_id_to_time(cs_id: str) -> pd.Timestamp:
@@ -2231,6 +2245,17 @@ def sandbox_write_to(target: str):
     finally:
         if os.path.isfile(target + "__backup"):
             os.remove(target + "__backup")
+
+
+def sel_chunk_idx_range(ds, dim, start, stop):
+    chunk_borders = np.cumsum([0] + list(ds.chunks[dim]))
+    return ds.isel({dim: slice(*chunk_borders[[start, stop + 1]])})
+
+
+def sel_chunk_range(ds, **dim_intervals):
+    for dim, interval in dim_intervals.items():
+        ds = sel_chunk_idx_range(ds, dim, *chunk_idx(ds, dim, interval))
+    return ds
 
 
 def update_email(email: str = None):
