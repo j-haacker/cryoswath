@@ -139,7 +139,7 @@ tmp_path = os.path.join(data_path, "tmp")
 aux_path = os.path.join(data_path, "auxiliary")
 cs_ground_tracks_path = os.path.join(aux_path, "CryoSat-2_SARIn_ground_tracks.feather")
 rgi_path = os.path.join(aux_path, "RGI")
-dem_path = os.path.join(aux_path, "DEM")
+dem_path = Path(aux_path) / "DEM"
 
 __all__.extend(
     [  # pathes
@@ -833,7 +833,7 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
         elif os.path.sep in data:
             return rasterio.open(data)
         elif any([data.split(".")[-1] in raster_extensions]):
-            return rasterio.open(os.path.join(dem_path, data))
+            return rasterio.open(dem_path / data)
     if "lat" not in locals():
         raise NotImplementedError(
             f"`get_dem_reader` could not handle the input of type {data.__class__}. "
@@ -845,7 +845,7 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
         dem_filename = "arcticdem_mosaic_100m_v4.1_dem.tif"
     else:
         dem_filename = "rema_mosaic_100m_v2.0_filled_cop30_dem.tif"
-    if not os.path.isfile(os.path.join(dem_path, dem_filename)):
+    if not (dem_path / dem_filename).isfile():
         raster_file_list = []
         for ext in raster_extensions:
             raster_file_list.extend(glob.glob("*." + ext, root_dir=dem_path))
@@ -855,7 +855,7 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
             flush=True,
         )
         dem_filename = input("Enter filename:")
-    return rasterio.open(os.path.join(dem_path, dem_filename))
+    return rasterio.open(dem_path / dem_filename)
 
 
 def interpolate_hypsometrically(
