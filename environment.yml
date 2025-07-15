@@ -29,3 +29,5 @@ dependencies:
   - streamlit
   - tqdm
   - xarray
+  - xpystac
+  - zarr
