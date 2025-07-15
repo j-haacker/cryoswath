@@ -119,33 +119,54 @@ def init_project():
     config = ConfigParser()
     if os.path.isfile(config_file):
         config.read(os.path.join("scripts", "config.ini"))
-    config["path"] = {"base": os.getcwd()}
+    config["path"] = {"data": Path().cwd() / "data"}
     with open(config_file, "w") as f:
         config.write(f)
     print("Run cryoswath.misc.update_email() from a python prompt to complete setup.")
 
 
 # Paths ##############################################################
+
+# The following path definitions are admittedly not very readable, but
+# they allow defining default paths while giving the user the ability to
+# easily override them for each project independently. So bear with me:
+# below are some calls to assign_path (some in loops) of which each will
+# create a path variable. Those are listed at the end of this section
+# when extending __all__.
+
+def assign_path(name: str, base: Path, alternative: str = None) -> bool:
+    key = name.lower()
+    var_name = key + "_path"
+    if key in config["path"]:
+        _value = config["path"][key]
+        if Path().is_absolute():
+            globals()[var_name] = _value
+        else:
+            globals()[var_name] = str(base / _value)
+    else:
+        globals()[var_name] = str(base / (name if alternative is None else alternative))
+
 if os.path.isfile("config.ini"):
     config = ConfigParser()
     config.read("config.ini")
-    data_path = os.path.join(config["path"]["base"], "data")
+    data_path = config["path"]["data"]
 else:
     data_path = str(Path.cwd() / "data")
     warnings.warn(
         "Base path not defined. Path variables may be wrong. Make sure to have run "
         '`cryoswath-init` and your working directory is "scripts".'
     )
-l1b_path = os.path.join(data_path, "L1b")
-l2_swath_path = os.path.join(data_path, "L2_swath")
-l2_poca_path = os.path.join(data_path, "L2_poca")
-l3_path = os.path.join(data_path, "L3")
-l4_path = os.path.join(data_path, "L4")
-tmp_path = os.path.join(data_path, "tmp")
-aux_path = os.path.join(data_path, "auxiliary")
-cs_ground_tracks_path = os.path.join(aux_path, "CryoSat-2_SARIn_ground_tracks.feather")
-rgi_path = os.path.join(aux_path, "RGI")
-dem_path = Path(aux_path) / "DEM"
+
+for name, alternative in [
+    (x, None) for x in ["L1b", "L2_swath", "L2_poca", "L3", "L4", "tmp"]
+] + [("aux", "auxiliary")]:
+    assign_path(name, Path(data_path), alternative)
+
+for name in ["DEM", "RGI"]:
+    assign_path(name, Path(aux_path))
+
+assign_path("cs_ground_tracks", Path(aux_path), "CryoSat-2_SARIn_ground_tracks.feather")
+dem_path = Path(dem_path)
 
 __all__.extend(
     [  # pathes
