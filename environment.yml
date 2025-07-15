@@ -13,10 +13,10 @@ dependencies:
   - numpy
   - packaging
   - pandas
-  - pdemtools
   - pyarrow
   - pyogrio
   - pyproj
+  - pystac_client
   - pytables
   - python-dateutil
   - rasterio
@@ -24,6 +24,7 @@ dependencies:
   - scikit-learn
   - scipy
   - shapely
+  - stackstac
   - statsmodels
   - streamlit
   - tqdm
