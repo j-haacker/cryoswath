@@ -21,7 +21,7 @@ dependencies = [
     "Bottleneck",
     "dask",
     "defusedxml",
-    "geopandas >1",
+    "geopandas ==1.0.1",
     "gitpython",
     "h5netcdf",
     "h5py",
