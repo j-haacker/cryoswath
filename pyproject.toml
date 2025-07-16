@@ -53,7 +53,8 @@ dev = ["flit", "packaging", "ruff"]#"pip-compile",
 docs = ["sphinx", "sphinx-rtd-theme"]
 notebooks = ["ipykernel"]
 dem = ["xpystac", "stackstac", "pystac_client"]
-all = ["cryoswath[dev,docs,notebooks,dem]"]
+app = ["streamlit"]
+all = ["cryoswath[dev,docs,notebooks,dem,app]"]
 
 [project.urls]
 Repository = "https://github.com/j-haacker/cryoswath.git"
