@@ -503,7 +503,7 @@ requires-dist = [
     { name = "dask" },
     { name = "defusedxml" },
     { name = "flit", marker = "extra == 'dev'" },
-    { name = "geopandas", specifier = ">=1.0.1" },
+    { name = "geopandas", specifier = ">1" },
     { name = "gitpython" },
     { name = "h5netcdf" },
     { name = "h5py" },
