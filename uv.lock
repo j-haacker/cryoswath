@@ -457,16 +457,20 @@ dependencies = [
     { name = "pyarrow" },
     { name = "pyogrio" },
     { name = "pyproj" },
+    { name = "pystac-client" },
     { name = "python-dateutil" },
     { name = "rasterio" },
     { name = "rioxarray" },
     { name = "scikit-learn" },
     { name = "scipy" },
     { name = "shapely" },
+    { name = "stackstac" },
     { name = "statsmodels" },
+    { name = "streamlit" },
     { name = "tables" },
     { name = "tqdm" },
     { name = "xarray" },
+    { name = "xpystac" },
     { name = "zarr" },
 ]
 
@@ -475,21 +479,9 @@ all = [
     { name = "flit" },
     { name = "ipykernel" },
     { name = "packaging" },
-    { name = "pystac-client" },
     { name = "ruff" },
     { name = "sphinx" },
     { name = "sphinx-rtd-theme" },
-    { name = "stackstac" },
-    { name = "streamlit" },
-    { name = "xpystac" },
-]
-app = [
-    { name = "streamlit" },
-]
-dem = [
-    { name = "pystac-client" },
-    { name = "stackstac" },
-    { name = "xpystac" },
 ]
 dev = [
     { name = "flit" },
@@ -507,7 +499,7 @@ notebooks = [
 [package.metadata]
 requires-dist = [
     { name = "bottleneck" },
-    { name = "cryoswath", extras = ["dev", "docs", "notebooks", "dem", "app"], marker = "extra == 'all'" },
+    { name = "cryoswath", extras = ["dev", "docs", "notebooks"], marker = "extra == 'all'" },
     { name = "dask" },
     { name = "defusedxml" },
     { name = "flit", marker = "extra == 'dev'" },
@@ -523,7 +515,7 @@ requires-dist = [
     { name = "pyarrow" },
     { name = "pyogrio" },
     { name = "pyproj" },
-    { name = "pystac-client", marker = "extra == 'dem'" },
+    { name = "pystac-client" },
     { name = "python-dateutil" },
     { name = "rasterio" },
     { name = "rioxarray" },
@@ -533,16 +525,16 @@ requires-dist = [
     { name = "shapely" },
     { name = "sphinx", marker = "extra == 'docs'" },
     { name = "sphinx-rtd-theme", marker = "extra == 'docs'" },
-    { name = "stackstac", marker = "extra == 'dem'" },
+    { name = "stackstac" },
     { name = "statsmodels" },
-    { name = "streamlit", marker = "extra == 'app'" },
+    { name = "streamlit" },
     { name = "tables" },
     { name = "tqdm" },
     { name = "xarray", specifier = "<2025" },
-    { name = "xpystac", marker = "extra == 'dem'" },
+    { name = "xpystac" },
     { name = "zarr" },
 ]
-provides-extras = ["dev", "docs", "notebooks", "dem", "app", "all"]
+provides-extras = ["dev", "docs", "notebooks", "all"]
 
 [[package]]
 name = "cycler"

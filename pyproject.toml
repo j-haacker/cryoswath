@@ -41,7 +41,11 @@ dependencies = [
     "tables",
     "tqdm",
     "xarray<2025",
-    "zarr"
+    "zarr",
+    "xpystac",
+    "stackstac",
+    "pystac_client",
+    "streamlit",
 ]
 
 [project.license]
@@ -52,9 +56,7 @@ file = "LICENSE.txt"
 dev = ["flit", "packaging", "ruff"]#"pip-compile",
 docs = ["sphinx", "sphinx-rtd-theme"]
 notebooks = ["ipykernel"]
-dem = ["xpystac", "stackstac", "pystac_client"]
-app = ["streamlit"]
-all = ["cryoswath[dev,docs,notebooks,dem,app]"]
+all = ["cryoswath[dev,docs,notebooks]"]
 
 [project.urls]
 Repository = "https://github.com/j-haacker/cryoswath.git"
