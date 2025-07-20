@@ -433,7 +433,7 @@ def download_dem(gpd_series, provider: Literal["PGC"] = "PGC"):
             .drop_attrs(deep=False)
             .drop_vars(["time", "id"])
             .rio.write_crs(3413)
-            .to_zarr(this_dem_path, mode="w-", compute=False)
+            .to_zarr(this_dem_path, mode="w", compute=False)
         )
 
     for item in items:
