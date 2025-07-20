@@ -433,14 +433,30 @@ def download_dem(gpd_series, provider: Literal["PGC"] = "PGC"):
             .drop_attrs(deep=False)
             .drop_vars(["time", "id"])
             .rio.write_crs(3413)
+            .chunk(x=1000, y=1000)
             .to_zarr(this_dem_path, mode="w", compute=False)
         )
 
     for item in items:
         parent = xr.open_zarr(this_dem_path, decode_coords="all", mask_and_scale=True)
-        ds = xr.open_dataset(item, engine="stac", epsg=3413).squeeze()
-        x0, y0, x1, y1 = ds.rio.bounds()
-        excerpt = parent.pipe(sel_chunk_range, x=[x0, x1], y=[y0, y1]).load()
+        # print(parent)
+        if parent["count"].rio.clip_box(*item.properties["proj:bbox"]).mean().compute() > 0.1:
+            continue
+        if "proj:code" in item.properties:
+            code = item.properties["proj:code"]
+            if code.lower().startswith("epsg:"):
+                code = int(code.split(":")[-1])
+            else:
+                raise Exception(f"Implement parsing proj:code format {code}")
+        else:
+            raise Exception(f"Implement getting crs from properties {item.properties}")
+        ds = xr.open_dataset(item, engine="stac", epsg=code).squeeze()
+        # # the general case:
+        # x0, y0, x1, y1 = ds.rio.bounds()
+        # excerpt = parent.pipe(sel_chunk_range, x=[x0, x1], y=[y0, y1]).load()
+        # however, if chunks tuned to tiles:
+        c = shapely.box(*item.properties["proj:bbox"]).centroid
+        excerpt = parent.pipe(sel_chunk_range, **{xy: [getattr(c, xy)] * 2 for xy in ["x", "y"]}).load()
         add = ds.map(lambda da: da.rio.reproject_match(excerpt, resampling=Resampling.average).astype(da.attrs["data_type"]))
         add = add.map(lambda da: da.where(da != da.attrs["_FillValue"]))
         add = add.map(lambda da: da.fillna(excerpt[da.name]))
