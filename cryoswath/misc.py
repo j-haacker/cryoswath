@@ -422,7 +422,8 @@ def download_dem(gpd_series, provider: Literal["PGC"] = "PGC"):
         bbox=gpd_series.to_crs(4326).total_bounds,
     ).items())
 
-    this_dem_path = dem_path / items[0].get_collection().id
+    this_dem_path = dem_path / (items[0].get_collection().id + ".zarr")  # don't .with_suffix; . in name!
+    this_dem_path.parent.mkdir(parents=True, exist_ok=True)
 
     if not this_dem_path.exists():
         (  # init dem store
@@ -432,7 +433,7 @@ def download_dem(gpd_series, provider: Literal["PGC"] = "PGC"):
             .drop_attrs(deep=False)
             .drop_vars(["time", "id"])
             .rio.write_crs(3413)
-            .to_zarr(this_dem_path, mode="w-", compute=False)
+            .to_zarr(this_dem_path, mode="w", compute=False)
         )
 
     for item in items:
@@ -837,20 +838,32 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
     """Determines which DEM to use
 
     Attempts to determine location of `data` and returns appropriate
-    `rasterio.io.DatasetReader`. Only implemented for ArcticDEM and
-    REMA.
+    `rasterio.io.DatasetReader` or `xarray.DataArray`. Only implemented
+    for ArcticDEM and REMA.
 
     Args:
         data (any): Defaults to None.
 
     Raises:
-        NotImplementedError: If region can't be inferred.
+        Exception: If region can't be inferred or path doesn't exist.
 
     Returns:
         rasterio.DatasetReader: Reader pointing to the file.
     """
 
-    raster_extensions = ["tif", "nc"]
+    raster_extensions = ["tif", "nc", "zarr"]
+
+    def reader_or_store(path: Path):
+        if isinstance(path, str):
+            path = Path(path)
+        if path.suffix == ".tif":
+            return rasterio.open(path)
+        elif path.suffix == ".nc":
+            return xr.open_dataset(path, decode_coords="all", engine="h5netcdf").dem
+        elif path.suffix == ".zarr":
+            return xr.open_dataset(path, decode_coords="all", engine="zarr").dem
+        else:
+            raise Exception(str(path) + " cant be read.")
 
     if isinstance(data, shapely.Geometry):
         lat = np.mean(data.bounds[1::2])
@@ -872,31 +885,34 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
         elif data.lower() in ["antarctic", "rema"]:
             lat = -90
         elif os.path.sep in data:
-            return rasterio.open(data)
+            return reader_or_store(data)
         elif any([data.split(".")[-1] in raster_extensions]):
-            return rasterio.open(dem_path / data)
+            return reader_or_store(dem_path / data)
     if "lat" not in locals():
-        raise NotImplementedError(
+        raise Exception(
             f"`get_dem_reader` could not handle the input of type {data.__class__}. "
             "See doc for further info."
         )
     if lat > 0:
-        # return rasterio.open(os.path.join(dem_path,
-        #                                   "arcticdem_mosaic_100m_v4.1_dem.tif"))
         dem_filename = "arcticdem_mosaic_100m_v4.1_dem.tif"
+        if not (dem_path / dem_filename).is_file():
+            dem_filename = "arcticdem-mosaics-v4.1-32m.zarr"
     else:
         dem_filename = "rema_mosaic_100m_v2.0_filled_cop30_dem.tif"
-    if not (dem_path / dem_filename).isfile():
+        if not (dem_path / dem_filename).is_file():
+            dem_filename = "rema-mosaics-v2.0-32m.zarr"
+    if not (dem_path / dem_filename).exists():
         raster_file_list = []
         for ext in raster_extensions:
             raster_file_list.extend(glob.glob("*." + ext, root_dir=dem_path))
+        # raster_file_list = [file.name for file in dem_path.glob("*.tif")]
         print(
             "DEM not found with default filename. Please select from the following:\n",
             ", ".join(raster_file_list),
             flush=True,
         )
         dem_filename = input("Enter filename:")
-    return rasterio.open(dem_path / dem_filename)
+    return reader_or_store(dem_path / dem_filename)
 
 
 def interpolate_hypsometrically(
