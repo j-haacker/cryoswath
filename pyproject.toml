@@ -41,7 +41,7 @@ dependencies = [
     "statsmodels",
     "tables",
     "tqdm",
-    "xarray",
+    "xarray >=2025.5",
     "zarr",
     "xpystac",
     "stackstac",
