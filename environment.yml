@@ -16,7 +16,7 @@ dependencies:
   - pyarrow
   - pyogrio
   - pyproj
-  - pystac_client
+  - pystac-client
   - pytables
   - python-dateutil
   - rasterio
