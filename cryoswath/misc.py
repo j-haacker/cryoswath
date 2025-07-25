@@ -127,46 +127,45 @@ def init_project():
 
 # Paths ##############################################################
 
-# The following path definitions are admittedly not very readable, but
-# they allow defining default paths while giving the user the ability to
-# easily override them for each project independently. So bear with me:
-# below are some calls to assign_path (some in loops) of which each will
-# create a path variable. Those are listed at the end of this section
-# when extending __all__.
-
 if (Path().cwd() / "config.ini").is_file():
     config = ConfigParser()
     config.read("config.ini")
-    data_path = config["path"]["data"]
+    data_path = Path(config["path"]["data"])
 else:
-    data_path = str(Path.cwd() / "data")
+    data_path = Path.cwd() / "data"
     warnings.warn(
         "Base path not defined. Path variables may be wrong. Make sure to have run "
         '`cryoswath-init` and your working directory is "scripts".'
     )
     config = {"path": {}}
 
-def _assign_path(name: str, base: Path, alternative: str = None) -> bool:
+def _get_path(name: str, base: Path, alternative: str = None) -> bool:
     key = name.lower()
-    var_name = key + "_path"
     if key in config["path"]:
         _value = config["path"][key]
         if Path().is_absolute():
-            globals()[var_name] = _value
+            return _value
         else:
-            globals()[var_name] = str(base / _value)
+            return str(base / _value)
     else:
-        globals()[var_name] = str(base / (name if alternative is None else alternative))
+        return str(base / (name if alternative is None else alternative))
 
-for name, alternative in [
-    (x, None) for x in ["L1b", "L2_swath", "L2_poca", "L3", "L4", "tmp"]
-] + [("aux", "auxiliary")]:
-    _assign_path(name, Path(data_path), alternative)
+# data subdirs
+l1b_path = _get_path("L1b", data_path)
+l2_swath_path = _get_path("L2_swath", data_path)
+l2_poca_path = _get_path("L2_poca", data_path)
+l3_path = _get_path("L3", data_path)
+l4_path = _get_path("L4", data_path)
+tmp_path = _get_path("tmp", data_path)
+aux_path = Path(_get_path("aux", data_path, "auxiliary"))
 
-for name in ["DEM", "RGI"]:
-    _assign_path(name, Path(aux_path))
+# aux subdirs
+dem_path = _get_path("DEM", aux_path)
+rgi_path = _get_path("RGI", aux_path)
+cs_ground_tracks_path = _get_path("cs_ground_tracks", aux_path, "CryoSat-2_SARIn_ground_tracks.feather")
 
-_assign_path("cs_ground_tracks", Path(aux_path), "CryoSat-2_SARIn_ground_tracks.feather")
+# temporarily, (re)set types (str or Path)
+data_path = str(data_path)
 dem_path = Path(dem_path)
 
 __all__.extend(
@@ -1420,7 +1419,7 @@ def load_cs_full_file_names(
     Returns:
         pd.Series: Full L1b file names without path or extension.
     """
-    file_names_path = os.path.join(aux_path, "CryoSat-2_SARIn_file_names.pkl")
+    file_names_path = aux_path / "CryoSat-2_SARIn_file_names.pkl"
     if os.path.isfile(file_names_path):
         file_names = pd.read_pickle(file_names_path).sort_index()
     if update == "no":
