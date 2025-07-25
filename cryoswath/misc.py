@@ -134,7 +134,19 @@ def init_project():
 # create a path variable. Those are listed at the end of this section
 # when extending __all__.
 
-def assign_path(name: str, base: Path, alternative: str = None) -> bool:
+if (Path().cwd() / "config.ini").is_file():
+    config = ConfigParser()
+    config.read("config.ini")
+    data_path = config["path"]["data"]
+else:
+    data_path = str(Path.cwd() / "data")
+    warnings.warn(
+        "Base path not defined. Path variables may be wrong. Make sure to have run "
+        '`cryoswath-init` and your working directory is "scripts".'
+    )
+    config = {"path": {}}
+
+def _assign_path(name: str, base: Path, alternative: str = None) -> bool:
     key = name.lower()
     var_name = key + "_path"
     if key in config["path"]:
@@ -146,26 +158,15 @@ def assign_path(name: str, base: Path, alternative: str = None) -> bool:
     else:
         globals()[var_name] = str(base / (name if alternative is None else alternative))
 
-if os.path.isfile("config.ini"):
-    config = ConfigParser()
-    config.read("config.ini")
-    data_path = config["path"]["data"]
-else:
-    data_path = str(Path.cwd() / "data")
-    warnings.warn(
-        "Base path not defined. Path variables may be wrong. Make sure to have run "
-        '`cryoswath-init` and your working directory is "scripts".'
-    )
-
 for name, alternative in [
     (x, None) for x in ["L1b", "L2_swath", "L2_poca", "L3", "L4", "tmp"]
 ] + [("aux", "auxiliary")]:
-    assign_path(name, Path(data_path), alternative)
+    _assign_path(name, Path(data_path), alternative)
 
 for name in ["DEM", "RGI"]:
-    assign_path(name, Path(aux_path))
+    _assign_path(name, Path(aux_path))
 
-assign_path("cs_ground_tracks", Path(aux_path), "CryoSat-2_SARIn_ground_tracks.feather")
+_assign_path("cs_ground_tracks", Path(aux_path), "CryoSat-2_SARIn_ground_tracks.feather")
 dem_path = Path(dem_path)
 
 __all__.extend(
