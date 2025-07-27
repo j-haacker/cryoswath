@@ -19,6 +19,7 @@ __all__ = [
 
 from datetime import datetime
 import geopandas as gpd
+from importlib.metadata import version as _version
 import numpy as np
 import os
 import pandas as pd
@@ -41,6 +42,7 @@ from cryoswath.misc import (
     l4_path,
     load_glacier_outlines,
     nanoseconds_per_year,
+    _norm_isf_25,
 )
 from cryoswath import misc, l3
 
@@ -118,7 +120,7 @@ def add_meta_to_default_finalized_l3(
                 ),
             },
             "elev_diff_error": {
-                "orig_name": "_iqr",
+                "orig_name": "_std",
                 "standard_name": (
                     "land_ice_surface_height_above_reference standard_error"
                 ),
@@ -212,13 +214,6 @@ def add_meta_to_default_finalized_l3(
                     "attached."
                 ),
             },
-            # "": {
-            #     "orig_name": "",
-            #     "standard_name": "",
-            #     "long_name": "",
-            #     "units": "",
-            #     "description": ""
-            # },
         }
 
     for file in Path(misc.l4_path).rglob("*__elev_diff_to_ref_at_monthly_intervals.nc"):
@@ -248,7 +243,7 @@ def add_meta_to_default_finalized_l3(
             "history": "\n".join(
                 [
                     "CryoSat-2 SARIn ESA Baseline E L1b",
-                    f"{date_time}: {your_name} using cryoswath v2.1",
+                    f"{date_time}: {your_name} using cryoswath {_version('cryoswath')}",
                 ]
             ),
             # "references": "",
@@ -256,6 +251,9 @@ def add_meta_to_default_finalized_l3(
         }
         _metadata = metadata()
         with xr.open_dataset(file) as ds:
+            if "_std" not in ds and "_iqr" in ds:
+                ds["_std"] = ds["_iqr"] / 2 / _norm_isf_25
+                ds = ds.drop_vars("_iqr")
             out = (
                 ds.drop_encoding()
                 .drop_vars([_var for _var in ["band", "cov_i", "cov_j"] if _var in ds])
