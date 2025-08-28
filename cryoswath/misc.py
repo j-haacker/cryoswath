@@ -797,15 +797,20 @@ def ftp_cs2_server(**kwargs):
     try:
         config = ConfigParser()
         config.read("config.ini")
-        email = config["user"]["email"]
+        if "name" in config["user"] and "password" in config["user"]:
+            user = config["user"]["name"]
+            password = config["user"]["password"]
+        else:
+            password = config["user"]["email"]
     except KeyError:
+        # TODO adapt hint to also show name/password option
         print(
             "\n\nPlease call `misc.update_email()` to provide your email address as "
             "ESA asks for it as password when downloading data via ftp.\n\n",
         )
         raise
     with ftplib.FTP("science-pds.cryosat.esa.int", **kwargs) as ftp:
-        ftp.login(passwd=email)
+        ftp.login(user="anonymous" if "user" not in locals() else user, passwd=password)
         yield ftp
 
 
