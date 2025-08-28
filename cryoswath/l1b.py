@@ -51,6 +51,7 @@ from cryoswath.misc import (
     antenna_baseline,
     cs_time_to_id,
     data_path,
+    download_file as _http_download_file,
     ftp_cs2_server,
     gauss_filter_DataArray,
     get_dem_reader,
@@ -1174,6 +1175,7 @@ def download_files(
         except FileNotFoundError:
             os.makedirs(os.path.join(l1b_path, year_month_str))
             currently_present_files = []
+        # TODO catch "ftplib.error_perm: 530 Login incorrect." and attempt https download
         with ftp_cs2_server(timeout=120) as ftp:
             try:
                 ftp.cwd("/SIR_SIN_L1/" + year_month_str)
@@ -1236,14 +1238,34 @@ def download_single_file(track_id: str) -> str:
                 )
                 # ! should this raise an error?
                 raise FileNotFoundError()
-        except ftplib.error_temp as err:
-            print(
-                str(err),
-                f"raised. Retrying to download file with id {track_id} in 10 s for the "
-                f"{11-retries}. time.",
-            )
-            time.sleep(10)
-            retries -= 1
+        except (ftplib.error_temp, ftplib.error_perm) as err:
+            if isinstance(err, ftplib.error_temp):
+                print(
+                    str(err),
+                    f"raised. Retrying to download file with id {track_id} in 10 s for the "
+                    f"{11-retries}. time.",
+                )
+                time.sleep(10)
+                retries -= 1
+            else:
+                warnings.warn("Using https download SARIn L1b data.", category=UserWarning)
+                base_url = r"https://science-pds.cryosat.esa.int/?do=download&file=Cry0Sat2_data"\
+                    r"%2FSIR_SIN_L1%2F" + pd.to_datetime(track_id).strftime("%Y%%2F%m") + "%2F"
+                filename = load_cs_full_file_names().loc[track_id] + ".nc"
+                local_path = os.path.join(
+                    data_path, "L1b", pd.to_datetime(track_id).strftime("%Y/%m"), filename
+                )
+                try:
+                    _http_download_file(
+                        url=base_url + filename,
+                        dest=local_path,
+                    )
+                except Exception as err:
+                    _http_download_file(
+                        url=base_url + filename.replace("OFFL", "LTA_"),
+                        dest=filename,  # the filename is not adjusted to be consistent with the filename table
+                    )
+                return local_path
 
 
 def drop_waveform(cs_l1b_ds, time_20_ku_mask):
