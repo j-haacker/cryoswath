@@ -47,10 +47,11 @@ import time
 import warnings
 import xarray as xr
 
-from .misc import (
+from cryoswath.misc import (
     antenna_baseline,
     cs_time_to_id,
     data_path,
+    download_file as _http_download_file,
     ftp_cs2_server,
     gauss_filter_DataArray,
     get_dem_reader,
@@ -69,12 +70,13 @@ from .misc import (
     speed_of_light,
     WGS84_ellpsoid,
 )
-from .gis import (
+from cryoswath.gis import (
     buffer_4326_shp,
     ensure_pyproj_crs,
     find_planar_crs,
     subdivide_region,
 )
+from cryoswath.l2 import from_processed_l1b as l2_from_processed_l1b
 
 # requires implicitly rasterio(?), flox(?), dask(?)
 
@@ -143,6 +145,7 @@ def read_esa_l1b(
     smooth_phase_difference: bool = True,
     use_original_noise_estimates: bool = False,
     dem_file_name_or_path: str = None,
+    swath_start_kwargs: dict = {},
 ) -> None:
     """Loads ESA SARIn L1b and does initial processing
 
@@ -395,12 +398,17 @@ def read_esa_l1b(
     ds["ph_diff"] = ds.ph_diff_waveform_20_ku
     if len(ds.time_20_ku) > 0:
         # find and store POCAs and swath-starts
-        ds = append_poca_and_swath_idxs(ds)
+        ds = append_poca_and_swath_idxs(ds, **swath_start_kwargs)
         ds = append_smoothed_complex_phase(ds)
         if smooth_phase_difference:
             ds["ph_diff"] = ds.ph_diff.where(
                 ds.ph_diff_complex_smoothed.isnull(),
-                xr.apply_ufunc(np.angle, ds.ph_diff_complex_smoothed),
+                xr.apply_ufunc(np.angle, ds.ph_diff_complex_smoothed)
+                if not isinstance(smooth_phase_difference, dict)
+                else xr.apply_ufunc(
+                    np.angle,
+                    ds.pipe(append_smoothed_complex_phase, **smooth_phase_difference).ph_diff_complex_smoothed,
+                )
             )
         else:
             # always use lowpass-filtered phase difference at POCA
@@ -422,19 +430,24 @@ def append_ambiguous_reference_elevation(ds, dem_file_name_or_path: str = None):
     with get_dem_reader(
         (ds if dem_file_name_or_path is None else dem_file_name_or_path)
     ) as dem_reader:
-        trans_4326_to_dem_crs = Transformer.from_crs("EPSG:4326", dem_reader.crs)
+        if isinstance(dem_reader, xr.DataArray):
+            crs = dem_reader.rio.crs
+        else:
+            crs = dem_reader.crs
+            dem_reader = rioxr.open_rasterio(dem_reader)
+        trans_4326_to_dem_crs = Transformer.from_crs("EPSG:4326", crs)
         x, y = trans_4326_to_dem_crs.transform(ds.xph_lats, ds.xph_lons)
         ds = ds.assign(
             xph_x=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), x),
             xph_y=(("time_20_ku", "ns_20_ku", "phase_wrap_factor"), y),
         )
-        ds.attrs.update({"CRS": ensure_pyproj_crs(dem_reader.crs)})
+        ds.attrs.update({"CRS": ensure_pyproj_crs(crs)})
         # ! huge improvement potential: instead of the below,
         # rasterio.sample could be used
         # [edit] use postgis
         try:
             ref_dem = (
-                rioxr.open_rasterio(dem_reader)
+                dem_reader
                 .rio.clip_box(np.nanmin(x), np.nanmin(y), np.nanmax(x), np.nanmax(y))
                 .squeeze()
             )
@@ -859,12 +872,11 @@ def to_l2(
             'or "both".',
         )
     drop_coords = [coord for coord in tmp.coords if coord not in ["time", "sample"]]
-    from . import l2  # can't be in preamble as this would lead to circularity
 
     # ! dropped .squeeze() below to handle issue #19. not sure about 2nd
     # degree consequences.
     # l2_data = l2.from_processed_l1b(tmp.squeeze().drop_vars(drop_coords), **kwargs)
-    l2_data = l2.from_processed_l1b(tmp.drop_vars(drop_coords), **kwargs)
+    l2_data = l2_from_processed_l1b(tmp.drop_vars(drop_coords), **kwargs)
     return l2_data
 
 
@@ -923,7 +935,7 @@ def append_exclude_mask(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
     return cs_l1b_ds
 
 
-def append_poca_and_swath_idxs(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
+def append_poca_and_swath_idxs(cs_l1b_ds: xr.Dataset, poca_upper: float = 10, swath_start_window: tuple[float, float] = (5, 50)) -> xr.Dataset:
     """Adds indices for estimated POCA and begin of swath.
 
     Args:
@@ -954,27 +966,30 @@ def append_poca_and_swath_idxs(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
             # I opted for nan if no poca for transparency. this requires
             # dtype float and is slower
             return np.nan, 0
-        # poca expected 10 m after coherence exceeds threshold (no solid basis)
+        # poca expected `poca_upper` m after coherence exceeds threshold (no solid basis)
         poca_idx = (
-            np.argmax(smooth_coh[poca_idx : poca_idx + int(10 / sample_width)])
+            np.argmax(smooth_coh[poca_idx : poca_idx + max(1, int(poca_upper / sample_width))])
             + poca_idx
         )
-        try:
-            swath_start = poca_idx + int(5 / sample_width)
-            diff_smooth_coh = np.diff(
-                smooth_coh[swath_start : swath_start + int(50 / sample_width)]
-            )
-            # swath can safest be used after the coherence dip
-            swath_start = (
-                np.argmax(
-                    diff_smooth_coh[np.argmax(np.abs(diff_smooth_coh) > 0.001) :] > 0
+        if swath_start_window[1] < 0:
+            swath_start = 0
+        else:
+            try:
+                swath_start = poca_idx + int(swath_start_window[0] / sample_width)
+                diff_smooth_coh = np.diff(
+                    smooth_coh[swath_start : swath_start + int(swath_start_window[1] / sample_width)]
                 )
-                + swath_start
-            )
-        # if swath doesn't start in range window, just indeed set the
-        # index behind last element
-        except ValueError:
-            swath_start = len(smooth_coh)
+                # swath can safest be used after the coherence dip
+                swath_start = (
+                    np.argmax(
+                        diff_smooth_coh[np.argmax(np.abs(diff_smooth_coh) > 0.001) :] > 0
+                    )
+                    + swath_start
+                )
+            # if swath doesn't start in range window, just indeed set the
+            # index behind last element
+            except ValueError:
+                swath_start = len(smooth_coh)
         return float(poca_idx), swath_start
 
     cs_l1b_ds[["poca_idx", "swath_start"]] = xr.apply_ufunc(
@@ -987,18 +1002,18 @@ def append_poca_and_swath_idxs(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
     )
     if "exclude_mask" not in cs_l1b_ds.data_vars:
         cs_l1b_ds = append_exclude_mask(cs_l1b_ds)
-    cs_l1b_ds["exclude_mask"] = xr.where(
-        cs_l1b_ds.ns_20_ku < cs_l1b_ds.swath_start, True, cs_l1b_ds.exclude_mask
+    cs_l1b_ds["exclude_mask"] = cs_l1b_ds.exclude_mask.where(
+        cs_l1b_ds.ns_20_ku >= cs_l1b_ds.swath_start, True
     )
     return cs_l1b_ds
 
 
-def append_smoothed_complex_phase(cs_l1b_ds: xr.Dataset) -> xr.Dataset:
+def append_smoothed_complex_phase(cs_l1b_ds: xr.Dataset, window_extent: int = 21, std: float = 5) -> xr.Dataset:
     cs_l1b_ds["ph_diff_complex_smoothed"] = gauss_filter_DataArray(
         np.exp(1j * cs_l1b_ds.ph_diff_waveform_20_ku),
         dim="ns_20_ku",
-        window_extent=21,
-        std=5,
+        window_extent=window_extent,
+        std=std,
     )
     return cs_l1b_ds
 
@@ -1160,6 +1175,7 @@ def download_files(
         except FileNotFoundError:
             os.makedirs(os.path.join(l1b_path, year_month_str))
             currently_present_files = []
+        # TODO catch "ftplib.error_perm: 530 Login incorrect." and attempt https download
         with ftp_cs2_server(timeout=120) as ftp:
             try:
                 ftp.cwd("/SIR_SIN_L1/" + year_month_str)
@@ -1222,14 +1238,39 @@ def download_single_file(track_id: str) -> str:
                 )
                 # ! should this raise an error?
                 raise FileNotFoundError()
-        except ftplib.error_temp as err:
-            print(
-                str(err),
-                f"raised. Retrying to download file with id {track_id} in 10 s for the "
-                f"{11-retries}. time.",
-            )
-            time.sleep(10)
-            retries -= 1
+        except (ftplib.error_temp, ftplib.error_perm, KeyError) as err:
+            if isinstance(err, ftplib.error_temp):
+                print(
+                    str(err),
+                    f"raised. Retrying to download file with id {track_id} in 10 s for the "
+                    f"{11-retries}. time.",
+                )
+                time.sleep(10)
+                retries -= 1
+            else:
+                if isinstance(err, KeyError) and "user" not in str(err):
+                    raise
+                warnings.warn("Using https download SARIn L1b data.", category=UserWarning)
+                base_url = r"https://science-pds.cryosat.esa.int/?do=download&file=Cry0Sat2_data"\
+                    r"%2FSIR_SIN_L1%2F" + pd.to_datetime(track_id).strftime("%Y%%2F%m") + "%2F"
+                filename = load_cs_full_file_names().loc[track_id] + ".nc"
+                from pathlib import Path  # will be obsolete once data_path is Path
+                local_path = Path(
+                    data_path, "L1b", pd.to_datetime(track_id).strftime("%Y/%m"), filename
+                )
+                if not local_path.parent.is_dir():
+                    local_path.parent.mkdir(parents=True)
+                try:
+                    _http_download_file(
+                        url=base_url + filename,
+                        dest=local_path,
+                    )
+                except Exception as err:
+                    _http_download_file(
+                        url=base_url + filename.replace("OFFL", "LTA_"),
+                        dest=local_path,  # the filename is not adjusted to be consistent with the filename table
+                    )
+                return local_path
 
 
 def drop_waveform(cs_l1b_ds, time_20_ku_mask):

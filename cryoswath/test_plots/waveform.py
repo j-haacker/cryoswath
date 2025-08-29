@@ -1,10 +1,12 @@
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+import xarray as xr
 
-from ..l1b import *
-from ..gis import *
-from ..misc import *
+
+from cryoswath.l1b import *
+from cryoswath.gis import *
+from cryoswath.misc import *
 
 __all__ = ["dem_transect"]
 
@@ -210,7 +212,7 @@ def dem_transect(waveform, *,
     if ax is None:
         ax = plt.subplots()[1]
     dem_reader = get_dem_reader((waveform if dem_file_name_or_path is None else dem_file_name_or_path))
-    trans_4326_to_dem_crs = get_4326_to_dem_Transformer(dem_reader)
+    trans_4326_to_dem_crs = get_4326_to_dem_Transformer(dem_reader.rio.crs if isinstance(dem_reader, xr.DataArray) else dem_reader.crs)
     sampling_dist = np.arange(-30000, 30000+1, 100)
     num_samples = len(sampling_dist)
     lats, lons = WGS84_ellpsoid.fwd(lons=[waveform.lon_20_ku]*num_samples,

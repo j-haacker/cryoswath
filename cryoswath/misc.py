@@ -1,8 +1,10 @@
 """Miscellaneous helper functions"""
 
 __all__ = [
-    # functions
+    # classes
     "binary_chache",
+    # functions
+    "chunk_idx",
     "convert_all_esri_to_feather",
     "cs_id_to_time",
     "cs_time_to_id",
@@ -30,6 +32,10 @@ __all__ = [
     "rgi_o1region_translator",
     "rgi_o2region_translator",
     "sandbox_write_to",
+    "sel_chunk_idx_range",
+    "sel_chunk_range",
+    "update_email",
+    "update_track_database",
     "warn_with_traceback",
     "weighted_mean_excl_outliers",
     "xycut",
@@ -47,6 +53,7 @@ __all__ = [
     "patched_xr_decode_scaling",
 ]  # path variables are currently defined below
 
+from collections.abc import Iterable
 from configparser import ConfigParser
 from contextlib import contextmanager
 from dateutil.relativedelta import relativedelta
@@ -63,9 +70,12 @@ from packaging.version import Version
 import pandas as pd
 from pathlib import Path
 from pyproj import CRS, Geod
+from pystac_client import Client
 import queue
 import rasterio
+from rasterio.warp import Resampling
 import re
+import requests
 from scipy.constants import speed_of_light
 import scipy.stats
 from scipy.stats import norm, median_abs_deviation
@@ -78,11 +88,11 @@ from tables import NaturalNameWarning
 import time
 import threading
 import traceback
-from typing import Union
+from typing import Literal, Union
 import warnings
 import xarray as xr
 
-from . import gis
+from cryoswath import gis
 
 
 def init_project():
@@ -110,33 +120,54 @@ def init_project():
     config = ConfigParser()
     if os.path.isfile(config_file):
         config.read(os.path.join("scripts", "config.ini"))
-    config["path"] = {"base": os.getcwd()}
+    config["path"] = {"data": Path().cwd() / "data"}
     with open(config_file, "w") as f:
         config.write(f)
     print("Run cryoswath.misc.update_email() from a python prompt to complete setup.")
 
 
 # Paths ##############################################################
-if os.path.isfile("config.ini"):
+
+if (Path().cwd() / "config.ini").is_file():
     config = ConfigParser()
     config.read("config.ini")
-    data_path = os.path.join(config["path"]["base"], "data")
+    data_path = Path(config["path"]["data"])
 else:
-    data_path = str(Path.cwd() / "data")
+    data_path = Path.cwd() / "data"
     warnings.warn(
         "Base path not defined. Path variables may be wrong. Make sure to have run "
         '`cryoswath-init` and your working directory is "scripts".'
     )
-l1b_path = os.path.join(data_path, "L1b")
-l2_swath_path = os.path.join(data_path, "L2_swath")
-l2_poca_path = os.path.join(data_path, "L2_poca")
-l3_path = os.path.join(data_path, "L3")
-l4_path = os.path.join(data_path, "L4")
-tmp_path = os.path.join(data_path, "tmp")
-aux_path = os.path.join(data_path, "auxiliary")
-cs_ground_tracks_path = os.path.join(aux_path, "CryoSat-2_SARIn_ground_tracks.feather")
-rgi_path = os.path.join(aux_path, "RGI")
-dem_path = os.path.join(aux_path, "DEM")
+    config = {"path": {}}
+
+def _get_path(name: str, base: Path, alternative: str = None) -> bool:
+    key = name.lower()
+    if key in config["path"]:
+        _value = config["path"][key]
+        if Path().is_absolute():
+            return _value
+        else:
+            return str(base / _value)
+    else:
+        return str(base / (name if alternative is None else alternative))
+
+# data subdirs
+l1b_path = _get_path("L1b", data_path)
+l2_swath_path = _get_path("L2_swath", data_path)
+l2_poca_path = _get_path("L2_poca", data_path)
+l3_path = _get_path("L3", data_path)
+l4_path = _get_path("L4", data_path)
+tmp_path = _get_path("tmp", data_path)
+aux_path = Path(_get_path("aux", data_path, "auxiliary"))
+
+# aux subdirs
+dem_path = _get_path("DEM", aux_path)
+rgi_path = _get_path("RGI", aux_path)
+cs_ground_tracks_path = _get_path("cs_ground_tracks", aux_path, "CryoSat-2_SARIn_ground_tracks.feather")
+
+# temporarily, (re)set types (str or Path)
+data_path = str(data_path)
+dem_path = Path(dem_path)
 
 __all__.extend(
     [  # pathes
@@ -196,6 +227,16 @@ class binary_chache:
             new_part (binary): New part.
         """
         self._cache.extend(new_part)
+
+
+def chunk_idx(ds, dim, values):
+    def _inner(val):
+        if val < ds[dim][0] or val > ds[dim][-1]:
+            return None
+        return (ds[dim].isel({dim: np.cumsum(ds.chunks[dim]) - 1}) <= val).argmin().item(0)
+    if isinstance(values, Iterable):
+        return [_inner(val) for val in values]
+    return _inner(values)
 
 
 def cs_id_to_time(cs_id: str) -> pd.Timestamp:
@@ -369,52 +410,74 @@ def discard_frontal_retreat_zone(
     return ds
 
 
-try:
-    from pdemtools.load import mosaic as pdemtools_mosaic
-except ImportError as err:
-    warnings.warn(
-        "Could not import pdemtools. If it is installed, consider using "
-        "a conda environment which manages better to install GDAL with "
-        f"its complex dependencies. The thrown error reads:\n {str(err)}"
-    )
-else:
-    def download_pgc_dem(polygon: shapely.Polygon | gpd.GeoSeries, identifier: str | Path) -> None:
-        if not isinstance(polygon, gpd.GeoSeries):
-            polygon = gpd.GeoSeries(polygon, crs=4326)
-        if shapely.get_coordinates(polygon)[0,1] > 0:
-            dataset = "arcticdem"
-            polygon = polygon.to_crs(3413).unary_union
-        else:
-            dataset = "rema"
-            polygon = polygon.to_crs(3013).unary_union
-        if isinstance(identifier, str):
-            if os.path.sep in identifier or "." in identifier[-5:]:
-                save_to = Path(identifier)
+def download_dem(gpd_series, provider: Literal["PGC"] = "PGC"):
+    if provider == "PGC":
+        catalog = Client.open("https://stac.pgc.umn.edu/api/v1/")
+        collections = catalog.collection_search(q="((arcticdem AND v4+1) OR (rema AND v2)) AND 32m").collections()
+        # transforming collection extent is difficult, maybe the code behind rioxr transform_bounds helps
+        limits = {"x": (-3_500_000, 3_500_000), "y": (-3_500_000, 3_500_000)}
+
+    items = list(catalog.search(
+        collections=[coll.id for coll in collections],
+        # not sure how this behaves if it covers the poles
+        bbox=gpd_series.to_crs(4326).total_bounds,
+    ).items())
+
+    this_dem_path = dem_path / (items[0].get_collection().id + ".zarr")  # don't .with_suffix; . in name!
+    this_dem_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if not this_dem_path.exists():
+        (  # init dem store
+            xr.full_like(xr.open_dataset(items[0], engine="stac", epsg=3413).load().squeeze(), np.nan)
+            .reindex({xy: np.arange(limits[xy][0], limits[xy][1] + 1, 100) for xy in ["x", "y"]})
+            .map(lambda da: da.drop_attrs().astype(da.attrs["data_type"]).assign_attrs(encoding={"_FillValue": da.attrs["nodata"]}))
+            .drop_attrs(deep=False)
+            .drop_vars(["time", "id"])
+            .rio.write_crs(3413)
+            .chunk(x=1000, y=1000)
+            .to_zarr(this_dem_path, mode="w", compute=False)
+        )
+
+    for item in items:
+        parent = xr.open_zarr(this_dem_path, decode_coords="all", mask_and_scale=True)
+        # print(parent)
+        if parent["count"].rio.clip_box(*item.properties["proj:bbox"]).mean().compute() > 0.1:
+            continue
+        if "proj:code" in item.properties:
+            code = item.properties["proj:code"]
+            if code.lower().startswith("epsg:"):
+                code = int(code.split(":")[-1])
             else:
-                save_to = Path(dem_path / identifier).with_suffix(".tif")
+                raise Exception(f"Implement parsing proj:code format {code}")
         else:
-            save_to = identifier
-        print(f"Downloading raster and storing in {str(save_to)}")
-        pdemtools_mosaic(dataset, "32m", polygon).rio.to_raster(save_to)
-    __all__.append("download_pgc_dem")
+            raise Exception(f"Implement getting crs from properties {item.properties}")
+        ds = xr.open_dataset(item, engine="stac", epsg=code).squeeze()
+        # # the general case:
+        # x0, y0, x1, y1 = ds.rio.bounds()
+        # excerpt = parent.pipe(sel_chunk_range, x=[x0, x1], y=[y0, y1]).load()
+        # however, if chunks tuned to tiles:
+        c = shapely.box(*item.properties["proj:bbox"]).centroid
+        excerpt = parent.pipe(sel_chunk_range, **{xy: [getattr(c, xy)] * 2 for xy in ["x", "y"]}).load()
+        add = ds.map(lambda da: da.rio.reproject_match(excerpt, resampling=Resampling.average).astype(da.attrs["data_type"]))
+        add = add.map(lambda da: da.where(da != da.attrs["_FillValue"]))
+        add = add.map(lambda da: da.fillna(excerpt[da.name]))
+        add.drop_attrs().drop_vars(['time', 'id', 'spatial_ref']).to_zarr(this_dem_path, region="auto")
 
 
-# def download_file(url: str, out_path: str = ".") -> str:
-#     # snippet adapted from https://stackoverflow.com/a/16696317
-#     # authors: https://stackoverflow.com/users/427457/roman-podlinov
-#     #      and https://stackoverflow.com/users/12641442/jenia
-#     local_filename = os.join(out_path, url.split('/')[-1])
-#     # NOTE the stream=True parameter below
-#     with requests.get(url, stream=True) as r:
-#         r.raise_for_status()
-#         with open(local_filename, 'wb') as f:
-#             for chunk in r.iter_content(chunk_size=8192):
-#                 # If you have chunk encoded response uncomment if
-#                 # and set chunk_size parameter to None.
-#                 #if chunk:
-#                 f.write(chunk)
-#     return local_filename
-# __all__.append("download_file")
+def download_file(url: str, dest: str | Path) -> str:
+    # snippet adapted from https://stackoverflow.com/a/16696317
+    # authors: https://stackoverflow.com/users/427457/roman-podlinov
+    #      and https://stackoverflow.com/users/12641442/jenia
+    # NOTE the stream=True parameter below
+    with requests.get(url, stream=True) as r:
+        r.raise_for_status()
+        with open(dest, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                # If you have chunk encoded response uncomment if
+                # and set chunk_size parameter to None.
+                #if chunk:
+                f.write(chunk)
+__all__.append("download_file")
 
 
 def drop_small_glaciers(
@@ -602,7 +665,7 @@ def find_region_id(location: any, scope: str = "o2") -> str:
         if out == "05-01":
             sub_o2 = gpd.GeoSeries(
                 [
-                    _load_o2region(f"05-1{i+1}").union_all("coverage").envelope
+                    _load_o2region(f"05-1{i + 1}").union_all("coverage").envelope
                     for i in range(5)
                 ],
                 crs=4326,
@@ -617,7 +680,7 @@ def find_region_id(location: any, scope: str = "o2") -> str:
                 raise Exception(
                     f"Location {location} is in multiple subregions (N,W,SW,SE,E)."
                 )
-            out = f"05-1{int(sub_o2[contains_location].index.values)+1}"
+            out = f"05-1{int(sub_o2[contains_location].index.values) + 1}"
         return out
     elif scope == "basin":
         rgi_glacier_gpdf = _load_o2region(rgi_region["o2region"].values[0], "glaciers")
@@ -733,15 +796,20 @@ def ftp_cs2_server(**kwargs):
     try:
         config = ConfigParser()
         config.read("config.ini")
-        email = config["user"]["email"]
+        if "name" in config["user"] and "password" in config["user"]:
+            user = config["user"]["name"]
+            password = config["user"]["password"]
+        else:
+            password = config["user"]["email"]
     except KeyError:
+        # TODO adapt hint to also show name/password option
         print(
             "\n\nPlease call `misc.update_email()` to provide your email address as "
             "ESA asks for it as password when downloading data via ftp.\n\n",
         )
         raise
     with ftplib.FTP("science-pds.cryosat.esa.int", **kwargs) as ftp:
-        ftp.login(passwd=email)
+        ftp.login(user="anonymous" if "user" not in locals() else user, passwd=password)
         yield ftp
 
 
@@ -790,20 +858,32 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
     """Determines which DEM to use
 
     Attempts to determine location of `data` and returns appropriate
-    `rasterio.io.DatasetReader`. Only implemented for ArcticDEM and
-    REMA.
+    `rasterio.io.DatasetReader` or `xarray.DataArray`. Only implemented
+    for ArcticDEM and REMA.
 
     Args:
         data (any): Defaults to None.
 
     Raises:
-        NotImplementedError: If region can't be inferred.
+        Exception: If region can't be inferred or path doesn't exist.
 
     Returns:
         rasterio.DatasetReader: Reader pointing to the file.
     """
 
-    raster_extensions = ["tif", "nc"]
+    raster_extensions = ["tif", "nc", "zarr"]
+
+    def reader_or_store(path: Path):
+        if isinstance(path, str):
+            path = Path(path)
+        if path.suffix == ".tif":
+            return rasterio.open(path)
+        elif path.suffix == ".nc":
+            return xr.open_dataset(path, decode_coords="all", engine="h5netcdf").dem
+        elif path.suffix == ".zarr":
+            return xr.open_dataset(path, decode_coords="all", engine="zarr").dem
+        else:
+            raise Exception(str(path) + " cant be read.")
 
     if isinstance(data, shapely.Geometry):
         lat = np.mean(data.bounds[1::2])
@@ -825,31 +905,34 @@ def get_dem_reader(data: any = None) -> rasterio.DatasetReader:
         elif data.lower() in ["antarctic", "rema"]:
             lat = -90
         elif os.path.sep in data:
-            return rasterio.open(data)
+            return reader_or_store(data)
         elif any([data.split(".")[-1] in raster_extensions]):
-            return rasterio.open(os.path.join(dem_path, data))
+            return reader_or_store(dem_path / data)
     if "lat" not in locals():
-        raise NotImplementedError(
+        raise Exception(
             f"`get_dem_reader` could not handle the input of type {data.__class__}. "
             "See doc for further info."
         )
     if lat > 0:
-        # return rasterio.open(os.path.join(dem_path,
-        #                                   "arcticdem_mosaic_100m_v4.1_dem.tif"))
         dem_filename = "arcticdem_mosaic_100m_v4.1_dem.tif"
+        if not (dem_path / dem_filename).is_file():
+            dem_filename = "arcticdem-mosaics-v4.1-32m.zarr"
     else:
         dem_filename = "rema_mosaic_100m_v2.0_filled_cop30_dem.tif"
-    if not os.path.isfile(os.path.join(dem_path, dem_filename)):
+        if not (dem_path / dem_filename).is_file():
+            dem_filename = "rema-mosaics-v2.0-32m.zarr"
+    if not (dem_path / dem_filename).exists():
         raster_file_list = []
         for ext in raster_extensions:
             raster_file_list.extend(glob.glob("*." + ext, root_dir=dem_path))
+        # raster_file_list = [file.name for file in dem_path.glob("*.tif")]
         print(
             "DEM not found with default filename. Please select from the following:\n",
             ", ".join(raster_file_list),
             flush=True,
         )
         dem_filename = input("Enter filename:")
-    return rasterio.open(os.path.join(dem_path, dem_filename))
+    return reader_or_store(dem_path / dem_filename)
 
 
 def interpolate_hypsometrically(
@@ -1266,7 +1349,8 @@ def interpolate_hypsometrically(
         fill_mask = np.logical_or(
             ds[main_var].isnull(),
             np.logical_and(
-                fill_mask != 0, np.abs(residuals) > outlier_limit * residuals.std(ddof=4)
+                fill_mask != 0,
+                np.abs(residuals) > outlier_limit * residuals.std(ddof=4),
             ),
         )
     else:
@@ -1319,7 +1403,9 @@ def interpolate_hypsometrically(
     )
 
 
-def load_cs_full_file_names(update: str = "no") -> pd.Series:
+def load_cs_full_file_names(
+    update: Literal["no", "quick", "regular", "full"] = "no",
+) -> pd.Series:
     """Loads a pandas.Series of the original CryoSat-2 L1b file names.
 
     Having the file names available can be handy to organize your local
@@ -1337,7 +1423,7 @@ def load_cs_full_file_names(update: str = "no") -> pd.Series:
     Returns:
         pd.Series: Full L1b file names without path or extension.
     """
-    file_names_path = os.path.join(aux_path, "CryoSat-2_SARIn_file_names.pkl")
+    file_names_path = aux_path / "CryoSat-2_SARIn_file_names.pkl"
     if os.path.isfile(file_names_path):
         file_names = pd.read_pickle(file_names_path).sort_index()
     if update == "no":
@@ -1404,7 +1490,7 @@ def load_cs_ground_tracks(
     *,
     buffer_period_by: relativedelta = None,
     buffer_region_by: float = None,
-    update: str = "no",
+    update: Literal["no", "regular", "full"] = "no",
     n_threads: int = 8,
 ) -> gpd.GeoDataFrame:
     """Read the GeoDataFrame of CryoSat-2 tracks from disk.
@@ -1469,7 +1555,6 @@ def load_cs_ground_tracks(
             + f'You set it to "{update}".'
         )
     if update != "no":
-
         # the next two function have only a local purpose.
         def save_current_track_list(new_track_series: gpd.GeoSeries):
             """saves the tracklist; backing up the old if older than 5 days."""
@@ -2215,7 +2300,7 @@ def sandbox_write_to(target: str):
     # ! other functions depend on the "__backup" extension
     if os.path.isfile(target + "__backup"):
         raise Exception(
-            f"Backup exists unexpectedly at {target+'__backup'}. This may point to a "
+            f"Backup exists unexpectedly at {target + '__backup'}. This may point to a "
             "running process. If this is a relict, remove it manually."
         )
     try:
@@ -2223,6 +2308,17 @@ def sandbox_write_to(target: str):
     finally:
         if os.path.isfile(target + "__backup"):
             os.remove(target + "__backup")
+
+
+def sel_chunk_idx_range(ds, dim, start, stop):
+    chunk_borders = np.cumsum([0] + list(ds.chunks[dim]))
+    return ds.isel({dim: slice(*chunk_borders[[start, stop + 1]])})
+
+
+def sel_chunk_range(ds, **dim_intervals):
+    for dim, interval in dim_intervals.items():
+        ds = sel_chunk_idx_range(ds, dim, *chunk_idx(ds, dim, interval))
+    return ds
 
 
 def update_email(email: str = None):
@@ -2242,6 +2338,18 @@ def update_email(email: str = None):
             "your email indeed doesn't match, file an issue. Your input was:",
             email,
         )
+
+
+def update_track_database() -> None:
+    from argparse import ArgumentParser
+
+    ArgumentParser(
+        "cryoswath-update-tracks",
+        description="Updates the track database. Run this once in a while and always "
+        "if you wish to include the latest tracks.",
+    )
+    load_cs_ground_tracks(update="regular")
+    load_cs_full_file_names(update="regular")
 
 
 # CREDIT: mgab https://stackoverflow.com/a/22376126

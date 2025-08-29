@@ -19,8 +19,8 @@ import shutil
 import warnings
 import xarray as xr
 
-from . import l2
-from .misc import (
+from cryoswath import l2
+from cryoswath.misc import (
     data_path,
     dataframe_to_rioxr,
     filter_kwargs,
@@ -30,7 +30,7 @@ from .misc import (
     sandbox_write_to,
     tmp_path
 )
-from .gis import buffer_4326_shp, ensure_pyproj_crs, find_planar_crs
+from cryoswath.gis import buffer_4326_shp, ensure_pyproj_crs, find_planar_crs
 
 
 # numba does not do help here easily. using the numpy functions is as fast as it gets.

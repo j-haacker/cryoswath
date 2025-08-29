@@ -22,7 +22,7 @@ import rasterio
 import shapely
 import warnings
 
-from .misc import (
+from cryoswath.misc import (
     load_glacier_outlines,
     rgi_path,
 )
@@ -127,8 +127,8 @@ def get_lon_origin(crs):
     return ensure_pyproj_crs(crs).coordinate_operation.params[1].value
 
 
-def get_4326_to_dem_Transformer(dem_reader: rasterio.DatasetReader) -> Transformer:
-    return Transformer.from_crs("EPSG:4326", ensure_pyproj_crs(dem_reader.crs))
+def get_4326_to_dem_Transformer(crs: int | CRS) -> Transformer:
+    return Transformer.from_crs("EPSG:4326", ensure_pyproj_crs(crs))
 
 
 def points_on_glacier(points: gpd.GeoSeries) -> pd.Index:

@@ -32,14 +32,16 @@ dependencies = [
     "pyarrow",
     "pyogrio",
     "pyproj",
-    "tables",
+    "pystac_client",
     "python-dateutil",
     "rasterio",
     "rioxarray",
     "scikit-learn",
     "scipy",
     "shapely",
+    "stackstac",
     "statsmodels",
+    "tables",
     "tqdm",
     "xarray<2025",
     "zarr"
@@ -63,6 +65,7 @@ Issues = "https://github.com/j-haacker/cryoswath/issues"
 
 [project.scripts]
 cryoswath-init = "cryoswath.misc:init_project"
+cryoswath-update-tracks = "cryoswath.misc:update_track_database"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
