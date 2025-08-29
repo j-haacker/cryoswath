@@ -1238,7 +1238,7 @@ def download_single_file(track_id: str) -> str:
                 )
                 # ! should this raise an error?
                 raise FileNotFoundError()
-        except (ftplib.error_temp, ftplib.error_perm) as err:
+        except (ftplib.error_temp, ftplib.error_perm, KeyError) as err:
             if isinstance(err, ftplib.error_temp):
                 print(
                     str(err),
@@ -1248,13 +1248,18 @@ def download_single_file(track_id: str) -> str:
                 time.sleep(10)
                 retries -= 1
             else:
+                if isinstance(err, KeyError) and "user" not in str(err):
+                    raise
                 warnings.warn("Using https download SARIn L1b data.", category=UserWarning)
                 base_url = r"https://science-pds.cryosat.esa.int/?do=download&file=Cry0Sat2_data"\
                     r"%2FSIR_SIN_L1%2F" + pd.to_datetime(track_id).strftime("%Y%%2F%m") + "%2F"
                 filename = load_cs_full_file_names().loc[track_id] + ".nc"
-                local_path = os.path.join(
+                from pathlib import Path  # will be obsolete once data_path is Path
+                local_path = Path(
                     data_path, "L1b", pd.to_datetime(track_id).strftime("%Y/%m"), filename
                 )
+                if not local_path.parent.is_dir():
+                    local_path.parent.mkdir(parents=True)
                 try:
                     _http_download_file(
                         url=base_url + filename,
@@ -1263,7 +1268,7 @@ def download_single_file(track_id: str) -> str:
                 except Exception as err:
                     _http_download_file(
                         url=base_url + filename.replace("OFFL", "LTA_"),
-                        dest=filename,  # the filename is not adjusted to be consistent with the filename table
+                        dest=local_path,  # the filename is not adjusted to be consistent with the filename table
                     )
                 return local_path
 
