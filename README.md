@@ -1,11 +1,11 @@
-# cryoswath
+# CryoSwath
 
 ![GitHub top language](https://img.shields.io/github/languages/top/j-haacker/cryoswath)
 ![Conda Version](https://img.shields.io/conda/vn/conda-forge/cryoswath)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14825358.svg)](https://doi.org/10.5281/zenodo.14825358)
 ![GitHub License](https://img.shields.io/github/license/j-haacker/cryoswath)
 
-cryoswath is a python package containing processing pipelines, a tool
+CryoSwath is a python package containing processing pipelines, a tool
 library, and some pre-assembled data to retrieve and study CryoSat-2
 data.
 
@@ -15,7 +15,7 @@ changing the concerned function or adding a new one.
 
 ## 🌱 state
 
-cryoswath is being developed. Branch `main` is the release branch,
+CryoSwath is being developed. Branch `main` is the release branch,
 `scripts` contains tutorials, and `data` contains auxiliary data and the
 required directory structure. You can have everything setup
 automatically (see "getting started"). Other branches are for
@@ -71,8 +71,8 @@ pip install --editable cryoswath
 
 ### init project
 
-cryoswath will deal with data that is not meant to reside in the
-installation directory. The command `cryoswath-init` will setup a
+CryoSwath will deal with data that is not meant to reside in the
+installation directory. The command `cryoswath-init` will set up a
 directory structure and download some auxiliary files. Please choose a
 project name of you liking and replace `proj_dir` in the following.
 
@@ -83,7 +83,7 @@ cryoswath-init
 ```
 
 This, among others, creates a file `scripts/config.ini` that contains
-the base path of your project. This allow cryoswath to find the data -
+the base path of your project. This allows CryoSwath to find the data -
 if you wish to run scripts from different directories, copy this file
 there.
 
@@ -125,7 +125,7 @@ You can cite this package using bibtex:
 ```bibtex
 @software{cryoswath,
   author       = {Haacker, Jan},
-  title        = {cryoswath: v0.2.3},
+  title        = {CryoSwath: v0.2.3},
   month        = jul,
   year         = 2025,
   publisher    = {Zenodo},

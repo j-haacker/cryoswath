@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Create a report to help me improve cryoswath
+about: Create a report to help me improve CryoSwath
 title: ''
 labels: bug
 assignees: j-haacker

@@ -6,7 +6,7 @@
 # Note that there is a docker repo cryoswath/cryoswath hosting VM
 # images.
 
-## cryoswath dependencies #############################################
+## CryoSwath dependencies #############################################
 dask
 defusedxml # will be optional in future. used for additional security
 geopandas>=1.0.1 # implies among others: shapely
@@ -29,7 +29,7 @@ statsmodels
 tqdm
 xarray
 
-## cryoswath optional #################################################
+## CryoSwath optional #################################################
 # bottleneck # for numpy: speeds up NaN-skipping and rolling window aggregations by a large factor
 # cartopy # for plotting
 # dask # for working on data chunks
