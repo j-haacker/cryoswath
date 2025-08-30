@@ -6,10 +6,7 @@ Prerequisites
 Installation
 ------------
 
-*note: if you wish to install the optional pdemtools, see below before
-proceeding*
-
-To install cryoswath, clone the GitHub repository.
+To install CryoSwath, clone the GitHub repository.
 
 ``git clone git@github.com/j-haacker/cryoswath.git``
 
@@ -62,45 +59,3 @@ that used to list dependencies that are needed or beneficial to run
 CryoSwath. However, it is not well maintained.
 Note, that the package names are "conda" names; "pip" names my be
 slightly different.
-
-Optional pdemtools
-------------------
-
-Optionally, you can install pdemtools to download data of the PGC DEMs
-ArcticDEM or REMA on the fly. This can be handy if you explore small
-regions. However, the data will be downloaded at a 32 m resolution -
-much higher than needed in the context of CryoSat observations.
-
-Due to pdemtools' dependence on GDAL, the installation is difficult. The
-first method is still comparably simple, but will not allow to modify
-CryoSwath once it is installed. The second method is issue- and
-failure-prone because of various version requriements. The third option
-will likely install but could lead to errors down the road.
-
-First - conda-only:
-~~~~~~~~~~~~~~~~~~~
-
-Create a fresh conda environment installing CryoSwath and pdemtools:
-:code:`conda create -n new_env cryoswath pdemtools`
-(from v0.2.3 this will not be necessary anymore)
-
-Second - system(Linux) + pip:
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-First install "libgdal-dev", then :code:`pip install
-"gdal==$(gdal-config --version)"`, and finalize with :code:`pip install
-"cryoswath[dem]"`. On other operating systems this will be similar:
-importantly, make sure the libgdal is available before the installation.
-
-Third - conda + pip:
-~~~~~~~~~~~~~~~~~~~~
-
-First create a conda environment with pdemtools and then pip-install
-CryoSwath (either editable like described above or from pypi).
-
-.. code-block:: bash
-
-    conda create -n new_env pdemtools
-    conda activate new_env
-    git clone git@github.com/j-haacker/cryoswath.git cryoswath
-    pip install --editable "cryoswath[dem]"
