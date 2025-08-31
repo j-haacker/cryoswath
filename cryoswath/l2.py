@@ -30,6 +30,7 @@ from cryoswath.misc import (
     cs_id_to_time,
     cs_time_to_id,
     data_path,
+    empty_GeoDataFrame,
     filter_kwargs,
     load_cs_full_file_names,
     load_cs_ground_tracks,
@@ -290,14 +291,24 @@ def from_id(
                 else:
                     shutil.copyfile(cache_fullname, cache_fullname + "__backup")
             for l2_type, i in zip(["swath", "poca"], [0, 1]):
-                l2_data = pd.concat(
-                    [
-                        item[i]
-                        for item in collective_swath_poca_list
-                        if not item[i].empty
-                    ]
-                )
-                if l2_data.empty:
+                try:
+                    l2_data = pd.concat(
+                        [
+                            item[i]
+                            for item in collective_swath_poca_list
+                            if not item[i].empty
+                        ]
+                    )
+                except ValueError as err:
+                    if str(err) != "No objects to concatenate":
+                        raise
+                    else:
+                        print(collective_swath_poca_list)
+                        warnings.warn(
+                            f"No {l2_type} data at all for month {current_month}."
+                        )
+                        continue
+                if l2_data.empty:  # for older pandas versions this is still necessary
                     warnings.warn(
                         f"No {l2_type} data at all for month {current_month}."
                     )
@@ -436,12 +447,12 @@ def from_processed_l1b(
         print("No data passed.")
         # ! empty GeoDataFrames can't have a CRS
         # super().__init__(crs=crs, **kwargs)
-        return gpd.GeoDataFrame()
+        return empty_GeoDataFrame
     tmp = l1b_data.to_dataframe().dropna(axis=0, how="any")
     if max_elev_diff is not None and "h_diff" in tmp:
         tmp = limit_filter(tmp, "h_diff", max_elev_diff)
         if tmp.empty:
-            return gpd.GeoDataFrame()
+            return empty_GeoDataFrame
     if isinstance(tmp.index, pd.MultiIndex):  #
         tmp.rename_axis(("time", "sample"), inplace=True)
         tmp.index = tmp.index.set_levels(
@@ -616,7 +627,7 @@ def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwar
             assert reprocess < pd.Timestamp(
                 os.stat(
                     os.path.join(
-                        l2_swath_path, current_subdir, l2_paths.loc[idx, "poca"]
+                        l2_poca_path, current_subdir, l2_paths.loc[idx, "poca"]
                     )
                 ).st_mtime,
                 unit="s",
@@ -673,7 +684,7 @@ def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwar
                     f"Error {str(err)} occured while processing l1b {idx}. Continuing "
                     "with next file."
                 )
-                swath_poca_tuple = (gpd.GeoDataFrame(), gpd.GeoDataFrame())
+                swath_poca_tuple = (empty_GeoDataFrame, empty_GeoDataFrame)
         if save_or_return != "return":
             print("saving", idx)
             # ! consider writing empty files

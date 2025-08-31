@@ -42,6 +42,7 @@ __all__ = [
     # variables
     "antenna_baseline",
     "cryosat_id_pattern",
+    "empty_GeoDataFrame",
     "Ku_band_freq",
     "nanoseconds_per_year",
     "sample_width",
@@ -201,6 +202,7 @@ nanoseconds_per_year = 365.25 * 24 * 60 * 60 * 1e9
 _norm_isf_025 = norm.isf(0.025)
 _norm_isf_25 = norm.isf(0.25)
 _norm_sf_1 = norm.sf(1)
+empty_GeoDataFrame = gpd.GeoDataFrame(columns=["dummy", "geometry"], geometry="geometry")
 
 # Functions ##########################################################
 
@@ -386,6 +388,8 @@ def discard_frontal_retreat_zone(
         #       ds[elev].count().values.item(0), "cells in total")
         return ds
 
+    # If "TypeError: len() of unsized object" is raised, try
+    # xarray <= 2024.11.
     front_bin = ((tmp > tmp.max() / 2).cumsum() != 0).idxmax().values.item(0)
 
     # # debugging:

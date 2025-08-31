@@ -28,7 +28,7 @@ data.
 
 `scripts/tutorial__process_first_swath.ipynb
 <https://github.com/j-haacker/cryoswath/blob/main/scripts/tutorial__process_first_swath.ipynb>`_
-will give you a hand using cryoswath to process a single track and
+will give you a hand using CryoSwath to process a single track and
 visualize the data.
 
 
@@ -37,7 +37,7 @@ General step-by-step tutorial
 
 The general step-by-step tutorial takes you from processing a waveform
 to producing a map of elevation change trends. It balances understanding
-the background processes with quickly enabling to use cryoswath.
+the background processes with quickly enabling to use CryoSwath.
 
 Find the notebook in `scripts/tutorial__general_step-by-step.ipynb
 <https://github.com/j-haacker/cryoswath/blob/main/scripts/tutorial__general_step-by-step.ipynb>`_.

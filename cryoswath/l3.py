@@ -19,7 +19,7 @@ import shutil
 import warnings
 import xarray as xr
 
-from cryoswath import l2
+from cryoswath import l1b, l2
 from cryoswath.misc import (
     data_path,
     dataframe_to_rioxr,
@@ -399,6 +399,10 @@ def build_dataset(
                 l2.from_id,
                 l2_from_id_kwargs,
                 blacklist=["cache", "max_elev_diff", "save_or_return", "reprocess"],
+            ),
+            **filter_kwargs(
+                l1b.read_esa_l1b,
+                l2_from_id_kwargs,
             ),
         )
     ext_t_axis = pd.date_range(

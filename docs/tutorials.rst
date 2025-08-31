@@ -4,7 +4,7 @@ Tutorials
 There is a small number of tutorials that will be extended if I find
 support. Those are Jupyter notebooks on the branch "scripts" with
 names starting with "tutorial". The notebooks will be available locally
-in a directory named "scripts" after installing cryoswath and running
+in a directory named "scripts" after installing CryoSwath and running
 cryoswath-init. Otherwise, you can view them online by selecting the
 "scripts" branch on GitHub's project main page.
 
