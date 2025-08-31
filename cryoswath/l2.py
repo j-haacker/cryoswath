@@ -616,7 +616,7 @@ def process_track(idx, reprocess, l2_paths, save_or_return, current_subdir, kwar
             assert reprocess < pd.Timestamp(
                 os.stat(
                     os.path.join(
-                        l2_swath_path, current_subdir, l2_paths.loc[idx, "poca"]
+                        l2_poca_path, current_subdir, l2_paths.loc[idx, "poca"]
                     )
                 ).st_mtime,
                 unit="s",
