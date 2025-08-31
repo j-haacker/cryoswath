@@ -52,6 +52,7 @@ from cryoswath.misc import (
     cs_time_to_id,
     data_path,
     download_file as _http_download_file,
+    empty_GeoDataFrame,
     ftp_cs2_server,
     gauss_filter_DataArray,
     get_dem_reader,
@@ -812,9 +813,9 @@ def to_l2(
     """
     if len(ds.time_20_ku) == 0:
         if swath_or_poca == "both":
-            return gpd.GeoDataFrame(), gpd.GeoDataFrame()
+            return empty_GeoDataFrame, empty_GeoDataFrame
         else:
-            return gpd.GeoDataFrame()
+            return empty_GeoDataFrame
     if out_vars is None:
         out_vars = dict(
             time_20_ku="time",
@@ -847,7 +848,7 @@ def to_l2(
     elif swath_or_poca == "poca":
         waveforms_with_poca = ds.time_20_ku[~ds.poca_idx.isnull()]
         if len(waveforms_with_poca) == 0:
-            return gpd.GeoDataFrame()
+            return empty_GeoDataFrame
         tmp = (
             ds[out_vars + retain_vars + ["ph_idx"]]
             .sel(time_20_ku=waveforms_with_poca)

@@ -42,6 +42,7 @@ __all__ = [
     # variables
     "antenna_baseline",
     "cryosat_id_pattern",
+    "empty_GeoDataFrame",
     "Ku_band_freq",
     "nanoseconds_per_year",
     "sample_width",
@@ -201,6 +202,7 @@ nanoseconds_per_year = 365.25 * 24 * 60 * 60 * 1e9
 _norm_isf_025 = norm.isf(0.025)
 _norm_isf_25 = norm.isf(0.25)
 _norm_sf_1 = norm.sf(1)
+empty_GeoDataFrame = gpd.GeoDataFrame(columns=["dummy", "geometry"], geometry="geometry")
 
 # Functions ##########################################################
 
