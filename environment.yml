@@ -31,5 +31,5 @@ dependencies:
   - stackstac
   - statsmodels
   - tqdm
-  - xarray <2025
+  - xarray
   - zarr

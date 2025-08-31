@@ -43,7 +43,7 @@ dependencies = [
     "statsmodels",
     "tables",
     "tqdm",
-    "xarray<2025",
+    "xarray",
     "zarr"
 ]
 
