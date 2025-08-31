@@ -107,6 +107,9 @@ advantage: will almost always work
 - reference elevation model
 - glacier outlines
 
+*Always install xarray and Zarr at the same time.* Otherwise xarray
+might not support the install Zarr version.
+
 cryoswath will point you to the required resources.
 
 ## 🐛 known issues
